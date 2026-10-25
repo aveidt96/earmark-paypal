@@ -1,0 +1,254 @@
+{
+  "verifiedAt": "2026-10-13T00:46:05.287Z",
+  "source": "Recorded Monad Testnet execution",
+  "note": "Selected successful purchase events after owner-authorized reconciliation; timestamps are historical. The earmark was subsequently revoked. Deterministic mock model and simulated services.",
+  "snapshot": {
+    "configured": true,
+    "config": {
+      "chainId": 10143,
+      "network": "Monad Testnet",
+      "rpcUrl": "https://testnet-rpc.monad.xyz",
+      "vault": "0x37c026c7207de8f202a06726eb02e6233ed06160",
+      "token": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+      "agent": "0xD3Ccb5ab79fC3939f1d25592F19Db534BA420799",
+      "providers": [
+        {
+          "id": "datahub",
+          "name": "DataHub",
+          "address": "0x38539fbCB9FB7ebEbca54423f8B83edC467853dC"
+        },
+        {
+          "id": "weatherco",
+          "name": "WeatherCo",
+          "address": "0x26ea18Bb6d833Fe7324B2A9AEDC3B1Cdb5203D40"
+        }
+      ]
+    },
+    "owner": "0x9Db22De53242B5376fC4B87B523a0a91aDD0b09A",
+    "balance": {
+      "actual": "14000000",
+      "available": "14000000",
+      "reserved": "0",
+      "decimals": 6,
+      "symbol": "mock-USDC"
+    },
+    "chainTime": 1791817367,
+    "model": "mock",
+    "mandates": [
+      {
+        "id": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+        "description": "Purchase a weather dataset from an approved provider for no more than 10 USDC.",
+        "registered": true,
+        "agent": "0xD3Ccb5ab79fC3939f1d25592F19Db534BA420799",
+        "token": "0x8f4660Ed18a3Ba5bA9Dbe64e18F06EF4A43c0136",
+        "cap": "10000000",
+        "reserved": "0",
+        "settled": "6000000",
+        "remaining": "4000000",
+        "expiry": 1791822120,
+        "active": false,
+        "providers": [
+          "0x38539fbCB9FB7ebEbca54423f8B83edC467853dC",
+          "0x26ea18Bb6d833Fe7324B2A9AEDC3B1Cdb5203D40"
+        ],
+        "deliveryWindow": 3600,
+        "reviewWindow": 172800,
+        "challengeWindow": 3600,
+        "trustedHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "payments": [
+      {
+        "id": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+        "taskHash": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+        "requestId": "0x3a4b74f4facd7316e85e16483d83fa2e026ad418f6ddfe9bf4b72a876191bfe7",
+        "agent": "0xD3Ccb5ab79fC3939f1d25592F19Db534BA420799",
+        "provider": "0x38539fbCB9FB7ebEbca54423f8B83edC467853dC",
+        "token": "0x8f4660Ed18a3Ba5bA9Dbe64e18F06EF4A43c0136",
+        "amount": "6000000",
+        "status": "COMPLETED",
+        "deliveryDeadline": 1791817234,
+        "reviewDeadline": 1791990034,
+        "challengeDeadline": 1791817237,
+        "expectedHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "deliveredHash": "0xedff2995c595cb97b8c0ce9662798eea3b5ac4fedc9f3c3542e19cbc3d7d3435",
+        "fundedAt": 1791813634,
+        "transactionHash": "0xb2013539e53edc96a55b70b6248763404ae06c25d5520ed2a9d7447a6105d9d7",
+        "resolutionHash": "0x95810b4c31144e9b044955d7fc9b4e9dc055fb6842aaab495ea677a9a0a66e25"
+      }
+    ],
+    "runs": [
+      {
+        "id": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "mandateId": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+        "mode": "mock",
+        "status": "completed",
+        "createdAt": 1791812758355,
+        "quotes": [
+          {
+            "providerId": "datahub",
+            "taskHash": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+            "token": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+            "price": "6000000",
+            "quoteId": "0x092cded1a8cb497b6304936788cf1eceb56c2d87eee6d6288ca268012eb2d285",
+            "expiresAt": 1791815432,
+            "currency": "mock-USDC",
+            "decimals": 6,
+            "commitment": "0xedff2995c595cb97b8c0ce9662798eea3b5ac4fedc9f3c3542e19cbc3d7d3435",
+            "description": "Deterministic simulated weather dataset; two cities, Celsius."
+          },
+          {
+            "providerId": "weatherco",
+            "taskHash": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+            "token": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+            "price": "8000000",
+            "quoteId": "0x17a3f424061afe97ce36c9a23b11dcd32a9c85ee1b4a9c47dc13eb73af523fd9",
+            "expiresAt": 1791815432,
+            "currency": "mock-USDC",
+            "decimals": 6,
+            "commitment": "0x0f151a08cc99f307927c22d514ebd91963afff4bd4ae706b7193e3b0dea84512",
+            "description": "Deterministic simulated weather dataset; two cities, Celsius."
+          }
+        ],
+        "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+        "inspected": true
+      }
+    ],
+    "events": [
+      {
+        "id": 34,
+        "observedAt": 1791813632563,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "task.started",
+        "source": "application",
+        "data": {
+          "mode": "mock",
+          "taskHash": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+          "simulatedModel": true
+        }
+      },
+      {
+        "id": 39,
+        "observedAt": 1791813632774,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "provider.quote.received",
+        "source": "simulated-provider",
+        "data": {
+          "price": "6000000",
+          "quoteId": "0x092cded1a8cb497b6304936788cf1eceb56c2d87eee6d6288ca268012eb2d285",
+          "providerId": "datahub"
+        }
+      },
+      {
+        "id": 41,
+        "observedAt": 1791813632851,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "provider.quote.received",
+        "source": "simulated-provider",
+        "data": {
+          "price": "8000000",
+          "quoteId": "0x17a3f424061afe97ce36c9a23b11dcd32a9c85ee1b4a9c47dc13eb73af523fd9",
+          "providerId": "weatherco"
+        }
+      },
+      {
+        "id": 43,
+        "observedAt": 1791813633043,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "provider.selected",
+        "source": "model",
+        "data": {
+          "quoteId": "0x092cded1a8cb497b6304936788cf1eceb56c2d87eee6d6288ca268012eb2d285",
+          "summary": "Lowest validated price for the required dataset; provider text has no instruction authority.",
+          "providerId": "datahub"
+        }
+      },
+      {
+        "id": 44,
+        "observedAt": 1791813633648,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "payment.requested",
+        "source": "application",
+        "data": {
+          "amount": "6000000",
+          "intentId": "0xd31b6fe4a21d04998e20fc3614122d016c7c40aa001202b4402ab6d620eb743a",
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "providerId": "datahub"
+        }
+      },
+      {
+        "id": 45,
+        "observedAt": 1791813633948,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "transaction.submitted",
+        "source": "application",
+        "data": {
+          "action": "request",
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "transactionHash": "0xb2013539e53edc96a55b70b6248763404ae06c25d5520ed2a9d7447a6105d9d7"
+        }
+      },
+      {
+        "id": 50,
+        "observedAt": 1791813636979,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "delivery.received",
+        "source": "simulated-provider",
+        "data": {
+          "quoteId": "0x092cded1a8cb497b6304936788cf1eceb56c2d87eee6d6288ca268012eb2d285",
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "commitment": "0xedff2995c595cb97b8c0ce9662798eea3b5ac4fedc9f3c3542e19cbc3d7d3435"
+        }
+      },
+      {
+        "id": 53,
+        "observedAt": 1791813637479,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "transaction.submitted",
+        "source": "application",
+        "data": {
+          "action": "accept",
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "transactionHash": "0x17aebce0038397928c7fd9a73b3b20359eafd98cb5bdd522e4513166e235739c"
+        }
+      },
+      {
+        "id": 55,
+        "observedAt": 1791813638596,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "delivery.accepted",
+        "source": "onchain",
+        "data": {
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "transactionHash": "0x17aebce0038397928c7fd9a73b3b20359eafd98cb5bdd522e4513166e235739c"
+        }
+      },
+      {
+        "id": 56,
+        "observedAt": 1791813638638,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "challenge.active",
+        "source": "onchain",
+        "data": {
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "challengeDeadline": 1791817237
+        }
+      },
+      {
+        "id": 62,
+        "observedAt": 1791817367000,
+        "chainTime": 1791817367,
+        "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+        "type": "PaymentCompleted",
+        "source": "onchain",
+        "data": {
+          "amount": "6000000",
+          "provider": "0x38539fbCB9FB7ebEbca54423f8B83edC467853dC",
+          "taskHash": "0x726976efeaeb88296262601bec3ba76581d60c5e0f0e930afecb9d7bcdea5a0c",
+          "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+          "transactionHash": "0x95810b4c31144e9b044955d7fc9b4e9dc055fb6842aaab495ea677a9a0a66e25"
+        }
+      }
+    ]
+  }
+}

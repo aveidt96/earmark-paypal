@@ -1,0 +1,39 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!!**/node_modules",
+      "!!**/.tools",
+      "!!**/.agent-state",
+      "!!**/.git",
+      "!!**/.next",
+      "!!**/dist",
+      "!!**/coverage",
+      "!!contracts/out",
+      "!!contracts/cache",
+      "!!contracts/broadcast",
+      "!web/next-env.d.ts",
+      "!package-lock.json",
+      "!!**/.agents"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

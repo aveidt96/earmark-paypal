@@ -1,0 +1,39 @@
+{
+  "name": "@flint/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint . --error-on-warnings",
+    "test": "vitest run",
+    "test:integration": "vitest run test/integration.test.ts"
+  },
+  "dependencies": {
+    "pg": "8.23.1",
+    "viem": "2.57.3",
+    "zod": "4.6.7"
+  },
+  "exports": {
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./task": {
+      "types": "./dist/task-identity.d.ts",
+      "default": "./dist/task-identity.js"
+    },
+    "./schema": {
+      "types": "./dist/domain.d.ts",
+      "default": "./dist/domain.js"
+    },
+    "./demos": {
+      "types": "./dist/security-demo-schema.d.ts",
+      "default": "./dist/security-demo-schema.js"
+    }
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

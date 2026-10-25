@@ -1,0 +1,26 @@
+import { parseAbi } from "viem";
+// Deliberately narrow: only the agent's two writes and required reads/events/errors.
+export const vaultAbi = parseAbi([
+  "function owner() view returns (address)",
+  "function paymentToken() view returns (address)",
+  "function getMandate(bytes32) view returns ((bytes32 taskHash,address agent,address token,uint128 cap,uint128 reserved,uint128 settled,uint64 expiry,bool active))",
+  "function getDeliveryTerms(bytes32) view returns ((uint64 deliveryWindow,uint64 challengeWindow,bytes32 trustedDeliverableHash))",
+  "function getApprovedProviders(bytes32) view returns (address[])",
+  "function availableBalance() view returns (uint256)",
+  "function getPayment(bytes32) view returns ((bytes32 taskHash,bytes32 requestId,address agent,address provider,address token,uint128 amount,uint64 fundedAt,uint64 deliveryDeadline,uint64 reviewDeadline,uint64 challengeWindow,uint64 acceptedAt,uint64 challengeDeadline,uint8 status,bytes32 expectedDeliverableHash,bytes32 deliverableHash))",
+  "function checkAuthorization(bytes32,address,address,uint256) view returns (bool)",
+  "function requestPayment(bytes32,bytes32,address,address,uint256) returns (bytes32)",
+  "function acceptDelivery(bytes32)",
+  "event PaymentFunded(bytes32 indexed paymentId,bytes32 indexed taskHash,address indexed provider,address agent,uint128 amount,uint64 deliveryDeadline,uint64 reviewDeadline)",
+  "event DeliveryAccepted(bytes32 indexed paymentId,uint64 challengeDeadline)",
+  "error MandateNotFound(bytes32 taskHash)",
+  "error PaymentNotFound(bytes32 paymentId)",
+  "error MandateInactive(bytes32 taskHash)",
+  "error MandateExpired(bytes32 taskHash,uint64 expiry)",
+  "error TaskCapExceeded(uint256 committed,uint256 requested,uint256 cap)",
+  "error InsufficientAvailableFunds(uint256 available,uint256 requested)",
+  "error ProviderNotApproved(address provider)",
+  "error UnauthorizedAgent(address caller)",
+  "error UnsupportedToken(address token)",
+  "error PaymentAlreadyExists(bytes32 paymentId)",
+]);

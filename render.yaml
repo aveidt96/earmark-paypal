@@ -1,0 +1,30 @@
+# Preview blueprint only; creating this file does not deploy a service.
+# The legacy Monad worker remains in api/src but is not this preview's start target.
+services:
+  - type: web
+    name: earmark-paypal-preview
+    runtime: node
+    repo: https://github.com/aveidt96/earmark-paypal
+    branch: main
+    plan: free
+    autoDeploy: false
+    buildCommand: npm ci --ignore-scripts --include=dev && npm run build --workspace @flint/web
+    startCommand: npm run start --workspace @flint/web -- --hostname 0.0.0.0
+    healthCheckPath: /api/integrations/paypal
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.3
+      - key: PAYPAL_ENVIRONMENT
+        value: sandbox
+      - key: PAYPAL_PAYMENTS_ENABLED
+        value: "false"
+      - key: AGENT_MODEL_PROVIDER
+        value: mock
+      - key: AGENT_MODEL_MODE
+        value: mock
+      - key: AI_ENABLE_NETWORK
+        value: "false"
+      - key: EARMARK_GEMINI_ENABLED
+        value: "false"
+      - key: EARMARK_ENABLE_TESTNET_EXECUTION
+        value: "false"
