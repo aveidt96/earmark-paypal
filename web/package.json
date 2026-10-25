@@ -1,0 +1,31 @@
+{
+  "name": "@flint/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "biome lint . --error-on-warnings",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prebuild": "npm run build --workspace @flint/agent",
+    "pretest": "npm run build --workspace @flint/agent"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "viem": "2.57.3",
+    "@flint/agent": "0.1.0",
+    "zod": "4.6.7",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.3",
+    "postcss": "8.5.29"
+  }
+}

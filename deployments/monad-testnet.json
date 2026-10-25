@@ -1,0 +1,21 @@
+{
+  "application": "Earmark",
+  "environment": "testnet",
+  "chainId": 10143,
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "owner": "0x9Db22De53242B5376fC4B87B523a0a91aDD0b09A",
+  "sourceCommit": "381974345429bac4986ff8697c89e88af9a53ebb",
+  "abiVersion": "TaskVault-stage4",
+  "token": {
+    "address": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+    "transactionHash": "0x2eb29c7c76ea501d9f3e001432509774978114f98b2b96ebb6719b0a649a83eb",
+    "codeHash": "0x649d05402436e39e09c911b9427c7b9c97307a0c0900f8657b0e3887c8f1c280",
+    "decimals": 6
+  },
+  "vault": {
+    "address": "0x37c026c7207de8f202a06726eb02e6233ed06160",
+    "transactionHash": "0x922d1ff8c1a392cc373a510fac0f5a9caef0588caa0f6d28c9edef858c875012",
+    "deploymentBlock": "69948350",
+    "codeHash": "0xfd17310a8244ab625fa1f2d2c00a2e01ed9dd425283e771958b0ecffb7af2e2a"
+  }
+}

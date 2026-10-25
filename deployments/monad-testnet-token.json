@@ -1,0 +1,15 @@
+{
+  "application": "Earmark",
+  "environment": "testnet",
+  "chainId": 10143,
+  "owner": "0x9Db22De53242B5376fC4B87B523a0a91aDD0b09A",
+  "sourceCommit": "8e5e330c7cb6fe1f86756f5ea0dc4ab97554f258",
+  "abiVersion": "MockUSDC-stage5",
+  "token": {
+    "address": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+    "transactionHash": "0x2eb29c7c76ea501d9f3e001432509774978114f98b2b96ebb6719b0a649a83eb",
+    "blockNumber": "69944310",
+    "codeHash": "0x649d05402436e39e09c911b9427c7b9c97307a0c0900f8657b0e3887c8f1c280",
+    "decimals": 6
+  }
+}

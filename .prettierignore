@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+coverage/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+*.sol
+package-lock.json
+web/next-env.d.ts
+.agent-state/
+.agents/

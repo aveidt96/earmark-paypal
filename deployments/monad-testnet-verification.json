@@ -1,0 +1,37 @@
+{
+  "verifiedAt": "2026-10-10T22:54:57.908Z",
+  "chainId": 10143,
+  "sourceCommit": "381974345429bac4986ff8697c89e88af9a53ebb",
+  "owner": "0x9Db22De53242B5376fC4B87B523a0a91aDD0b09A",
+  "paymentToken": "0x8f4660Ed18a3Ba5bA9Dbe64e18F06EF4A43c0136",
+  "decimals": 6,
+  "vaultBalance": "0",
+  "globalReserved": "0",
+  "availableBalance": "0",
+  "contracts": [
+    {
+      "contract": "MockUSDC",
+      "address": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+      "transactionHash": "0x2eb29c7c76ea501d9f3e001432509774978114f98b2b96ebb6719b0a649a83eb",
+      "status": "success",
+      "block": "69944310",
+      "confirmations": "5432",
+      "exactCreationInput": true,
+      "exactRuntimeBytecode": true,
+      "codeHash": "0x649d05402436e39e09c911b9427c7b9c97307a0c0900f8657b0e3887c8f1c280",
+      "gasUsed": "757584"
+    },
+    {
+      "contract": "TaskVault",
+      "address": "0x37c026c7207de8f202a06726eb02e6233ed06160",
+      "transactionHash": "0x922d1ff8c1a392cc373a510fac0f5a9caef0588caa0f6d28c9edef858c875012",
+      "status": "success",
+      "block": "69948350",
+      "confirmations": "1392",
+      "exactCreationInput": true,
+      "exactRuntimeBytecode": true,
+      "codeHash": "0xfd17310a8244ab625fa1f2d2c00a2e01ed9dd425283e771958b0ecffb7af2e2a",
+      "gasUsed": "4427702"
+    }
+  ]
+}

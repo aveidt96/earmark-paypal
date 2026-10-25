@@ -1,0 +1,112 @@
+{
+  "environment": "Local Anvil, real contracts; test EIP-1193 bridge with Node-held owner signer, not a live browser extension",
+  "transactions": {
+    "deposit": "0xfc5291345e819eed76a6f6fa6a21c6a28abe69ed9c6e174a13a09f8647da1012",
+    "creation": "0x0f806f210530b539f6f0b15f2610e2868f7e2cc15f746cd3c7bbb82fa636bf0b",
+    "funding": "0xc937f38a2224775055f85bafe083af9df5304875cb114ad13179ad3489654b36",
+    "delivery": "0x35ad66d0c8461f21a22f0b4e3aeca56d3032e14df5603017ed9e146e2a74cd3e",
+    "acceptance": "0x3f0cad7c019332e29c3c6e6c792326a235c14257517e667901101ae1c959998b",
+    "unauthorizedPayment": "0xe9f802161227dde1aab13c2478818d79fa7aa180817133fba375fdb6d1af14ac",
+    "settlement": "0xb6c24f96b7596718e2924ee3a7fe3a8afe0948e1f14d8a606fdb46a8207d4ac5",
+    "rejection": "0xba030e74dae30ac447fe78bbb5eac5fba461f4a03e80ba543b8d56b93975759a",
+    "refund": "0xc733d0a16a0eef511a7630a79ed87085e753fce86a5bd93e1ab3c183a3116161"
+  },
+  "paymentId": "0xc599fc0ab5601f40c6f45ac9efe21e6e8b8a2224eb6108a15f6bcb4c3bf4391d",
+  "quotes": [
+    {
+      "providerId": "datahub",
+      "quoteId": "0x1662ba9a816c9b7bac627724daeadf72e6342be14934c187c9e2c864c27bd735",
+      "price": "6000000",
+      "expiresAt": 1791559703
+    },
+    {
+      "providerId": "weatherco",
+      "quoteId": "0xa31be618071d79cadd1777d5834cbbdc4e8ff914531b2ffa61e616895907075f",
+      "price": "8000000",
+      "expiresAt": 1791559704
+    }
+  ],
+  "acceptanceBlockTime": 1791557911,
+  "mandateId": "0xdc10cef93527dea05e34cdab9c91ef124f95f29ba7bf1f75c273ff80600b7ef2",
+  "runId": "0x2ce1cf443c53b1fd03d1904ab2f1ed0240c67bc82483a2f712142c81925fb983",
+  "challengeDeadline": 1791561511,
+  "acceptedState": {
+    "balance": {
+      "actual": "20000000",
+      "reserved": "6000000",
+      "available": "14000000",
+      "decimals": 6,
+      "symbol": "mock USDC (mUSDC)"
+    },
+    "mandate": {
+      "id": "0xdc10cef93527dea05e34cdab9c91ef124f95f29ba7bf1f75c273ff80600b7ef2",
+      "description": "Purchase a weather dataset from an approved provider for no more than 10 USDC.",
+      "registered": true,
+      "agent": "0x12Ce5f4D85bCdE2761BDad9b466B2F2BE4e9F12f",
+      "token": "0x4a41Db7581452374EaF981Fe29DE59ffE9C700CB",
+      "cap": "10000000",
+      "reserved": "6000000",
+      "settled": "0",
+      "remaining": "4000000",
+      "expiry": 1791644280,
+      "active": true,
+      "providers": [
+        "0xE4b1C6dd4A43d63B3FA9108c684679e19F946D49",
+        "0x675f9100d64C5D916C229319157dBb3dC110De93"
+      ],
+      "deliveryWindow": 3600,
+      "reviewWindow": 172800,
+      "challengeWindow": 3600,
+      "trustedHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "payment": {
+      "id": "0xc599fc0ab5601f40c6f45ac9efe21e6e8b8a2224eb6108a15f6bcb4c3bf4391d",
+      "taskHash": "0xdc10cef93527dea05e34cdab9c91ef124f95f29ba7bf1f75c273ff80600b7ef2",
+      "requestId": "0x3a49201ed1abb3c89f6a69527585eb9066bf858fa71a77c076413cbb286284a2",
+      "agent": "0x12Ce5f4D85bCdE2761BDad9b466B2F2BE4e9F12f",
+      "provider": "0xE4b1C6dd4A43d63B3FA9108c684679e19F946D49",
+      "token": "0x4a41Db7581452374EaF981Fe29DE59ffE9C700CB",
+      "amount": "6000000",
+      "status": "ACCEPTED",
+      "deliveryDeadline": 1791561505,
+      "reviewDeadline": 1791734305,
+      "challengeDeadline": 1791561511,
+      "expectedHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "deliveredHash": "0xcd9c6d06e5ad7f0bb8afe9d12ab4b3117caf469c8631c79a81295fcb7bd9353a",
+      "fundedAt": 1791557905,
+      "transactionHash": "0xc937f38a2224775055f85bafe083af9df5304875cb114ad13179ad3489654b36"
+    }
+  },
+  "unauthorizedStatus": "reverted",
+  "timeAdvance": "Test harness advanced Anvil to the full original challenge deadline; production UI has no time-control endpoint.",
+  "completedState": {
+    "balance": {
+      "actual": "14000000",
+      "reserved": "0",
+      "available": "14000000",
+      "decimals": 6,
+      "symbol": "mock USDC (mUSDC)"
+    },
+    "payment": {
+      "id": "0xc599fc0ab5601f40c6f45ac9efe21e6e8b8a2224eb6108a15f6bcb4c3bf4391d",
+      "taskHash": "0xdc10cef93527dea05e34cdab9c91ef124f95f29ba7bf1f75c273ff80600b7ef2",
+      "requestId": "0x3a49201ed1abb3c89f6a69527585eb9066bf858fa71a77c076413cbb286284a2",
+      "agent": "0x12Ce5f4D85bCdE2761BDad9b466B2F2BE4e9F12f",
+      "provider": "0xE4b1C6dd4A43d63B3FA9108c684679e19F946D49",
+      "token": "0x4a41Db7581452374EaF981Fe29DE59ffE9C700CB",
+      "amount": "6000000",
+      "status": "COMPLETED",
+      "deliveryDeadline": 1791561505,
+      "reviewDeadline": 1791734305,
+      "challengeDeadline": 1791561511,
+      "expectedHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "deliveredHash": "0xcd9c6d06e5ad7f0bb8afe9d12ab4b3117caf469c8631c79a81295fcb7bd9353a",
+      "fundedAt": 1791557905,
+      "transactionHash": "0xc937f38a2224775055f85bafe083af9df5304875cb114ad13179ad3489654b36",
+      "resolutionHash": "0xb6c24f96b7596718e2924ee3a7fe3a8afe0948e1f14d8a606fdb46a8207d4ac5"
+    }
+  },
+  "rejectionPaymentId": "0xcff1e6ed253b54584a48cb8600fd0420eba99531122692122ac902232d8430b3",
+  "refundPaymentId": "0xa3295187d3ed864aab13a52fb3b8d34714f6654079b50e37b3ee31d426bed305",
+  "providerFailure": "Harness removed mock-provider gas to create a real delivery failure; funded escrow recovered through its full delivery timeout."
+}

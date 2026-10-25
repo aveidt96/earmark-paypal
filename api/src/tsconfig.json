@@ -1,0 +1,10 @@
+{
+  "extends": "../../web/tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "./**/*.ts",
+    "../../web/src/server/service.ts",
+    "../../web/src/server/postgres-store.ts"
+  ],
+  "exclude": ["../../node_modules"]
+}

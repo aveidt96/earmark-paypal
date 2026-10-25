@@ -1,0 +1,33 @@
+{
+  "path": "C:\\Users\\USER\\Documents\\project-prometheus\\project-flint\\demo\\earmark-metropolis-demo.mp4",
+  "duration": 146,
+  "width": 1920,
+  "height": 1080,
+  "codec": "h264",
+  "pixelFormat": "yuv420p",
+  "bytes": 6627799,
+  "chromiumPlayback": true,
+  "fullDecode": true,
+  "runId": "c0811df1-381e-4b30-aa6c-05ceaf10db91",
+  "scenarios": [
+    {
+      "id": "A",
+      "outcome": "COMPLETED after full challenge window."
+    },
+    {
+      "id": "B",
+      "outcome": "Independent unauthorized-provider transaction REVERTED: ProviderNotApproved."
+    },
+    {
+      "id": "C",
+      "outcome": "Owner rejected SUBMITTED escrow within its review/dispute deadline."
+    },
+    {
+      "id": "D",
+      "outcome": "Independent third transaction REVERTED: TaskCapExceeded (8 + 4 > 10)."
+    }
+  ],
+  "mode": "deterministic mock",
+  "environment": "Local Anvil / mock USDC / simulated providers",
+  "clockDisclosure": "Test-only Anvil time advancement reaches each full 3,600-second owner challenge deadline. These transactions are not on public Monad Testnet."
+}

@@ -1,0 +1,25 @@
+{
+  "version": "1.8.5",
+  "assets": {
+    "win32-x64": {
+      "file": "foundry_v1.8.5_win32_amd64.zip",
+      "sha256": "21f86b563d87404a68481f513bf3e419780ee536307b89c658215ae6f8f5aa45"
+    },
+    "linux-x64": {
+      "file": "foundry_v1.8.5_linux_amd64.tar.gz",
+      "sha256": "6c66ffcc55fa4249197721baa3098bc208014ea1d8aa04b2ed50ac6bccffb226"
+    },
+    "linux-arm64": {
+      "file": "foundry_v1.8.5_linux_arm64.tar.gz",
+      "sha256": "5bdce3dade8b6f0a65d4fccf6908426aee4905a988b08dce79d0a72fe7498310"
+    },
+    "darwin-x64": {
+      "file": "foundry_v1.8.5_darwin_amd64.tar.gz",
+      "sha256": "b919f69bb4231ad68beaaba9dc8f7d36d9d552cef1a76a8bf69c2bdfd974339a"
+    },
+    "darwin-arm64": {
+      "file": "foundry_v1.8.5_darwin_arm64.tar.gz",
+      "sha256": "56049728e25e44a61c7f2e49438023b0890cb45850ffcb7c882f90cd998baf83"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "application": "Earmark",
+  "environment": "testnet",
+  "frontend": "https://earmark-omega-virid.vercel.app",
+  "backend": "https://earmark-api-testnet.onrender.com",
+  "contractSourceCommit": "381974345429bac4986ff8697c89e88af9a53ebb",
+  "frontendSourceCommit": "8211181aab02ee9149cb73a0d0f75f2c252c9b77",
+  "backendSourceCommit": "a3343f971dd18dc7350a09fdd16ead29ea0ecc94",
+  "vault": "0x37c026c7207de8f202a06726eb02e6233ed06160",
+  "token": "0x8f4660ed18a3ba5ba9dbe64e18f06ef4a43c0136",
+  "runId": "0xf4d786f4ac41db0ac8cc41c6b036285195742813fd96c23299db2900eeb2d5f6",
+  "requestTransaction": "0xb2013539e53edc96a55b70b6248763404ae06c25d5520ed2a9d7447a6105d9d7",
+  "deliveryTransaction": "0x0d3818a89a0d28edc8d9aebc11564c2b2080e7e77dce945d8679cd136df6ecd4",
+  "acceptanceTransaction": "0x17aebce0038397928c7fd9a73b3b20359eafd98cb5bdd522e4513166e235739c",
+  "revocationTransaction": "0xa2b44d3d1bc60ca824b43c89ed8d8b8118f04c499c052114fd9b6fe99a99b987",
+  "model": "deterministic-mock",
+  "providers": "simulated",
+  "checkedAt": "2026-10-12T15:08:02.383Z",
+  "chainId": 10143,
+  "hash": "0x95810b4c31144e9b044955d7fc9b4e9dc055fb6842aaab495ea677a9a0a66e25",
+  "explorer": "https://testnet.monadscan.com/tx/0x95810b4c31144e9b044955d7fc9b4e9dc055fb6842aaab495ea677a9a0a66e25",
+  "paymentId": "0x003be982f4f5ec1eceb497862bdeb8ac65c0d9a9f4e452324e9dc883af72c98e",
+  "status": "COMPLETED",
+  "block": "70428175",
+  "gasUsed": "195825",
+  "settlementTimestamp": "1791817367",
+  "challengeDeadline": "1791817237",
+  "secondsAfterDeadline": "130",
+  "provider": "0x38539fbCB9FB7ebEbca54423f8B83edC467853dC",
+  "providerBalance": "6000000",
+  "actual": "14000000",
+  "reserved": "0",
+  "available": "14000000",
+  "mandateReserved": "0",
+  "mandateSettled": "6000000",
+  "mandateActive": false,
+  "terminalProbes": [
+    {
+      "functionName": "settlePayment",
+      "error": "InvalidPaymentState",
+      "kind": "read-only simulation; no broadcast"
+    },
+    {
+      "functionName": "refundExpired",
+      "error": "InvalidPaymentState",
+      "kind": "read-only simulation; no broadcast"
+    }
+  ]
+}
