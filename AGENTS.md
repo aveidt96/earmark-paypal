@@ -29,8 +29,19 @@ The user requires every change to be documented continuously.
   checkout or its environment, database, deployments or generated files.
 - Preserve useful authorization, budget, provider-validation, delivery-inspection,
   idempotency and recovery logic when adapting the legacy EVM implementation.
-- PayPal currently has preparation-only configuration and a read-only status
-  endpoint. No PayPal payments are implemented or verified.
+- PayPal has a server-only Sandbox backend with isolated schema, authorization,
+  approval-gated orders/capture, strict webhook verification and read-only recovery.
+  A loopback-only allowlisted-owner `/paypal-test` exposes a fixed $10/$6 checkout;
+  normal profiles keep it disabled and autonomous agent payment tools remain unwired.
+  Task 03D adds a distinct US-merchant campaign on port3031. Task03E/03G's exact
+  order/capture permissions are consumed: order 72936380818559054 and capture
+  52C23729CU714125M are authoritatively COMPLETED; US ledger is consumed600/
+  reserved0/available400 USD minor units. No further payment is authorized.
+  Preserve both mandates and the unresolved
+  original $6 reservation; an order GET 404 is not non-capture evidence. Original
+  order reads require matching original credentials. Human buyer approval is
+  mandatory. Mocked tests/order creation alone do not prove capture success.
+  Read the active handoff before any future payment execution.
 - Deployment, real/Sandbox payment execution and Git publication are not standing
   authorizations; follow the user's explicit instructions for future tasks.
 - Follow additional directory-specific instructions, including `web/AGENTS.md`,
