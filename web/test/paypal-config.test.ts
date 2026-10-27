@@ -13,18 +13,23 @@ describe("PayPal preparation boundary", () => {
     expect(status).toEqual({
       provider: "paypal",
       environment: "sandbox",
-      status: "preparation-only",
+      status: "backend-foundation",
+      backendImplemented: true,
+      backendEnabled: false,
+      manualPaymentsConfigured: false,
+      sandboxVerified: false,
+      autonomousPaymentsEnabled: false,
       paymentsImplemented: false,
       paymentsEnabled: false,
     });
     expect(JSON.stringify(status)).not.toContain("test-secret");
   });
-  it("refuses live environment and attempts to enable payments", () => {
+  it("refuses live environments and malformed enable flags", () => {
     expect(() =>
       paypalPreparationStatus({ PAYPAL_ENVIRONMENT: "live" }),
     ).toThrow("PAYPAL_SANDBOX_ONLY");
     expect(() =>
-      paypalPreparationStatus({ PAYPAL_PAYMENTS_ENABLED: "true" }),
-    ).toThrow("PAYPAL_PAYMENTS_NOT_IMPLEMENTED");
+      paypalPreparationStatus({ PAYPAL_PAYMENTS_ENABLED: "yes" }),
+    ).toThrow("INVALID_PAYPAL_CONFIGURATION");
   });
 });

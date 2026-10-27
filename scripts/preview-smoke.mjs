@@ -69,6 +69,7 @@ try {
     "/activity",
     "/security",
     "/resolve",
+    "/paypal-test",
   ];
   for (const path of routes) {
     const response = await page.goto(origin + path);

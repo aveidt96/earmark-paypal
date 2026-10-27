@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   applicationName: "Earmark PayPal",
   description:
-    "Purpose-bound authorization for autonomous AI agents. PayPal Sandbox integration preparation with preserved legacy security demonstrations. Payments are not integrated yet.",
+    "Purpose-bound authorization for AI agents, with a separate controlled buyer-approved Sandbox checkout and preserved legacy security demonstrations.",
   openGraph: {
     type: "website",
     siteName: "Earmark PayPal",
@@ -54,9 +54,10 @@ export default function RootLayout({
             <div className="application">
               <Navigation />
               <p className="notice" role="status">
-                Earmark PayPal · Sandbox integration preparation. PayPal
-                payments are not implemented. Wallet actions and recorded
-                payment evidence belong to the preserved legacy EVM application.
+                Earmark PayPal · Controlled, buyer-approved Sandbox checkout is
+                isolated at /paypal-test. Main-workspace wallet actions and
+                recorded payment evidence belong to the preserved legacy EVM
+                application.
               </p>
               <Notices />
               {children}

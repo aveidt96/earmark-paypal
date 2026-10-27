@@ -1,17 +1,21 @@
 import "server-only";
+import { sandboxFlags } from "./paypal/config";
 
-/** Configuration/status only. There is deliberately no PayPal network client. */
+/** Public status does not connect to PayPal/Neon or imply an end-to-end verified payment. */
 export function paypalPreparationStatus(
   env: Record<string, string | undefined> = process.env,
 ) {
-  if (env.PAYPAL_ENVIRONMENT && env.PAYPAL_ENVIRONMENT !== "sandbox")
-    throw new Error("PAYPAL_SANDBOX_ONLY");
-  if (env.PAYPAL_PAYMENTS_ENABLED && env.PAYPAL_PAYMENTS_ENABLED !== "false")
-    throw new Error("PAYPAL_PAYMENTS_NOT_IMPLEMENTED");
+  const flags = sandboxFlags(env);
   return {
     provider: "paypal" as const,
     environment: "sandbox" as const,
-    status: "preparation-only" as const,
+    status: "backend-foundation" as const,
+    backendImplemented: true,
+    backendEnabled: flags.backendEnabled,
+    manualPaymentsConfigured: flags.backendEnabled && flags.paymentsEnabled,
+    sandboxVerified: false,
+    autonomousPaymentsEnabled: false,
+    // Existing fields describe UI/agent financial entrypoints, which remain unwired.
     paymentsImplemented: false,
     paymentsEnabled: false,
   };

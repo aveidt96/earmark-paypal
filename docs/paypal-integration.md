@@ -2,11 +2,23 @@
 
 ## Current state
 
-Task 01 creates an independent application foundation. The new code adds only a
-server-only preparation configuration check and read-only status endpoint. There
-is no PayPal SDK/client, token exchange, order creation, authorization, capture,
-refund, webhook processing or payment endpoint. Configuring credentials cannot
-activate a payment path. No real or Sandbox PayPal payment has been executed.
+Task 02 adds an independently testable, server-only Sandbox foundation:
+`web/src/server/paypal/` provides exact-money policy checks, an isolated PostgreSQL
+ledger, OAuth/Orders transport, owner-invoked approval-gated capture, verified
+webhooks and read-only recovery. Task 03A applied the exact approved migration to
+the dedicated Sandbox database and verified eight real PostgreSQL accounting/
+concurrency cases in disposable isolation. See [the database report](task-03a-database-report.md).
+There are no public financial routes or Gemini payment tools, refund endpoint,
+deployment or verified real Sandbox payment. Backend/network mutation switches
+default to disabled. Task 03B subsequently verified real Sandbox OAuth, cache reuse
+and simulated-expiry refresh (HTTP 200), without payment or database operations.
+Task 03C adds an authenticated loopback-only fixed $10/$6 checkout. The configured
+seller was operator-confirmed and matched PayPal's credential-owned order payee.
+Real order `9N317079B4816951W` is PAYER_ACTION_REQUIRED; no capture is claimed.
+See [the human checkout handoff](task-03c-checkout-report.md). Genuine webhook
+subscription and broader production authentication remain future work; see
+[the OAuth report](task-03b-oauth-report.md). See [the backend guide](paypal-backend.md) for details and
+the remaining authenticated checkout integration.
 
 The original dashboard, create/list mandates, signed launch flow, execution
 console, payment lifecycle, payment resolution and activity are retained. Their
@@ -31,10 +43,10 @@ substituted for `VaultChain` without redesigning these types and authority check
 
 ## Recommended next steps
 
-### 1. Define authorization and payment contracts
+### 1. Complete the owner-authenticated checkout boundary
 
-Extract provider-neutral task/mandate/provider/quote/intent types while retaining
-the existing EVM adapter and tests. Specify owner authentication and consent for
+The new policy engine is provider-neutral; the legacy EVM adapter and tests are
+preserved. Next, wire verified owner authentication and consent for
 the PayPal flow; EIP-712 wallet signatures are not PayPal customer approval.
 Use a server-enforced authorization ledger: PayPal does not enforce the original
 Solidity task cap/provider allowlist on Earmark's behalf.
@@ -44,31 +56,38 @@ convert to PayPal decimal strings at the API boundary. Existing mock-USDC values
 use six decimals and must never be reinterpreted as cents. Record immutable
 approved recipient, currency, quote, purchase intent and authorization references.
 
-### 2. Provision a separate Neon environment and schema
+### 2. Maintain the separate Neon environment and migration boundary
 
 Retain the `pg` connection/transaction/advisory-lock infrastructure where useful,
-but add a new schema version and PayPal environment binding. The legacy
+with the new `earmark_paypal` schema and Sandbox environment binding. The legacy
 `earmark_environment` CHECK constraints enforce `earmark-testnet` / chain 10143;
 `bindTestnetDatabase` pins the original project. Do not run that binding or
 `scripts/migrate-database.ts` against either the original database or a new PayPal
 database as part of setup.
 
-Design dedicated tables for owners, mandates, approved providers, reserved and
-settled amounts, purchase intents, PayPal orders/authorizations/captures, webhook
-receipts, consent/nonces and append-only events. Include uniqueness constraints
-on external IDs and idempotency keys. Use transactionally locked cap reservations
-and exact terminal reconciliation; retain immutable history after revocation.
+`database/paypal/001_sandbox.sql` defines mandates, merchants, exact reserved and
+consumed counters, immutable attempts/order/capture IDs, idempotency records,
+verified webhook inbox and append-only audit. Mandate row locks, CHECK constraints
+and deferred ledger checks protect reservations. The initial migration is applied
+on the approved dedicated Sandbox database; future migrations need separate
+approval. Owner identity comes from a future verified
+authentication adapter; this milestone does not create customer sessions.
 
-### 3. Add server-only PayPal Sandbox transport
+### 3. Validate the implemented Sandbox transport with actual credentials
 
-Use only `https://api-m.sandbox.paypal.com` initially. Implement OAuth token
-handling with server-only credentials, bounded timeouts, sanitized errors and
-stable `PayPal-Request-Id` values for supported requests. Add mocked transport
-tests first. Never allow the model or browser to choose a payment API origin,
-amount, currency, recipient or account credentials.
+The client pins `https://api-m.sandbox.paypal.com`, caches/coalesces OAuth, uses
+bounded timeouts and safe-read retries, sanitizes errors and sends separate durable
+`PayPal-Request-Id` values for create/capture. Financial POSTs are not automatically
+retried; ambiguous outcomes retain reservations. Mock tests cover these paths.
+Task 03B verified app authentication against the real Sandbox token endpoint.
+Next, validate seller identity, buyer checkout and actual payment responses before
+claiming payment integration success. Models/browsers cannot choose origins,
+policies or credentials.
 
-`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` are placeholders
-only. No credential is needed to build or render the current project.
+Local OAuth credentials are configured server-side and verified against Sandbox;
+the configured merchant was verified for the controlled order. Webhook ID remains
+unset and no fake ID is supplied. Templates retain placeholders only.
+No credential is needed to build or render the disconnected project UI.
 
 ### 4. Map the lifecycle explicitly
 
@@ -90,11 +109,11 @@ Document those choices before adapting the payment screens or enabling actions.
 
 ### 5. Verify webhooks and recovery, then exercise Sandbox
 
-Verify webhook authenticity against the configured webhook ID. Persist/deduplicate
-events before processing; handle replay, out-of-order events, partial failures,
-expired authorization, denied capture and uncertain timeout responses. Reconcile
-external state without double capture or double budget release. Validate the four
-security scenarios at the backend policy boundary with mocked PayPal transport.
+The webhook handler verifies via PayPal's documented signature endpoint with the
+server-configured webhook ID, durably deduplicates events, and uses authenticated
+capture/order reads. Retry/backoff and explicit read-only recovery are implemented.
+Validate actual event shapes and delivery on an approved Sandbox endpoint, and
+extend tests with selected product-specific cases before any checkout rollout.
 Only after implementation, separately exercise approved Sandbox scenarios and
 record actual evidence before claiming a working PayPal payment flow.
 
