@@ -8,6 +8,7 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 const paths: Record<string, string> = {
+  cloud: "M7 18a4 4 0 010-8 5.5 5.5 0 0110.6 1.2A3.4 3.4 0 0117 18z",
   arrow: "M4 12h15m-6-6 6 6-6 6",
   wallet: "M4 6h15v14H4V6Zm0 0V3h13v3m-2 5h6v5h-6v-5Z",
   shield: "M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Zm-4 9 3 3 5-6",

@@ -38,6 +38,9 @@ export function createDatabase(url: string, localTest = false): Pool {
     idleTimeoutMillis: 5000,
     connectionTimeoutMillis: 10000,
     statement_timeout: 10000,
+    // The approved direct endpoint ignores the named startup GUC. PostgreSQL
+    // options applies the same intended limit, verified by disposable DB tests.
+    options: "-c statement_timeout=10000",
     query_timeout: 15000,
     application_name: "earmark-api-testnet",
     ssl: local ? false : { rejectUnauthorized: true },

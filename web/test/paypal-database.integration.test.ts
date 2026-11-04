@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "@flint/agent/server";
 vi.mock("server-only", () => ({}));
@@ -8,7 +16,7 @@ import {
 } from "../src/server/paypal/postgres";
 import { PayPalPaymentService } from "../src/server/paypal/service";
 import { PayPalError, type PayPalOrder } from "../src/server/paypal/client";
-import type { Attempt } from "../src/server/paypal/domain";
+import { PaymentError, type Attempt } from "../src/server/paypal/domain";
 import {
   agent,
   fixture,
@@ -26,6 +34,18 @@ import {
   ORIGINAL_MANDATE_ID,
   ORIGINAL_ORDER_ID,
 } from "../src/server/paypal/operator-hold";
+import {
+  PayPalAgentProposalService,
+  buildPayPalScenarioFixture,
+  evaluatePayPalAgentScenario,
+} from "../src/server/paypal/agent";
+import { PostgresAgentCheckoutRepository } from "../src/server/paypal/agent-checkout-postgres";
+import {
+  agentModelEnv,
+  agentPreparationFixture,
+} from "./fixtures/agent-checkout";
+import { agentCheckoutConfig } from "../src/server/paypal/agent-checkout-config";
+import { inferPendingAgentIntent } from "../src/server/paypal/agent-checkout";
 
 // Only an explicit operator invocation may supply credentials/opt-in flags.
 const enabled =
@@ -33,6 +53,7 @@ const enabled =
   !!process.env.PAYPAL_TEST_DATABASE_URL;
 const suite = enabled ? describe : describe.skip;
 let pool: Pool | undefined, cleanup: (() => Promise<void>) | undefined;
+let captureDiagnostics: ((active: boolean) => void) | undefined;
 suite("isolated real PostgreSQL PayPal schema and concurrency", () => {
   beforeAll(async () => {
     const raw = process.env.PAYPAL_TEST_DATABASE_URL;
@@ -43,11 +64,13 @@ suite("isolated real PostgreSQL PayPal schema and concurrency", () => {
     );
     pool = isolated.pool;
     cleanup = isolated.close;
+    captureDiagnostics = isolated.captureDiagnostics;
     await assertPayPalDatabase(pool);
   }, 60000);
   afterAll(async () => {
     await cleanup?.();
   }, 60000);
+  afterEach(() => captureDiagnostics?.(false));
 
   async function databaseFixture() {
     if (!pool) throw new Error("TEST_DATABASE_NOT_READY");
@@ -129,7 +152,196 @@ suite("isolated real PostgreSQL PayPal schema and concurrency", () => {
     };
     return { ...t, config, controlled, actor };
   }
+  it("Task05C creates one isolated campaign under concurrency and restart without payment attempts", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_REQUIRED");
+    const t = agentPreparationFixture();
+    const old = new PostgresAgentCheckoutRepository(pool, t.config);
+    const before = await old.initialize(t.actor);
+    const config = agentCheckoutConfig({
+      ...t.env,
+      PAYPAL_AGENT_CAMPAIGN: "agent-05c-v1",
+    });
+    const repo = new PostgresAgentCheckoutRepository(pool, config);
+    await expect(
+      repo.initialize({ ...t.actor, subjectId: "unauthorized" }),
+    ).rejects.toThrow("MANDATE_OWNER_REQUIRED");
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => repo.initialize(t.actor)),
+    );
+    const m = results[0]?.mandate;
+    if (!m || !before.mandate) throw new Error("MANDATE_REQUIRED");
+    expect(m.id).not.toBe(before.mandate.id);
+    expect(config.agentId).not.toBe(t.config.agentId);
+    expect(
+      new Date(m.expiresAt).getTime() - new Date(m.createdAt).getTime(),
+    ).toBe(86400000);
+    expect(results.every((r) => r.mandate?.id === m.id)).toBe(true);
+    expect(
+      (
+        await new PostgresAgentCheckoutRepository(pool, config).initialize(
+          t.actor,
+        )
+      ).mandate?.id,
+    ).toBe(m.id);
+    const rows = await pool.query(
+      `SELECT m.reserved_minor::text,m.consumed_minor::text,
+      (SELECT count(*)::int FROM earmark_paypal.attempts WHERE mandate_id=m.id) attempts,
+      (SELECT count(*)::int FROM earmark_paypal.audit WHERE mandate_id=m.id AND action='MANDATE_CREATED') creations
+      FROM earmark_paypal.mandates m WHERE m.id=$1`,
+      [m.id],
+    );
+    expect(rows.rows[0]).toMatchObject({
+      reserved_minor: "0",
+      consumed_minor: "0",
+      attempts: 0,
+      creations: 1,
+    });
+    expect((await old.read()).mandate).toEqual(before.mandate);
+    const candidate = await inferPendingAgentIntent(
+      config,
+      m,
+      agentModelEnv,
+      t.fetcher,
+      "MOCKED_TRANSPORT_TEST",
+      () => t.now,
+    );
+    for (const [, init] of t.fetcher.mock.calls) {
+      for (const privateValue of [
+        config.ownerId,
+        config.agentId,
+        config.merchantId,
+        m.id,
+      ])
+        expect(String(init?.body)).not.toContain(privateValue);
+    }
+    const saved = await repo.evaluateOnce(t.actor, async () => candidate);
+    expect(saved).toMatchObject({
+      fundsReserved: false,
+      ownerAuthorized: false,
+      paypalOrderId: null,
+      paypalCaptureId: null,
+    });
+    const replay = await new PostgresAgentCheckoutRepository(
+      pool,
+      config,
+    ).evaluateOnce(t.actor, async () => {
+      throw new Error("NO_REPEAT");
+    });
+    expect(replay.id).toBe(saved.id);
+    expect(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS n FROM earmark_paypal.audit WHERE mandate_id=$1 AND action='AGENT05C_CHECKOUT_PENDING'",
+          [m.id],
+        )
+      ).rows[0]?.n,
+    ).toBe(1);
+    expect((await old.read()).mandate).toEqual(before.mandate);
+  }, 90000);
+  it("Task05A concurrent owner preparation persists one pending intent and no financial reservation, including restart replay", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_REQUIRED");
+    const t = agentPreparationFixture(),
+      repo = new PostgresAgentCheckoutRepository(pool, t.config);
+    await Promise.all(
+      Array.from({ length: 4 }, () => repo.initialize(t.actor)),
+    );
+    const initialized = await repo.read();
+    if (!initialized.mandate) throw new Error("MANDATE_REQUIRED");
+    const candidate = await t.infer(initialized.mandate);
+    let entered = () => {},
+      finish = () => {};
+    const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      }),
+      gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    let calls = 0;
+    const produce = async () => {
+      calls++;
+      entered();
+      await gate;
+      return candidate;
+    };
+    const first = repo.evaluateOnce(t.actor, produce);
+    await started;
+    try {
+      await expect(
+        new PostgresAgentCheckoutRepository(pool, t.config).evaluateOnce(
+          t.actor,
+          produce,
+        ),
+      ).rejects.toThrow("AGENT_EVALUATION_IN_PROGRESS");
+    } finally {
+      finish();
+    }
+    const intent = await first;
+    expect(intent).toMatchObject({
+      state: "HUMAN_AUTHORIZATION_REQUIRED",
+      fundsReserved: false,
+      ownerAuthorized: false,
+      paypalOrderId: null,
+      evidence: { kind: "MOCKED_TRANSPORT_TEST" },
+    });
+    const replay = await new PostgresAgentCheckoutRepository(
+      pool,
+      t.config,
+    ).evaluateOnce(t.actor, produce);
+    expect(replay.id).toBe(intent.id);
+    expect(calls).toBe(1);
+    const counts = (
+      await pool.query(
+        `SELECT m.reserved_minor::text,m.consumed_minor::text,
+      (SELECT count(*)::int FROM earmark_paypal.attempts WHERE mandate_id=m.id) AS attempts,
+      (SELECT count(*)::int FROM earmark_paypal.audit WHERE mandate_id=m.id AND action='AGENT05A_CHECKOUT_PENDING') AS intents,
+      (SELECT count(*)::int FROM earmark_paypal.audit WHERE mandate_id=m.id AND action='MANDATE_CREATED') AS creations
+      FROM earmark_paypal.mandates m WHERE m.id=$1`,
+        [initialized.mandate.id],
+      )
+    ).rows[0];
+    expect(counts).toMatchObject({
+      reserved_minor: "0",
+      consumed_minor: "0",
+      attempts: 0,
+      intents: 1,
+      creations: 1,
+    });
+  }, 90000);
+  it("Task05A commit revalidates forged terms and owner authority, leaving zero reserved funds and no pending intent", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_REQUIRED");
+    const t = agentPreparationFixture(),
+      repo = new PostgresAgentCheckoutRepository(pool, t.config);
+    await expect(
+      repo.initialize({ ...t.actor, subjectId: "forged" }),
+    ).rejects.toThrow("MANDATE_OWNER_REQUIRED");
+    const initialized = await repo.initialize(t.actor);
+    if (!initialized.mandate) throw new Error("MANDATE_REQUIRED");
+    const candidate = await t.infer(initialized.mandate),
+      produce = async () =>
+        ({ ...candidate, amountMinor: "1" }) as unknown as typeof candidate;
+    await expect(repo.evaluateOnce(t.actor, produce)).rejects.toThrow(
+      "INVALID_AGENT_CHECKOUT_INTENT",
+    );
+    const saved = await repo.read();
+    expect(saved).toMatchObject({
+      intent: null,
+      evaluationState: "FAILED",
+      mandate: { reservedMinor: "0", consumedMinor: "0" },
+    });
+    await expect(
+      repo.evaluateOnce(t.actor, async () => candidate),
+    ).rejects.toThrow("INVALID_AGENT_CHECKOUT_INTENT");
+    expect(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS count FROM earmark_paypal.attempts WHERE mandate_id=$1",
+          [initialized.mandate.id],
+        )
+      ).rows[0]?.count,
+    ).toBe(0);
+  }, 90000);
   it("capture-once commits one locked claim, canonical settlement and one consumption across concurrent callers/restart", async () => {
+    captureDiagnostics?.(true);
     const t = await databaseFixture(),
       a = await t.service.createOrder(owner, {
         ...t.input,
@@ -158,6 +370,21 @@ suite("isolated real PostgreSQL PayPal schema and concurrency", () => {
         t.service.capturePreparedOnce(owner, scope),
       ),
     );
+    if (results.every((r) => r.status === "rejected"))
+      console.error(
+        JSON.stringify({
+          event: "DISPOSABLE_CAPTURE_CONCURRENCY_FAILED",
+          categories: results.map((r) =>
+            r.status === "rejected" && r.reason instanceof PaymentError
+              ? r.reason.code
+              : r.status === "rejected" &&
+                  r.reason instanceof Error &&
+                  r.reason.message === "POSTGRES_TRANSPORT_OR_TIMEOUT"
+                ? "POSTGRES_TRANSPORT_OR_TIMEOUT"
+                : "UNCLASSIFIED_TEST_FAILURE",
+          ),
+        }),
+      );
     expect(results.some((r) => r.status === "fulfilled")).toBe(true);
     expect(t.gateway.captureOrder).toHaveBeenCalledTimes(1);
     expect(await budget(a.mandateId)).toMatchObject({
@@ -696,5 +923,52 @@ suite("isolated real PostgreSQL PayPal schema and concurrency", () => {
       ),
     ).rejects.toThrow("PAYMENT_TERMS_IMMUTABLE");
     expect((await t.repository.findAttempt(a.id))?.state).toBe("FAILED");
+  }, 60000);
+  it("authorizes Gemini agent purchase proposals in disposable PostgreSQL schema with row locking and zero PayPal orders", async () => {
+    if (!pool) throw new Error("TEST_DATABASE_NOT_READY");
+    const repo = new PostgresPaymentRepository(pool);
+    const evalResult = await evaluatePayPalAgentScenario({
+      scenarioId: "normal",
+      mode: "deterministic-policy",
+      repository: repo,
+    });
+    expect(evalResult.proposalState).toBe(
+      "PROPOSAL_AUTHORIZED_NO_ORDER_CREATED",
+    );
+    expect(evalResult.proposal?.offerId).toBe("offer-us-weather-fast-400");
+    expect(await budget(evalResult.mandate.id)).toMatchObject({
+      reserved_minor: "400",
+      consumed_minor: "0",
+      status: "ACTIVE",
+    });
+
+    // Now test concurrent $6.00 (600 minor) agent proposals on the remaining $6.00 (600 minor) available cap in Postgres
+    const fixture = buildPayPalScenarioFixture("normal");
+    const service = new PayPalAgentProposalService({
+      repository: repo,
+      actor: fixture.actor,
+      mandateId: evalResult.mandate.id,
+      objective: fixture.objective,
+      catalog: fixture.catalog,
+      now: () => fixture.now,
+    });
+    const concurrent = await Promise.all(
+      Array.from({ length: 4 }, (_, i) =>
+        service.proposePurchase({
+          offerId: "offer-us-weather-std-600",
+          reason: `Concurrent Postgres agent proposal ${i}`,
+          purchaseKey: `pk-pg-concurrent-${i}`,
+        }),
+      ),
+    );
+    expect(concurrent.filter((d) => d.allowed)).toHaveLength(1);
+    expect(concurrent.filter((d) => !d.allowed)).toHaveLength(3);
+    for (const rejected of concurrent.filter((d) => !d.allowed)) {
+      expect(rejected.verdictCode).toBe("BUDGET_EXHAUSTED");
+    }
+    expect(await budget(evalResult.mandate.id)).toMatchObject({
+      reserved_minor: "1000",
+      consumed_minor: "0",
+    });
   }, 60000);
 });

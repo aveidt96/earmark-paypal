@@ -68,6 +68,10 @@ export class GeminiSessions {
   available() {
     const e = this.options.env;
     return (
+      e.PAYPAL_AGENT_CHECKOUT_ENABLED !== "true" &&
+      // Production legacy sessions have no approved outbound DTO policy.
+      // Retain injected test models for read-only session/auth regressions.
+      Boolean(this.options.modelFactory) &&
       isGeminiEnabled(e) &&
       e.EARMARK_ENABLE_TESTNET_EXECUTION === "false" &&
       e.AI_ENABLE_NETWORK === "true" &&

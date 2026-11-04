@@ -34,6 +34,83 @@ async function prepared() {
   return { ...t, a, scope };
 }
 describe("Task03E exactly one existing-reservation order", () => {
+  it("binds an explicit agent purchase key without changing legacy authority or reserving again", async () => {
+    const t = await fixture();
+    const purchaseKey = `agent05d-v1:${"a".repeat(64)}`;
+    const a = await t.service.reserve(owner, { ...t.input, purchaseKey });
+    const legacyScope = {
+      attemptId: a.id,
+      mandateId: a.mandateId,
+      ownerId: a.ownerId,
+      merchantId: a.merchantId,
+      createRequestId: a.createRequestId,
+    };
+    await expect(
+      t.service.createPreparedOrderOnce(owner, legacyScope),
+    ).rejects.toThrow("ONE_SHOT_ORDER_SCOPE_MISMATCH");
+    await expect(
+      t.service.createPreparedOrderOnce(owner, {
+        ...legacyScope,
+        purchaseKey: `agent05d-v1:${"b".repeat(64)}`,
+      }),
+    ).rejects.toThrow("ONE_SHOT_ORDER_SCOPE_MISMATCH");
+    expect(t.gateway.createOrder).not.toHaveBeenCalled();
+    const scope = { ...legacyScope, purchaseKey };
+    const results = await Promise.allSettled([
+      t.service.createPreparedOrderOnce(owner, scope),
+      t.service.createPreparedOrderOnce(owner, scope),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const restarted = new PayPalPaymentService(
+      t.repository,
+      t.gateway,
+      () => t.repository.now,
+    );
+    await expect(
+      restarted.createPreparedOrderOnce(owner, scope),
+    ).rejects.toThrow("ONE_SHOT_ALREADY_ATTEMPTED_STOP");
+    expect(t.gateway.createOrder).toHaveBeenCalledTimes(1);
+    expect(t.gateway.captureOrder).not.toHaveBeenCalled();
+    expect(t.repository.attempts.size).toBe(1);
+    expect(t.repository.mandates.get(a.mandateId)).toMatchObject({
+      reservedMinor: "600",
+      consumedMinor: "0",
+    });
+    expect(
+      t.repository.audit.filter((e) => e.action === "BUDGET_RESERVED"),
+    ).toHaveLength(1);
+    expect(
+      t.repository.audit.filter(
+        (e) => e.action === "PREPARED_ORDER_AUTHORIZED",
+      ),
+    ).toHaveLength(1);
+  });
+  it("keeps an explicit-key order-only client capture-disabled and rejects another purchase key", async () => {
+    const t = await prepared();
+    const purchaseKey = `agent05d-v1:${"a".repeat(64)}`;
+    const a = { ...t.a, purchaseKey };
+    const transport = vi.fn<typeof fetch>();
+    const client = new PayPalClient(
+      {
+        ...testCheckoutConfig({ ...testEnv, ...usEnv }).settings,
+        merchantId: a.merchantId,
+        paymentsEnabled: true,
+        orderOnlyPermission: { ...t.scope, purchaseKey },
+      },
+      { fetch: transport },
+    );
+    await expect(
+      client.createOrder({
+        ...a,
+        purchaseKey: "substituted",
+        state: "CREATING",
+      }),
+    ).rejects.toThrow("ONE_SHOT_ORDER_SCOPE_MISMATCH");
+    await expect(
+      client.captureOrder({ ...a, state: "CAPTURING", orderId: "ORDER123" }),
+    ).rejects.toThrow("PAYPAL_CAPTURE_NOT_AUTHORIZED");
+    expect(transport).not.toHaveBeenCalled();
+  });
   it("claims exactly once under concurrency, verifies by GET and preserves held budget across restart", async () => {
     const t = await prepared();
     const outcomes = await Promise.allSettled(

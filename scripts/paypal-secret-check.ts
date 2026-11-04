@@ -25,6 +25,10 @@ try {
     secret,
     Buffer.from(`${id}:${secret}`).toString("base64"),
   ];
+  for (const name of ["GEMINI_API_KEY", "AI_API_KEY"]) {
+    const value = process.env[name];
+    if (value) values.push(value);
+  }
   for (const prefix of ["PAYPAL_ORIGINAL", "PAYPAL_OLD"]) {
     const originalId = process.env[`${prefix}_CLIENT_ID`];
     const originalSecret = process.env[`${prefix}_CLIENT_SECRET`];

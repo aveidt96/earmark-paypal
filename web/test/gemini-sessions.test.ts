@@ -120,6 +120,33 @@ function fixture() {
   };
 }
 describe("owner-authenticated read-only Gemini sessions", () => {
+  it("refuses production legacy inference without a synthetic outbound policy even outside the PayPal profile", async () => {
+    const t = fixture();
+    const service = new WorkspaceService({
+      ...t.options,
+      gemini: { env: t.env },
+    });
+    expect(service.gemini.available()).toBe(false);
+    await expect(
+      service.gemini.challenge({ action: "gemini-normal" }),
+    ).rejects.toThrow("MISSING_MODEL_CONFIGURATION");
+    expect(t.model.decide).not.toHaveBeenCalled();
+  });
+  it("disables the legacy model route in the synthetic-only PayPal profile", async () => {
+    const t = fixture();
+    const service = new WorkspaceService({
+      ...t.options,
+      gemini: {
+        ...t.options.gemini,
+        env: { ...t.env, PAYPAL_AGENT_CHECKOUT_ENABLED: "true" },
+      },
+    });
+    expect(service.gemini.available()).toBe(false);
+    await expect(
+      service.gemini.challenge({ action: "gemini-normal" }),
+    ).rejects.toThrow("MISSING_MODEL_CONFIGURATION");
+    expect(t.model.decide).not.toHaveBeenCalled();
+  });
   it("persists actual restricted results and independent validation without financial workspace changes", async () => {
     const t = fixture(),
       { auth } = await t.authorize();

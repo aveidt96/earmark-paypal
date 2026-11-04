@@ -1,6 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Panel, PanelTitle } from "./glass";
+import {
+  PUBLIC_DEMO_ONLY,
+  VERIFIED_PAYPAL_AGENT_RECEIPT,
+} from "../lib/paypal-agent";
 import type { TestCheckoutSnapshot } from "../server/paypal/test-checkout";
 import styles from "./paypal-test.module.css";
 
@@ -42,6 +47,7 @@ export function PayPalTestCheckout() {
     setError("");
   }, []);
   useEffect(() => {
+    if (PUBLIC_DEMO_ONLY) return;
     void load().catch(() =>
       setError(
         "Saved state is unavailable. Refresh before retrying a financial action.",
@@ -59,6 +65,47 @@ export function PayPalTestCheckout() {
         "PayPal returned via the cancellation URL. No refund or budget release is inferred. Confirm local cancellation or recover the authoritative state.",
       );
   }, [load]);
+  if (PUBLIC_DEMO_ONLY) {
+    return (
+      <main id="main" className="page-shell">
+        <div className="page-heading">
+          <div>
+            <span className="eyebrow">PUBLIC DEMO · READ-ONLY</span>
+            <h1>PayPal Sandbox checkout disabled on public demo</h1>
+            <p>
+              Live payment execution, financial mutations, and owner-test
+              authentication are disabled on this public hackathon demo.
+            </p>
+          </div>
+          <Badge tone="warning">Read-only demo</Badge>
+        </div>
+        <Panel className={styles.panel ?? ""}>
+          <PanelTitle icon="shield">
+            Verified $6.00 USD PayPal Sandbox Receipt (Read-Only)
+          </PanelTitle>
+          <p className="muted">
+            Completed Gemini → Earmark Policy → PayPal Sandbox transaction
+            recorded without replay:
+          </p>
+          <p>
+            Order <code>{VERIFIED_PAYPAL_AGENT_RECEIPT.orderId}</code> · Capture{" "}
+            <code>{VERIFIED_PAYPAL_AGENT_RECEIPT.captureId}</code> ·{" "}
+            <strong>{VERIFIED_PAYPAL_AGENT_RECEIPT.status}</strong> (
+            {VERIFIED_PAYPAL_AGENT_RECEIPT.amountDisplay}) · $10.00 authorized,
+            $6.00 consumed, $0.00 reserved, $4.00 available.
+          </p>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Link className="button primary" href="/">
+              Open Demo Workspace
+            </Link>
+            <Link className="button soft" href="/security">
+              Open Four Security Scenarios
+            </Link>
+          </div>
+        </Panel>
+      </main>
+    );
+  }
   async function run(action: string, payload: Record<string, string> = {}) {
     if (busy) return;
     setBusy(true);

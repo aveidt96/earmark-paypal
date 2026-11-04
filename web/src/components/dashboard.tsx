@@ -6,6 +6,7 @@ import {
 } from "../lib/payment-progress";
 import { RecordedHistory } from "./recorded-demo";
 import { ExecutionWorkspace } from "./gemini-console";
+import { useTheme } from "./theme-provider";
 import { useState, useEffect } from "react";
 import { formatUnits } from "viem";
 import { useWorkspace } from "./workspace-provider";
@@ -84,7 +85,8 @@ export function PaymentBadge({ status }: { status: string }) {
     </Badge>
   );
 }
-export function Hero() {
+export function Hero({ secondary = false }: { secondary?: boolean }) {
+  const Heading = secondary ? "h2" : "h1";
   const [help, setHelp] = useState<"flow" | "security" | null>(null);
   const features = [
     [
@@ -115,7 +117,7 @@ export function Hero() {
   return (
     <>
       <section className="workspace-intro">
-        <h1>Every payment has a purpose.</h1>
+        <Heading>Every payment has a purpose.</Heading>
         <p>
           AI decisions. Task-scoped authority. Delivery-conditional settlement.
         </p>
@@ -1205,17 +1207,19 @@ export function Analytics() {
 }
 export function Dashboard() {
   const w = useWorkspace();
+  const { preference } = useTheme();
   const { mandate, select } = useSelectedMandate();
   const run = w.snapshot.runs.findLast((r) => r.mandateId === mandate?.id);
   const payment = w.snapshot.payments.find((p) => p.id === run?.paymentId);
   return (
     <main id="main" className="operational-workspace">
-      <Hero />
+      {preference === "light" && <Hero />}
       {w.wallet ? (
         <ExecutionWorkspace live={{ mandate, run, payment }} />
       ) : (
         <ExecutionWorkspace />
       )}
+      {preference === "norway" && <Hero secondary />}
       {w.wallet ? (
         <>
           <section className="workspace-finance">

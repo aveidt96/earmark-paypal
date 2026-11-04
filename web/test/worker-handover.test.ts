@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { createServer } from "node:net";
-import { request } from "node:http";
+import { request, Agent } from "node:http";
 import {
   acquireWorkerLock,
   createApi,
@@ -29,6 +29,10 @@ describe("exclusive worker rolling handover", () => {
       service: { launch },
     } as unknown as HostedService;
     const api = createApi(hosted, true);
+    // Expose shutdown's dependence on an idle keep-alive timer without waiting
+    // for that timer or increasing the test deadline.
+    api.server.keepAliveTimeout = 60000;
+    const agent = new Agent({ keepAlive: true });
     await new Promise<void>((resolve) =>
       api.server.listen(0, "127.0.0.1", resolve),
     );
@@ -40,20 +44,29 @@ describe("exclusive worker rolling handover", () => {
       port: address.port,
       path: "/api/workspace/launch",
       method: "POST",
+      agent,
       headers: { Origin: hosted.origin, "Content-Type": "application/json" },
     });
-    const response = new Promise<{ status: number | undefined; body: string }>(
-      (resolve, reject) => {
-        req.on("error", reject);
-        req.on("response", (res) => {
-          let body = "";
-          res.on("data", (chunk) => {
-            body += chunk;
-          });
-          res.on("end", () => resolve({ status: res.statusCode, body }));
+    const response = new Promise<{
+      status: number | undefined;
+      body: string;
+      connection: string | undefined;
+    }>((resolve, reject) => {
+      req.on("error", reject);
+      req.on("response", (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
         });
-      },
-    );
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode,
+            body,
+            connection: res.headers.connection,
+          }),
+        );
+      });
+    });
     const received = new Promise<void>((resolve) =>
       api.server.once("request", () => resolve()),
     );
@@ -65,12 +78,20 @@ describe("exclusive worker rolling handover", () => {
     });
     expect(closed).toBe(false);
     req.end("}");
-    const result = await response;
-    expect(result.status).toBe(503);
-    expect(JSON.parse(result.body)).toEqual({ error: "SERVICE_RESTARTING" });
-    await stopping;
-    expect(closed).toBe(true);
-    expect(launch).not.toHaveBeenCalled();
+    try {
+      const result = await response;
+      expect(result.status).toBe(503);
+      expect(JSON.parse(result.body)).toEqual({ error: "SERVICE_RESTARTING" });
+      expect(result.connection).toBe("close");
+      await stopping;
+      expect(closed).toBe(true);
+      expect(launch).not.toHaveBeenCalled();
+    } finally {
+      req.destroy();
+      agent.destroy();
+      api.server.closeAllConnections();
+      await api.stop();
+    }
   });
   it("waits for the old session without replacing or releasing its lock", async () => {
     const query = vi

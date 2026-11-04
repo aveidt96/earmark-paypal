@@ -20,4 +20,5 @@ export {
   createGeminiModel,
   isGeminiEnabled,
 } from "./models.js";
+export type { CustomToolDefinition, GeminiSettings } from "./models.js";
 export { runAgent } from "./runner.js";

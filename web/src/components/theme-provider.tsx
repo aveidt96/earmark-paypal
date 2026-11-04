@@ -9,7 +9,6 @@ import {
 import {
   DEFAULT_THEME,
   parseTheme,
-  resolveTheme,
   THEME_KEY,
   type ThemePreference,
 } from "../lib/theme";
@@ -34,29 +33,31 @@ function subscribe(callback: () => void) {
     window.removeEventListener("earmark-theme-change", callback);
   };
 }
-function subscribeSystem(callback: () => void) {
-  const query = matchMedia("(prefers-color-scheme: dark)");
-  query.addEventListener("change", callback);
-  return () => query.removeEventListener("change", callback);
-}
 const ThemeContext = createContext<{
   preference: ThemePreference;
   setPreference: (value: ThemePreference) => void;
 }>({ preference: DEFAULT_THEME, setPreference: () => {} });
+export function useTheme() {
+  return useContext(ThemeContext);
+}
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useSyncExternalStore(
     subscribe,
     preference,
     () => DEFAULT_THEME,
   );
-  const systemDark = useSyncExternalStore(
-    subscribeSystem,
-    () => matchMedia("(prefers-color-scheme: dark)").matches,
-    () => false,
-  );
   useEffect(() => {
-    document.documentElement.dataset.theme = resolveTheme(value, systemDark);
-  }, [value, systemDark]);
+    // Read current storage: the hydration snapshot can still be the SSR default.
+    const current = preference();
+    if (current !== value) return;
+    document.documentElement.dataset.theme = value;
+    try {
+      if (localStorage.getItem(THEME_KEY) !== current)
+        localStorage.setItem(THEME_KEY, current);
+    } catch {
+      /* Appearance also works without persistent storage. */
+    }
+  }, [value]);
   const setPreference = (next: ThemePreference) => {
     fallback = next;
     try {
@@ -66,7 +67,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       volatile = next;
       /* Appearance stays usable when browser storage is blocked. */
     }
-    document.documentElement.dataset.theme = resolveTheme(next, systemDark);
+    document.documentElement.dataset.theme = next;
     window.dispatchEvent(new Event("earmark-theme-change"));
   };
   return (
@@ -85,9 +86,8 @@ export function ThemeSelector() {
         value={theme.preference}
         onChange={(e) => theme.setPreference(parseTheme(e.target.value))}
       >
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-        <option value="system">System</option>
+        <option value="norway">Norway</option>
+        <option value="light">Classic Light</option>
       </select>
     </label>
   );

@@ -11,7 +11,11 @@ import {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length > 1 || (args[0] && args[0] !== "--all"))
+  if (
+    args.length > 1 ||
+    (args[0] &&
+      !["--all", "--campaign", "--invariants", "--capture"].includes(args[0]))
+  )
     throw new Error("INVALID_DATABASE_TEST_ARGUMENTS");
   loadPayPalEnvironment();
   const target = approvedPayPalTarget();
@@ -56,6 +60,13 @@ async function main() {
           "node_modules/vitest/vitest.mjs",
           "run",
           "web/test/paypal-database.integration.test.ts",
+          ...(args.includes("--campaign") ? ["-t", "Task05C"] : []),
+          ...(args.includes("--invariants")
+            ? ["-t", "database triggers protect policy"]
+            : []),
+          ...(args.includes("--capture")
+            ? ["-t", "capture-once", "--silent=false"]
+            : []),
         ],
     {
       cwd: root,

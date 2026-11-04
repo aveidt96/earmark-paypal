@@ -14,6 +14,7 @@ import { useWorkspace } from "./workspace-provider";
 import { Button, Icon, Panel, PanelTitle } from "./glass";
 import type { MandateView, RunView, PaymentRecord } from "../lib/model";
 import { modelLabel } from "../lib/model";
+import { VERIFIED_PAYPAL_AGENT_RECEIPT } from "../lib/paypal-agent";
 const labels = {
   A: "Normal Purchase",
   B: "Prompt Injection",
@@ -419,6 +420,33 @@ export function RecordedHistory() {
         </a>
         <p className="micro">
           12 October 2026 · Full 1-hour challenge period observed.
+        </p>
+      </Panel>
+      <Panel>
+        <PanelTitle icon="spark">
+          Verified PayPal Sandbox Receipt (Task 05J — Read-Only)
+        </PanelTitle>
+        <p>
+          <strong>
+            {VERIFIED_PAYPAL_AGENT_RECEIPT.amountDisplay} ·{" "}
+            {VERIFIED_PAYPAL_AGENT_RECEIPT.status}
+          </strong>{" "}
+          · Order <code>{VERIFIED_PAYPAL_AGENT_RECEIPT.orderId}</code> · Capture{" "}
+          <code>{VERIFIED_PAYPAL_AGENT_RECEIPT.captureId}</code>
+        </p>
+        <p>
+          $10.00 ({VERIFIED_PAYPAL_AGENT_RECEIPT.authorizedMinor}) authorized ·{" "}
+          $6.00 ({VERIFIED_PAYPAL_AGENT_RECEIPT.consumedMinor}) consumed · $0.00
+          ({VERIFIED_PAYPAL_AGENT_RECEIPT.reservedMinor}) reserved · $4.00 (
+          {VERIFIED_PAYPAL_AGENT_RECEIPT.availableMinor}) available
+        </p>
+        <p className="micro">
+          End-to-end Gemini proposal → human owner authorization → PayPal buyer
+          approval → Sandbox capture (
+          {VERIFIED_PAYPAL_AGENT_RECEIPT.completedAt}
+          ). Select <strong>PayPal Agent · Policy</strong> in the Execution
+          Console above to inspect the four PayPal security scenarios without
+          replaying any payment.
         </p>
       </Panel>
     </section>
