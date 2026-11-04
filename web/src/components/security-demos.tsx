@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { RecordedDemo, RecordedHistory } from "./recorded-demo";
+import { PayPalAgentConsole } from "./gemini-console";
+import { PUBLIC_DEMO_ONLY } from "../lib/paypal-agent";
 import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import {
@@ -9,7 +11,7 @@ import {
   scenarioLabels,
   type DemoSuite,
 } from "@flint/agent/demos";
-import { Brand, Badge, Panel, PanelTitle, Empty } from "./glass";
+import { Brand, Badge, Button, Panel, PanelTitle, Empty } from "./glass";
 export function SecurityDemoLinks() {
   return (
     <Panel className="security-demo-links">
@@ -41,9 +43,11 @@ export function SecurityDemos({
   scene: string;
 }) {
   const [id, setId] = useState(scenarioIds.find((v) => v === selected) ?? "A");
+  const [rail, setRail] = useState<"evm" | "paypal">("evm");
   const [suite, setSuite] = useState<DemoSuite>();
   const [error, setError] = useState("");
   useEffect(() => {
+    if (PUBLIC_DEMO_ONLY) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const controller = new AbortController();
@@ -109,13 +113,36 @@ export function SecurityDemos({
         </p>
       </main>
     );
-  if (!suite)
+  if (!suite) {
+    const modeControls = (
+      <fieldset className="execution-modes" aria-label="Security demo rail">
+        <Button
+          variant={rail === "evm" ? "primary" : "soft"}
+          aria-pressed={rail === "evm"}
+          onClick={() => setRail("evm")}
+        >
+          Demo Mode
+        </Button>
+        <Button
+          variant={rail === "paypal" ? "primary" : "soft"}
+          aria-pressed={rail === "paypal"}
+          onClick={() => setRail("paypal")}
+        >
+          PayPal Agent · Policy
+        </Button>
+      </fieldset>
+    );
     return (
       <main id="main" className="demo-workspace">
-        <RecordedDemo initial={id} />
+        {rail === "paypal" ? (
+          <PayPalAgentConsole controls={modeControls} />
+        ) : (
+          <RecordedDemo initial={id} modeControls={modeControls} />
+        )}
         <RecordedHistory />
       </main>
     );
+  }
   const s = suite?.scenarios.find((v) => v.id === id);
   return (
     <main id="main" className="detail-shell demo-shell">

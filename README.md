@@ -177,6 +177,35 @@ history and the append-only original-reservation hold.
 The [Task 03C report](docs/task-03c-checkout-report.md) is historical checkout
 evidence; its original approval handoff has been superseded.
 
+### Gemini checkout preparation — Task05A partial, key deferred
+
+The protected local workflow is **http://127.0.0.1:3032/agent-checkout**, also linked
+through **PayPal Agent · Policy → Live Gemini API Inference** in the execution
+console. It uses a clearly synthetic $6 offer and a distinct $10 test mandate:
+**598f50eb-325a-5df3-af67-9c629973bafb**, **$0 reserved / $0 consumed**.
+
+The implementation validates immutable terms and stores an idempotent pending
+intent awaiting human authorization, with all payment/reservation execution
+disabled. **No actual Gemini inference or proposal exists yet:** the local key is
+missing, and the user explicitly deferred adding it. Native adapter tests and
+watermarked UI fixtures are mocked evidence, not live model output.
+
+After adding `GEMINI_API_KEY` and a supported `GEMINI_MODEL` to ignored
+`web/.env.local`, restart the owned agent profile and request the real evaluation:
+
+```powershell
+node --conditions=react-server --import tsx scripts/paypal-agent-serve.ts --stop
+node --conditions=react-server --import tsx scripts/paypal-agent-serve.ts --detach
+npm run paypal:agent:live
+```
+
+The launcher enables inference only in the loopback child; normal/hosted financial
+mutations remain disabled. Sign in locally with the preserved test-owner secret
+for inspection; this is not production authentication. No model proposal can
+reserve persistent funds. See the [Task05A report](docs/task-05a-agent-checkout-report.md)
+for live-validation blockers, actual versus mocked evidence and separate future
+owner/order/buyer/capture authorization requirements.
+
 ## Verification
 
 ```powershell

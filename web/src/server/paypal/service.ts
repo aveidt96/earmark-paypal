@@ -158,7 +158,10 @@ export class PayPalPaymentService {
         timestamp(tx);
         tx.audit.push(
           {
-            action: "TASK03E_ONE_ORDER_AUTHORIZED",
+            action:
+              scope.purchaseKey === undefined
+                ? "TASK03E_ONE_ORDER_AUTHORIZED"
+                : "PREPARED_ORDER_AUTHORIZED",
             attemptId: a.id,
             detail: JSON.stringify({
               amountMinor: "600",

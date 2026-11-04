@@ -12,7 +12,7 @@ export {
   QwenModel,
   GeminiModel,
 } from "./models.js";
-export type { GeminiSettings } from "./models.js";
+export type { CustomToolDefinition, GeminiSettings } from "./models.js";
 export { parseRuntimeConfig } from "./runtime-config.js";
 export {
   EventStream,
@@ -24,6 +24,7 @@ export {
 export { SimulatedProvider } from "./providers.js";
 export { AgentError } from "./errors.js";
 export type {
+  AgentDecision,
   AgentModel,
   AgentEvent,
   AssignedTask,
@@ -42,3 +43,7 @@ export {
 } from "./postgres.js";
 export type { Pool, PoolClient, IntentBinding } from "./postgres.js";
 export { runtimeChain } from "./runtime-config.js";
+
+export { GeminiResponseError, parseGeminiResponse } from "./gemini-response.js";
+export { readGeminiBody } from "./gemini-body.js";
+export type { GeminiResponseDiagnostic } from "./gemini-response.js";

@@ -1,3 +1,4 @@
+import { isPublicDemoOnly } from "../../../../lib/paypal-agent";
 import { forwardApi } from "../../../../server/api-proxy";
 import { getService, readBody } from "../../../../server/runtime";
 export const runtime = "nodejs";
@@ -17,6 +18,12 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ action: string }> },
 ) {
+  if (isPublicDemoOnly()) {
+    return Response.json(
+      { error: "PUBLIC_DEMO_READ_ONLY" },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   try {
     const { action } = await params;
     const response = await forwardApi(request, action);

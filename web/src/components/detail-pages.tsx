@@ -13,36 +13,56 @@ import {
   useOwner,
 } from "./dashboard";
 import { Button, Empty, Icon, Modal, Panel, PanelTitle } from "./glass";
+import { RecordedPayPalCard } from "./recorded-paypal-card";
+import { CreateMandate } from "./create-mandate";
+import { useTheme } from "./theme-provider";
 export function MandatesPage() {
   const w = useWorkspace();
+  const { preference } = useTheme();
   return (
     <main id="main" className="page-shell">
       <div className="page-heading">
         <div>
-          <h1>Earmarks</h1>
+          <h1>
+            <span className="classic-label">Earmarks</span>
+            <span className="norway-label">Mandates</span>
+          </h1>
           <p>Immutable permissions. Cumulative budgets. Owner control.</p>
         </div>
         <Link className="button primary" href="/mandates/new">
           Create an Earmark <Icon name="arrow" />
         </Link>
       </div>
-      {w.snapshot.mandates.length ? (
-        <div className="list-grid">
-          {w.snapshot.mandates.map((m) => (
-            <Panel key={m.id}>
-              <MandateDetails mandate={m} />
+      <div className="norway-mandates-layout">
+        <div className="norway-mandates-content">
+          <RecordedPayPalCard view="mandate" />
+          <h2 className="norway-label norway-legacy-label">
+            Legacy EVM earmarks
+          </h2>
+          {w.snapshot.mandates.length ? (
+            <div className="list-grid">
+              {w.snapshot.mandates.map((m) => (
+                <Panel key={m.id}>
+                  <MandateDetails mandate={m} />
+                </Panel>
+              ))}
+            </div>
+          ) : (
+            <Panel>
+              <Empty>
+                {w.loading || w.offline
+                  ? "Earmark data is loading. Existing permissions are unchanged."
+                  : "No earmarks yet. Create your first task authorization to begin."}
+              </Empty>
             </Panel>
-          ))}
+          )}
         </div>
-      ) : (
-        <Panel>
-          <Empty>
-            {w.loading || w.offline
-              ? "Earmark data is loading. Existing permissions are unchanged."
-              : "No earmarks yet. Create your first task authorization to begin."}
-          </Empty>
-        </Panel>
-      )}
+        {preference === "norway" && (
+          <aside className="norway-mandate-form">
+            <CreateMandate embedded />
+          </aside>
+        )}
+      </div>
     </main>
   );
 }
@@ -51,12 +71,16 @@ export function PaymentsPage() {
     <main id="main" className="page-shell">
       <div className="page-heading">
         <div>
-          <h1>Payments</h1>
+          <h1>
+            <span className="classic-label">Payments</span>
+            <span className="norway-label">Purchases</span>
+          </h1>
           <p>
             Reserved funds remain in the vault until a confirmed settlement.
           </p>
         </div>
       </div>
+      <RecordedPayPalCard view="payment" />
       <Link className="button soft" href="/resolve">
         Resolve escrow directly onchain
       </Link>
@@ -69,13 +93,17 @@ export function ActivityPage() {
     <main id="main" className="page-shell">
       <div className="page-heading">
         <div>
-          <h1>Live Activity</h1>
+          <h1>
+            <span className="classic-label">Live Activity</span>
+            <span className="norway-label">Activity</span>
+          </h1>
           <p>
             Persistent agent observations and confirmed contract events.
             Observation and block times are identified separately.
           </p>
         </div>
       </div>
+      <RecordedPayPalCard view="activity" />
       <ActivityFeed full />
     </main>
   );

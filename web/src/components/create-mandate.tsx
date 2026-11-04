@@ -6,7 +6,14 @@ import { validateCreation, type CreationInput } from "../lib/forms";
 import { useWorkspace } from "./workspace-provider";
 import { useOwner, money } from "./dashboard";
 import { Badge, Button, Empty, Icon, Modal, Panel, PanelTitle } from "./glass";
-export function CreateMandate({ initialTask = "" }: { initialTask?: string }) {
+export function CreateMandate({
+  initialTask = "",
+  embedded = false,
+}: {
+  initialTask?: string;
+  embedded?: boolean;
+}) {
+  const Root = embedded ? "section" : "main";
   const w = useWorkspace(),
     owner = useOwner();
   const [description, setDescription] = useState(
@@ -90,20 +97,33 @@ export function CreateMandate({ initialTask = "" }: { initialTask?: string }) {
     }
   };
   return (
-    <main id="main" className="page-shell">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">OWNER CONTROLLED AUTHORIZATION</span>
-          <h1>Create an Earmark</h1>
+    <Root
+      id={embedded ? undefined : "main"}
+      className={embedded ? "norway-embedded-creation" : "page-shell"}
+    >
+      {embedded ? (
+        <div className="norway-embedded-heading">
+          <h2>New mandate</h2>
           <p>
-            Give your agent a precise permission envelope. Every term is
-            immutable.
+            Existing owner-controlled legacy EVM workflow. Creating a PayPal
+            campaign requires separate authorization.
           </p>
         </div>
-        <Link className="text-action" href="/">
-          Back to workspace <Icon name="arrow" />
-        </Link>
-      </div>
+      ) : (
+        <div className="page-heading">
+          <div>
+            <span className="eyebrow">OWNER CONTROLLED AUTHORIZATION</span>
+            <h1>Create an Earmark</h1>
+            <p>
+              Give your agent a precise permission envelope. Every term is
+              immutable.
+            </p>
+          </div>
+          <Link className="text-action" href="/">
+            Back to workspace <Icon name="arrow" />
+          </Link>
+        </div>
+      )}
       {created ? (
         <Panel>
           <div className="success-callout">
@@ -121,7 +141,9 @@ export function CreateMandate({ initialTask = "" }: { initialTask?: string }) {
         </Panel>
       ) : (
         <Panel>
-          <PanelTitle icon="shield">Define the task’s authority</PanelTitle>
+          {!embedded && (
+            <PanelTitle icon="shield">Define the task’s authority</PanelTitle>
+          )}
           {!w.snapshot.config ? (
             <Empty>
               Start the local workspace to configure a real vault. No example
@@ -334,6 +356,6 @@ export function CreateMandate({ initialTask = "" }: { initialTask?: string }) {
           </Button>
         </Modal>
       )}
-    </main>
+    </Root>
   );
 }

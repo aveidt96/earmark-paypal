@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { parseGeminiResponse } from "./gemini-response.js";
+import { readGeminiBody } from "./gemini-body.js";
 import { AgentError, bounded } from "./errors.js";
 import {
   decisionSchema,
@@ -230,38 +232,30 @@ export function isGeminiEnabled(
   return env.EARMARK_GEMINI_ENABLED === "true";
 }
 
+export interface CustomToolDefinition {
+  name: string;
+  description: string;
+  schema: z.ZodType;
+}
+
 export interface GeminiSettings {
   baseUrl: string;
   model: string;
   apiKey: string;
   timeoutMs: number;
   networkEnabled: boolean;
+  /** One initial attempt, with at most one bounded HTTP retry when opted in. */
+  maxAttempts?: 1 | 2;
   /** Native read-only tool sessions only; financial runners remain stateless. */
   conversation?: boolean;
+  /** Optional custom system instruction and tool declarations (e.g. PayPal purchasing agent). */
+  systemInstruction?: string;
+  customTools?: readonly CustomToolDefinition[];
+  /** Last check before each HTTP attempt; no request body may bypass this hook. */
+  outboundPolicy?: (url: string, init: RequestInit) => void;
 }
 
 const GEMINI_DEFAULT_MODEL = "gemini-3.8-flash";
-
-const geminiResponseSchema = z.object({
-  candidates: z
-    .array(
-      z.object({
-        content: z.object({
-          parts: z
-            .array(
-              z.object({
-                text: z.string().max(10000).optional(),
-                functionCall: z
-                  .object({ name: z.string(), args: z.unknown() })
-                  .optional(),
-              }),
-            )
-            .max(8),
-        }),
-      }),
-    )
-    .length(1),
-});
 
 /**
  * Genuine Google Gemini adapter over the official native `generateContent`
@@ -306,6 +300,16 @@ export class GeminiModel implements AgentModel {
       throw new AgentError("MISSING_MODEL_CONFIGURATION");
     if (!settings.networkEnabled)
       throw new AgentError("MODEL_NETWORK_DISABLED");
+    if (
+      settings.outboundPolicy !== undefined &&
+      typeof settings.outboundPolicy !== "function"
+    )
+      throw new AgentError("INVALID_GEMINI_OUTBOUND_POLICY");
+    if (
+      settings.maxAttempts !== undefined &&
+      ![1, 2].includes(settings.maxAttempts)
+    )
+      throw new AgentError("INVALID_MODEL_RETRY_CONFIGURATION");
     const url = new URL(settings.baseUrl);
     if (
       url.username ||
@@ -325,7 +329,9 @@ export class GeminiModel implements AgentModel {
     this.#settings = { ...settings };
     this.modelName = settings.model;
   }
-  async decide(context: AgentContext): Promise<AgentDecision> {
+  async decide(
+    context: AgentContext | { task: unknown; observations: unknown },
+  ): Promise<AgentDecision> {
     return bounded(
       async (signal) => {
         const url = `${this.#settings.baseUrl.replace(/\/$/, "")}/models/${encodeURIComponent(this.#settings.model)}:generateContent`;
@@ -344,29 +350,45 @@ export class GeminiModel implements AgentModel {
           },
         ];
         if (this.#settings.conversation) this.#history ??= contents;
+        const customTools = this.#settings.customTools;
+        const functionDeclarations = customTools
+          ? customTools.map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              parametersJsonSchema: (() => {
+                const schema = z.toJSONSchema(tool.schema, {
+                  io: "input",
+                });
+                delete schema.$schema;
+                return schema;
+              })(),
+            }))
+          : toolNames.map((name) => ({
+              name,
+              description: `Mandate-scoped ${name}`,
+              parametersJsonSchema: (() => {
+                const schema = z.toJSONSchema(toolSchemas[name], {
+                  io: "input",
+                });
+                // The API expects a JSON Schema value, not a draft URI in a
+                // restricted OpenAPI Schema object.
+                delete schema.$schema;
+                return schema;
+              })(),
+            }));
         const body = JSON.stringify({
-          systemInstruction: { parts: [{ text: instruction }] },
+          systemInstruction: {
+            parts: [{ text: this.#settings.systemInstruction ?? instruction }],
+          },
           contents: this.#settings.conversation ? this.#history : contents,
           tools: [
             {
-              functionDeclarations: toolNames.map((name) => ({
-                name,
-                description: `Mandate-scoped ${name}`,
-                parametersJsonSchema: (() => {
-                  const schema = z.toJSONSchema(toolSchemas[name], {
-                    io: "input",
-                  });
-                  // The API expects a JSON Schema value, not a draft URI in a
-                  // restricted OpenAPI Schema object.
-                  delete schema.$schema;
-                  return schema;
-                })(),
-              })),
+              functionDeclarations,
             },
           ],
           generationConfig: {
-            // Gemini 3+ removed sampling parameters (temperature/top_p/top_k)
-            // and candidateCount. Low thinking bounds latency for these narrow tools.
+            // Keep the bounded configuration verified by the native API;
+            // low thinking limits work for these narrow tool requests.
             maxOutputTokens: 600,
             thinkingConfig: { thinkingLevel: "low" },
           },
@@ -379,6 +401,15 @@ export class GeminiModel implements AgentModel {
         let attempts = 0;
         for (;;) {
           attempts += 1;
+          if (typeof this.#settings.outboundPolicy !== "function")
+            throw new AgentError("GEMINI_OUTBOUND_POLICY_REQUIRED");
+          this.#settings.outboundPolicy?.(url, {
+            method: "POST",
+            redirect: "error",
+            signal,
+            headers,
+            body,
+          });
           try {
             response = await this.fetcher(url, {
               method: "POST",
@@ -387,12 +418,16 @@ export class GeminiModel implements AgentModel {
               headers,
               body,
             });
-          } catch {
+          } catch (error) {
+            if (error instanceof AgentError) throw error;
             throw new AgentError("MODEL_TRANSPORT_ERROR");
           }
+          // Classify HTTP errors from headers. Never let an unfinished error
+          // body hide a 408/429/5xx behind a local response-body timeout.
+          if (!response.ok) void response.body?.cancel().catch(() => {});
           if (
             (response.status === 429 || response.status >= 500) &&
-            attempts < 2
+            attempts < (this.#settings.maxAttempts ?? 2)
           )
             continue;
           break;
@@ -404,46 +439,16 @@ export class GeminiModel implements AgentModel {
             throw new AgentError("MODEL_RATE_LIMITED");
           throw new AgentError("MODEL_API_ERROR");
         }
-        const text = await response.text();
-        if (text.length > 1_000_000)
-          throw new AgentError("INVALID_MODEL_RESPONSE");
-        try {
-          const raw = JSON.parse(text);
-          const parsed = geminiResponseSchema.parse(raw);
-          const parts = parsed.candidates[0]?.content.parts ?? [];
-          const call = parts.find((p) => p.functionCall)?.functionCall;
-          if (call) {
-            if (this.#settings.conversation) {
-              if (parts.filter((p) => p.functionCall).length !== 1)
-                throw new Error("Multiple function calls");
-              this.#pendingContent = raw.candidates[0].content;
-              const original = raw.candidates[0].content.parts.find(
-                (p: { functionCall?: unknown }) => p.functionCall,
-              )?.functionCall;
-              this.#pendingCall = {
-                name: call.name,
-                ...(typeof original?.id === "string"
-                  ? { id: original.id }
-                  : {}),
-              };
-            }
-            const name = z.enum(toolNames).parse(call.name);
-            const args = toolSchemas[name].parse(call.args);
-            return decisionSchema.parse({
-              kind: "tool",
-              name,
-              args,
-              summary: `Gemini requested ${name}.`,
-            });
-          }
-          const content = parts.find((p) => typeof p.text === "string")?.text;
-          const decision = decisionSchema.parse(JSON.parse(content ?? ""));
-          if (decision.kind !== "finish")
-            throw new Error("Expected structured finish");
-          return decision;
-        } catch {
-          throw new AgentError("INVALID_MODEL_RESPONSE");
+        const text = await readGeminiBody(response, signal);
+        const parsed = parseGeminiResponse(text, customTools);
+        if (parsed.decision.kind === "tool" && this.#settings.conversation) {
+          this.#pendingContent = parsed.modelContent;
+          this.#pendingCall = {
+            name: parsed.decision.name,
+            ...(parsed.callId !== undefined ? { id: parsed.callId } : {}),
+          };
         }
+        return parsed.decision;
       },
       this.#settings.timeoutMs,
       "MODEL_TIMEOUT",
@@ -455,7 +460,7 @@ export function createGeminiModel(
   env: Record<string, string | undefined>,
 ): GeminiModel {
   if (!isGeminiEnabled(env)) throw new AgentError("GEMINI_DISABLED");
-  const timeoutMs = Number(env.AI_TIMEOUT_MS ?? 15000);
+  const timeoutMs = Number(env.AI_TIMEOUT_MS ?? 60000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 60000)
     throw new AgentError("INVALID_MODEL_TIMEOUT");
   return new GeminiModel({

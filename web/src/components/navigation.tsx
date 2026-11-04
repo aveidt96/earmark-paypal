@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { ThemeSelector } from "./theme-provider";
+import { ThemeSelector, useTheme } from "./theme-provider";
+import { PUBLIC_DEMO_ONLY } from "../lib/paypal-agent";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Brand, Icon, Button, Modal, Badge } from "./glass";
@@ -9,6 +10,8 @@ import { short } from "../lib/model";
 import { switchLocal } from "../lib/wallet";
 export function Navigation() {
   const path = usePathname();
+  const { preference } = useTheme();
+  const norway = preference === "norway";
   const w = useWorkspace();
   const [modal, setModal] = useState<"wallet" | "network" | null>(null);
   const network =
@@ -21,15 +24,31 @@ export function Navigation() {
     <>
       <header className="floating-nav">
         <Link href="/" aria-label="Earmark PayPal home">
-          <Brand priority />
+          {norway ? (
+            <span className="norway-brand">
+              <Brand compact priority imageSizes="32px" />
+              Earmark
+            </span>
+          ) : (
+            <Brand priority />
+          )}
         </Link>
         <nav className="nav-links" aria-label="Main navigation">
-          {[
-            ["Workspace", "/"],
-            ["Earmarks", "/mandates"],
-            ["Payments", "/payments"],
-            ["Live Activity", "/activity"],
-          ].map(([label, href]) => (
+          {(norway
+            ? [
+                ["Checkout", "/"],
+                ["Mandates", "/mandates"],
+                ["Policies", "/security"],
+                ["Activity", "/activity"],
+                ["Purchases", "/payments"],
+              ]
+            : [
+                ["Workspace", "/"],
+                ["Earmarks", "/mandates"],
+                ["Payments", "/payments"],
+                ["Live Activity", "/activity"],
+              ]
+          ).map(([label, href]) => (
             <Link
               key={label}
               href={href ?? "/"}
@@ -40,35 +59,49 @@ export function Navigation() {
                   : ""
               }
             >
+              {norway && <NorwayNavIcon href={href ?? "/"} />}
               {label}
             </Link>
           ))}
         </nav>
         <div className="nav-actions">
           <ThemeSelector />
-          <button
-            type="button"
-            className="nav-pill network-pill"
-            onClick={() => setModal("network")}
-          >
-            <Icon name="globe" />
-            {network}
-            <Icon name="chevron" />
-          </button>
-          <button
-            type="button"
-            className={`nav-pill wallet-pill ${w.wallet && !correct ? "wrong-chain" : ""}`}
-            onClick={() => setModal("wallet")}
-          >
-            <span
-              className={`wallet-dot ${w.wallet ? (correct ? "connected" : "wrong") : ""}`}
-            />
-            {w.wallet ? short(w.wallet.account) : "Connect wallet"}
-          </button>
-          <Link className="button soft launch-link" href="/#compose">
-            Run Agent <Icon name="arrow" />
-          </Link>
+          <details className="wallet-tools" open={!norway}>
+            <summary>Wallet &amp; network</summary>
+            <button
+              type="button"
+              className="nav-pill network-pill"
+              onClick={() => setModal("network")}
+            >
+              <Icon name="globe" />
+              {network}
+              <Icon name="chevron" />
+            </button>
+            <button
+              type="button"
+              className={`nav-pill wallet-pill ${w.wallet && !correct ? "wrong-chain" : ""}`}
+              onClick={() => setModal("wallet")}
+            >
+              <span
+                className={`wallet-dot ${w.wallet ? (correct ? "connected" : "wrong") : ""}`}
+              />
+              {w.wallet ? short(w.wallet.account) : "Connect wallet"}
+            </button>
+            <Link className="button soft launch-link" href="/#compose">
+              Run Agent <Icon name="arrow" />
+            </Link>
+          </details>
         </div>
+        {norway && (
+          <div className="norway-sandbox">
+            <span>SANDBOX</span>
+            <p>
+              {PUBLIC_DEMO_ONLY
+                ? "Read-only demo. Live Gemini and payments are disabled. Synthetic offers and recorded Sandbox evidence."
+                : "Owner authorization and buyer approval remain required."}
+            </p>
+          </div>
+        )}
       </header>
       {modal === "wallet" && (
         <Modal
@@ -160,6 +193,40 @@ export function Navigation() {
     </>
   );
 }
+function NorwayNavIcon({ href }: { href: string }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      {href === "/activity" ? (
+        <>
+          <circle cx="10" cy="10" r="7" />
+          <path d="M10 6v4l3 2" />
+        </>
+      ) : (
+        <path
+          d={
+            href === "/"
+              ? "M3 4h14v9H8l-4 3v-3H3z"
+              : href === "/mandates"
+                ? "M10 2l6 2v5c0 4-3 7-6 9-3-2-6-5-6-9V4z"
+                : href === "/security"
+                  ? "M4 5h12M4 10h12M4 15h8"
+                  : "M3 4h14v13H3zM6 8h8M6 12h5"
+          }
+        />
+      )}
+    </svg>
+  );
+}
 export function Notices() {
   const { notice, notify, offline, loading, snapshot, wallet } = useWorkspace();
   return (
@@ -183,9 +250,11 @@ export function Notices() {
       )}
       {wallet && !loading && !offline && !snapshot.configured && (
         <p className="notice">
-          {snapshot.error === "WORKSPACE_NOT_CONFIGURED"
-            ? "Your local vault is not connected yet. Start the local workspace to begin."
-            : `Workspace unavailable: ${snapshot.error ?? "configuration needs review"}`}
+          {snapshot.error === "PUBLIC_DEMO_READ_ONLY"
+            ? "Public demo mode: live wallet and payment mutations are disabled."
+            : snapshot.error === "WORKSPACE_NOT_CONFIGURED"
+              ? "Your local vault is not connected yet. Start the local workspace to begin."
+              : `Workspace unavailable: ${snapshot.error ?? "configuration needs review"}`}
         </p>
       )}
       {notice && (

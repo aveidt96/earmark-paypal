@@ -16,7 +16,7 @@ export function assertOrderScope(a: Attempt, scope: OrderOnlyPermission) {
     a.createRequestId !== scope.createRequestId ||
     a.amountMinor !== "600" ||
     a.currency !== "USD" ||
-    a.purchaseKey !== US_PURCHASE_KEY
+    a.purchaseKey !== (scope.purchaseKey ?? US_PURCHASE_KEY)
   )
     throw new PaymentError("ONE_SHOT_ORDER_SCOPE_MISMATCH");
 }

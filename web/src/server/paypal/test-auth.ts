@@ -5,6 +5,14 @@ import { type Principal, parse, PaymentError } from "./domain";
 import type { TestCheckoutConfig } from "./test-config";
 
 const cookieName = "earmark_paypal_test_session";
+export type LocalOwnerAuthConfig = {
+  campaign: "legacy" | "us-v1" | "agent-05a" | "agent-05c-v1" | "agent-05d-v1";
+  origin: string;
+  ownerId: string;
+  loginSecret: string;
+  sessionSecret: string;
+  sessionEpoch: string;
+};
 const sessionSchema = z.strictObject({
   v: z.literal(1),
   owner: z.string().max(120),
@@ -20,11 +28,13 @@ const same = (a: string, b: string) => {
 };
 
 /** One allowlisted local test owner; no owner/agent/role supplied by the browser is accepted. */
-export class TestOwnerAuth {
+export class TestOwnerAuth<
+  C extends LocalOwnerAuthConfig = TestCheckoutConfig,
+> {
   private attempts: number[] = [];
   private revoked = new Map<string, number>();
   constructor(
-    readonly config: TestCheckoutConfig,
+    readonly config: C,
     private readonly now = Date.now,
   ) {}
   origin(request: Request, mutating = false) {
@@ -50,6 +60,12 @@ export class TestOwnerAuth {
     return `${this.cookieName}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${this.config.origin.startsWith("https:") ? "; Secure" : ""}`;
   }
   private get cookieName() {
+    if (this.config.campaign === "agent-05d-v1")
+      return "earmark_paypal_agent_05d_v1_session";
+    if (this.config.campaign === "agent-05c-v1")
+      return "earmark_paypal_agent_05c_v1_session";
+    if (this.config.campaign === "agent-05a")
+      return "earmark_paypal_agent_05a_session";
     return this.config.campaign === "us-v1"
       ? `${cookieName}_us_v1`
       : cookieName;

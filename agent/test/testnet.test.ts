@@ -42,6 +42,19 @@ describe("explicit testnet configuration", () => {
         "DIRECT_NEON_DATABASE_REQUIRED",
       );
   });
+  it("sets the server deadline through startup options without extending client limits", async () => {
+    const pool = createDatabase(
+      "postgresql://synthetic:synthetic@ep-example.neon.tech/synthetic",
+    );
+    expect(pool.options).toMatchObject({
+      options: "-c statement_timeout=10000",
+      statement_timeout: 10000,
+      query_timeout: 15000,
+      connectionTimeoutMillis: 10000,
+      max: 4,
+    });
+    await pool.end(); // No client was opened and no network request is made.
+  });
   it("waits for asynchronous event durability and propagates persistence failures", async () => {
     let release: (() => void) | undefined;
     const events = new EventStream(

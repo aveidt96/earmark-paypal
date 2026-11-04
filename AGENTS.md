@@ -42,6 +42,15 @@ The user requires every change to be documented continuously.
   order reads require matching original credentials. Human buyer approval is
   mandatory. Mocked tests/order creation alone do not prove capture success.
   Read the active handoff before any future payment execution.
+- Task05A adds a separate loopback-only port3032 agent checkout preparation
+  profile. Model proposals validate policy only: no persistent reservation or
+  PayPal execution is enabled. Local test-owner credentials are not production
+  authentication. Task05B verifies real Gemini through an owner/CSRF-gated
+  synthetic-only, memory-only diagnostic on port3032; repeated checks share the
+  process result. The original agent-05a FAILED journal and immutable expiry must
+  not be reset or bypassed. A new persistent campaign requires separate explicit
+  authorization. Never present mocked transport as live inference or synthetic
+  offers as real marketplace procurement.
 - Deployment, real/Sandbox payment execution and Git publication are not standing
   authorizations; follow the user's explicit instructions for future tasks.
 - Follow additional directory-specific instructions, including `web/AGENTS.md`,

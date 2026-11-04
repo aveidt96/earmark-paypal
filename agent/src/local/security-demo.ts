@@ -446,8 +446,11 @@ export async function runSecurityDemos(
               s.payments.length === 2,
           );
         }
-        if (s.checks.some((c) => !c.passed))
-          throw new Error("DEMO_ASSERTION_FAILED");
+        const failedChecks = s.checks.filter((c) => !c.passed);
+        if (failedChecks.length)
+          throw new Error(
+            `DEMO_ASSERTION_FAILED:${s.id}:${failedChecks.map((c) => c.label).join("|")}`,
+          );
         s.status = "complete";
         await publish();
         await options.afterScenario?.(s.id);

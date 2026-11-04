@@ -17,6 +17,7 @@ import {
   type WalletState,
 } from "../lib/wallet";
 import type { WorkspaceSnapshot, LaunchChallenge } from "../lib/model";
+import { PUBLIC_DEMO_ONLY } from "../lib/paypal-agent";
 interface ProviderChoice {
   id: string;
   name: string;
@@ -104,7 +105,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setOffline(false);
       } else {
         setSnapshot((previous) => (previous.configured ? previous : next));
-        setOffline(next.error !== "WORKSPACE_NOT_CONFIGURED");
+        setOffline(
+          next.error !== "WORKSPACE_NOT_CONFIGURED" &&
+            next.error !== "PUBLIC_DEMO_READ_ONLY",
+        );
       }
     } catch {
       setSnapshot((previous) => ({ ...previous, error: readError }));
@@ -116,6 +120,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     void refresh();
+    if (PUBLIC_DEMO_ONLY) return;
     const timer = setInterval(() => void refresh(), 2000);
     return () => clearInterval(timer);
   }, [refresh]);

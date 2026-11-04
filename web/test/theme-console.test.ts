@@ -1,23 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { parseTheme, resolveTheme } from "../src/lib/theme";
+import { runInNewContext } from "node:vm";
+import { parseTheme, themeBootstrap, THEME_KEY } from "../src/lib/theme";
 import { contractVerdict } from "../src/lib/console-view";
 import type { PaymentRecord, RunView } from "../src/lib/model";
 const payment = (status: PaymentRecord["status"]) =>
   ({ status, challengeDeadline: 100 }) as PaymentRecord;
 describe("appearance preferences", () => {
   it.each([null, undefined, "unknown", {}, "LIGHT"])(
-    "invalid preference %s defaults to dark without discarding valid explicit choices",
-    (v) => expect(parseTheme(v)).toBe("dark"),
+    "invalid preference %s defaults to Norway",
+    (v) => expect(parseTheme(v)).toBe("norway"),
   );
-  it.each(["light", "dark", "system"] as const)(
+  it.each(["light", "norway"] as const)(
     "preserves explicit %s preference",
     (v) => expect(parseTheme(v)).toBe(v),
   );
-  it("system mode follows OS while explicit choices override it", () => {
-    expect(resolveTheme("system", true)).toBe("dark");
-    expect(resolveTheme("system", false)).toBe("light");
-    expect(resolveTheme("light", true)).toBe("light");
-    expect(resolveTheme("dark", false)).toBe("dark");
+  it.each(["airy", "dark", "system"])("migrates legacy %s to Norway", (v) => {
+    expect(parseTheme(v)).toBe("norway");
+  });
+  it.each([null, "airy", "dark", "system", "norway", "light", "invalid"])(
+    "first paint and storage migration agree for %s without consulting the OS",
+    (saved) => {
+      const storage = new Map(saved === null ? [] : [[THEME_KEY, saved]]);
+      const document = { documentElement: { dataset: { theme: "norway" } } };
+      runInNewContext(themeBootstrap, {
+        document,
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+        matchMedia: () => {
+          throw new Error("OS_THEME_MUST_NOT_ACTIVATE_DARK");
+        },
+      });
+      expect(document.documentElement.dataset.theme).toBe(parseTheme(saved));
+      expect(storage.get(THEME_KEY)).toBe(parseTheme(saved));
+    },
+  );
+  it("still applies Norway when browser storage is blocked", () => {
+    const document = { documentElement: { dataset: { theme: "norway" } } };
+    runInNewContext(themeBootstrap, {
+      document,
+      localStorage: {
+        getItem: () => {
+          throw new Error("STORAGE_BLOCKED");
+        },
+      },
+    });
+    expect(document.documentElement.dataset.theme).toBe("norway");
   });
 });
 describe("receipt-backed contract verdicts", () => {

@@ -10,6 +10,8 @@ const settings: GeminiSettings = {
   timeoutMs: 100,
   networkEnabled: true,
   conversation: true,
+  // Every transport in this protocol suite is mocked; no production default.
+  outboundPolicy: () => {},
 };
 const context: AgentContext = {
   task: {

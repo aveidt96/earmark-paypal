@@ -5,6 +5,7 @@ import { Brand } from "../components/glass";
 import { ThemeProvider } from "../components/theme-provider";
 import { themeBootstrap } from "../lib/theme";
 import "./globals.css";
+import "./norway.css";
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.FLINT_WEB_ORIGIN ??
@@ -36,7 +37,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="norway" suppressHydrationWarning>
       <body>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Static local theme bootstrap only; no user or request content is interpolated. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
@@ -53,11 +54,28 @@ export default function RootLayout({
             </a>
             <div className="application">
               <Navigation />
-              <p className="notice" role="status">
-                Earmark PayPal · Controlled, buyer-approved Sandbox checkout is
-                isolated at /paypal-test. Main-workspace wallet actions and
-                recorded payment evidence belong to the preserved legacy EVM
-                application.
+              <p
+                className="notice workspace-mode-notice"
+                data-public-demo={process.env.NEXT_PUBLIC_DEMO_ONLY === "true"}
+                role="status"
+              >
+                {process.env.NEXT_PUBLIC_DEMO_ONLY === "true" ? (
+                  <>
+                    <span className="classic-label">
+                      Earmark PayPal · Public Read-Only Demo — Live payment
+                      execution, financial mutations, and live Gemini calls are
+                      disabled. Inspect the completed $6.00 USD PayPal Sandbox
+                      receipt and all four security scenarios below or at
+                      /security.
+                    </span>
+                    <span className="norway-label">
+                      Public read-only demo · Synthetic offers and recorded
+                      Sandbox evidence · Live Gemini and payments disabled.
+                    </span>
+                  </>
+                ) : (
+                  "Earmark PayPal · Controlled, buyer-approved Sandbox checkout is isolated at /paypal-test. Main-workspace wallet actions and recorded payment evidence belong to the preserved legacy EVM application."
+                )}
               </p>
               <Notices />
               {children}

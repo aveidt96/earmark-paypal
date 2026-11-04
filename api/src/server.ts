@@ -86,6 +86,9 @@ export function createApi(
       if (origin === hosted.origin)
         res.setHeader("Access-Control-Allow-Origin", hosted.origin);
       const reply = (status: number, value: unknown) => {
+        // A request active when close() starts must not enter a new idle
+        // keep-alive period after its response, delaying graceful handover.
+        if (stopping) res.setHeader("Connection", "close");
         res.statusCode = status;
         res.end(JSON.stringify(value));
       };

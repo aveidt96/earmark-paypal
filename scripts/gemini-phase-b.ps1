@@ -9,6 +9,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($env:PAYPAL_AGENT_CHECKOUT_ENABLED -eq 'true') {
+  throw 'GEMINI_OUTBOUND_POLICY_REQUIRED: use scripts/paypal-security-live.ts for PayPal diagnostics.'
+}
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $privateDir = Join-Path $repoRoot '.tools/gemini-phase-b'
 $keyPath = Join-Path $privateDir 'key.dpapi'

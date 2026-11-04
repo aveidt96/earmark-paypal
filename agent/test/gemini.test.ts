@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
   GeminiModel,
   createGeminiModel,
   createModel,
   isGeminiEnabled,
+  type CustomToolDefinition,
   type GeminiSettings,
 } from "../src/models.js";
 import {
@@ -32,6 +34,9 @@ const settings: GeminiSettings = {
   apiKey: "synthetic-test-credential",
   timeoutMs: 100,
   networkEnabled: true,
+  // Protocol tests supply a mocked fetcher; real composition must supply its
+  // own schema boundary and has no permissive default.
+  outboundPolicy: () => {},
 };
 
 function contentResponse(parts: unknown) {
@@ -59,6 +64,24 @@ function enabledEnv(extra: Record<string, string | undefined> = {}) {
 }
 
 describe("gemini feature switch (disabled by default)", () => {
+  it.each(["true", "false", undefined])(
+    "blocks adapters without an outbound policy regardless of profile %s",
+    async (profile) => {
+      vi.stubEnv("PAYPAL_AGENT_CHECKOUT_ENABLED", profile);
+      try {
+        const fetcher = vi.fn<typeof fetch>(async () => contentResponse([]));
+        const unprotectedSettings: GeminiSettings = { ...settings };
+        delete unprotectedSettings.outboundPolicy;
+        const model = new GeminiModel(unprotectedSettings, fetcher);
+        await expect(model.decide(context)).rejects.toThrow(
+          "GEMINI_OUTBOUND_POLICY_REQUIRED",
+        );
+        expect(fetcher).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
   it("stays on deterministic mock without explicit provider selection", () =>
     expect(createModel({}).mode).toBe("mock"));
 
@@ -366,5 +389,114 @@ describe("gemini rollback semantics", () => {
         true,
       );
     else throw new Error("expected a tool decision in this fixture");
+  });
+});
+
+describe("gemini custom tool declarations (PayPal purchasing agent extension)", () => {
+  const customTools: readonly CustomToolDefinition[] = [
+    {
+      name: "readSpendingMandate",
+      description: "Read mandate details.",
+      schema: z.strictObject({}),
+    },
+    {
+      name: "proposePurchase",
+      description: "Propose a catalog offer purchase.",
+      schema: z.strictObject({
+        offerId: z.string().min(1).max(64),
+        reason: z.string().min(1).max(500),
+      }),
+    },
+  ];
+
+  it("serializes custom tool JSON schemas without $schema and validates arguments strictly", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      contentResponse([
+        {
+          functionCall: {
+            name: "proposePurchase",
+            args: {
+              offerId: "offer-us-weather-fast-400",
+              reason: "Lowest price eligible US weather offer.",
+            },
+          },
+        },
+      ]),
+    );
+    const model = new GeminiModel(
+      {
+        ...settings,
+        conversation: true,
+        systemInstruction: "Custom PayPal purchasing instruction",
+        customTools,
+      },
+      fetcher,
+    );
+    const decision = await model.decide({
+      task: { taskId: "t1" },
+      observations: {},
+    });
+    expect(decision).toEqual({
+      kind: "tool",
+      name: "proposePurchase",
+      args: {
+        offerId: "offer-us-weather-fast-400",
+        reason: "Lowest price eligible US weather offer.",
+      },
+      summary: "Gemini requested proposePurchase.",
+    });
+    const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.systemInstruction.parts[0].text).toBe(
+      "Custom PayPal purchasing instruction",
+    );
+    expect(
+      body.tools[0].functionDeclarations.map((t: { name: string }) => t.name),
+    ).toEqual(["readSpendingMandate", "proposePurchase"]);
+    expect(
+      body.tools[0].functionDeclarations[1].parametersJsonSchema.$schema,
+    ).toBeUndefined();
+  });
+
+  it("rejects extra arguments and undeclared tool names under customTools", async () => {
+    const extraArgsFetcher = vi.fn<typeof fetch>(async () =>
+      contentResponse([
+        {
+          functionCall: {
+            name: "proposePurchase",
+            args: {
+              offerId: "offer-1",
+              reason: "ok",
+              amountMinor: "9999",
+            },
+          },
+        },
+      ]),
+    );
+    const model1 = new GeminiModel(
+      { ...settings, customTools },
+      extraArgsFetcher,
+    );
+    await expect(model1.decide({ task: {}, observations: {} })).rejects.toThrow(
+      "INVALID_MODEL_RESPONSE",
+    );
+
+    const unknownToolFetcher = vi.fn<typeof fetch>(async () =>
+      contentResponse([
+        {
+          functionCall: {
+            name: "captureOrder",
+            args: {},
+          },
+        },
+      ]),
+    );
+    const model2 = new GeminiModel(
+      { ...settings, customTools },
+      unknownToolFetcher,
+    );
+    await expect(model2.decide({ task: {}, observations: {} })).rejects.toThrow(
+      "INVALID_MODEL_RESPONSE",
+    );
   });
 });

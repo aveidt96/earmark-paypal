@@ -15,6 +15,8 @@ export type OrderOnlyPermission = {
   ownerId: string;
   merchantId: string;
   createRequestId: string;
+  /** Explicit server-owned scope; omission preserves the original US campaign key. */
+  purchaseKey?: string;
 };
 export type PayPalCheckoutSettings = PayPalOAuthSettings & {
   merchantId: string;

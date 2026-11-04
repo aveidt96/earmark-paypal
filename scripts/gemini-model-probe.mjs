@@ -15,6 +15,10 @@ if (!/^[a-zA-Z0-9._-]+$/.test(model)) {
 }
 const started = Date.now();
 const generation = process.argv.includes("--generate");
+if (generation && process.env.PAYPAL_AGENT_CHECKOUT_ENABLED === "true") {
+  console.error("GEMINI_OUTBOUND_POLICY_REQUIRED: use paypal-security-live.ts");
+  process.exit(1);
+}
 const listing = process.argv.includes("--list");
 const sanitize = (value) =>
   String(value ?? "")
