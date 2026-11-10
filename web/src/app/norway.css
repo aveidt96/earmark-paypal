@@ -285,6 +285,31 @@ html[data-theme="norway"]
 html[data-theme="norway"] .operational-workspace {
   gap: 24px;
 }
+.public-research-home {
+  width: min(100%, 960px);
+}
+html[data-theme="norway"] .application:has(> .public-research-nav) {
+  margin-inline: auto;
+  max-width: 1040px;
+}
+html[data-theme="norway"] .application > .public-research-nav {
+  position: static;
+  width: 100%;
+  height: auto;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 16px;
+  margin-bottom: 24px;
+  border: 0;
+  border-bottom: 1px solid #e4e6e0;
+  overflow: visible;
+}
+html[data-theme="norway"] .public-research-nav .nav-actions {
+  display: flex;
+  width: auto;
+  margin: 0;
+}
 html[data-theme="norway"]
   :is(.panel-title h2, .norway-policy-card h2, .norway-recent-card h2) {
   margin: 0;

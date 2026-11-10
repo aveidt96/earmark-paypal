@@ -30,6 +30,33 @@ const judgeErrors: Record<string, string> = {
   TEST_CSRF_REQUIRED: "Your session expired. Authenticate again to continue",
 };
 
+const publicResearchErrors: Record<string, string> = {
+  PUBLIC_RESEARCH_DISABLED: "Live research isn’t configured for this site.",
+  PUBLIC_RESEARCH_ORIGIN_REQUIRED:
+    "This address isn’t enabled for research. Open the designated Earmark site and try again.",
+  PUBLIC_RESEARCH_CONTEXT_UNAVAILABLE:
+    "Earmark couldn’t verify this request. Refresh the page and try again.",
+  PUBLIC_RESEARCH_QUOTA_UNAVAILABLE:
+    "Earmark couldn’t check the research limit. Try again later.",
+  PUBLIC_RESEARCH_LIMIT_REACHED:
+    "The daily research limit has been reached. Try again tomorrow (UTC).",
+  PUBLIC_RESEARCH_SEARCH_UNAVAILABLE:
+    "Merchant search is unavailable right now. Try again later.",
+  PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE:
+    "AI offer comparison is unavailable right now. Try again later.",
+  PUBLIC_RESEARCH_PROVIDER_UNAVAILABLE:
+    "Earmark couldn’t reach a research provider. Try again later.",
+  PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE:
+    "Earmark couldn’t verify the offer evidence. Try a more specific request.",
+  PUBLIC_RESEARCH_NO_SOURCES:
+    "No usable merchant sources were found. Try a more specific product or service.",
+  PUBLIC_RESEARCH_TIMEOUT: "Live research timed out. Try a narrower request.",
+  INVALID_RESEARCH_REQUEST:
+    "Describe what you want to buy without private details, credentials, or links.",
+  PUBLIC_RESEARCH_ACCESS_REQUIRED:
+    "This Preview requires access. Open an authorized Preview or the public Earmark site.",
+};
+
 const syntheticExample = "Find weather data under $5 with a 15 minute SLA.";
 const researchExample =
   "Find weather API plans costing less than $10 USD per month. Compare their prices, billing periods and features, and identify evidence of PayPal acceptance where available.";
@@ -129,10 +156,9 @@ export function PurchasingChat({
             : `/api/paypal/agent-checkout/${login ? "login" : "chat"}`,
         {
           method: "POST",
-          credentials:
-            publicResearch || (judgeSandbox && !login && judgeMode === "policy")
-              ? "omit"
-              : "same-origin",
+          // Preview protection is handled by the hosting layer. The research
+          // and policy APIs still accept visitors without an Earmark session.
+          credentials: "same-origin",
           headers: {
             "Content-Type": "application/json",
             ...(publicResearch ? {} : { "X-Earmark-CSRF": csrf }),
@@ -140,14 +166,34 @@ export function PurchasingChat({
           body: JSON.stringify(payload),
         },
       );
-      const body = await response.json();
+      const body = await response.json().catch(() => null);
       if (!response.ok) {
-        if (response.status === 401 || body.error === "TEST_CSRF_REQUIRED") {
+        if (
+          !publicResearch &&
+          (response.status === 401 || body?.error === "TEST_CSRF_REQUIRED")
+        ) {
           setCsrf("");
           setLoginRequired(true);
         }
-        throw new Error(body.error || "CHAT_EVALUATION_FAILED");
+        const fallback =
+          response.status === 504
+            ? "PUBLIC_RESEARCH_TIMEOUT"
+            : response.status === 401 || response.status === 403
+              ? "PUBLIC_RESEARCH_ACCESS_REQUIRED"
+              : response.status === 404
+                ? "PUBLIC_RESEARCH_DISABLED"
+                : "CHAT_EVALUATION_FAILED";
+        throw new Error(
+          typeof body?.error === "string" ? body.error : fallback,
+        );
       }
+      if (
+        !body ||
+        (publicResearch &&
+          (body.discovery?.source !== "LIVE_TAVILY_SEARCH" ||
+            !Array.isArray(body.discovery.offers)))
+      )
+        throw new Error("PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE");
       if (login) {
         setCsrf(body.csrfToken);
         setLoginRequired(false);
@@ -193,17 +239,19 @@ export function PurchasingChat({
               ? "Judge purchasing sandbox"
               : "Gemini purchasing assistant"}
         </h3>
-        <Badge>
-          {judgeSandbox && judgeMode === "policy"
-            ? "Real policy execution"
-            : researching
-              ? "Review only"
-              : "Synthetic offers"}
-        </Badge>
+        {!publicResearch && (
+          <Badge>
+            {judgeSandbox && judgeMode === "policy"
+              ? "Real policy execution"
+              : researching
+                ? "Review only"
+                : "Synthetic offers"}
+          </Badge>
+        )}
       </header>
       <p className="chat-source">
         {researching ? (
-          "Live merchant research · review evidence and visit official sites for manual checkout."
+          "Compare current offers and review the evidence before visiting a merchant."
         ) : (
           <>
             {(judgeSandbox && judgeMode === "policy") ||
@@ -324,16 +372,26 @@ export function PurchasingChat({
       <div className="chat-response" aria-busy={busy} aria-live="polite">
         {error && (
           <p role="alert">
-            {error === "PUBLIC_RESEARCH_LIMIT_REACHED"
-              ? "The daily research limit has been reached. Try again tomorrow (UTC)"
-              : error === "INVALID_RESEARCH_REQUEST"
-                ? "Use a product or service request without personal details or credentials"
-                : Object.hasOwn(judgeErrors, error)
-                  ? judgeErrors[error]
-                  : researching
-                    ? "Online research couldn’t finish"
-                    : "The evaluation couldn’t finish"}
-            . No purchase intent or payment was created.
+            {publicResearch ? (
+              Object.hasOwn(publicResearchErrors, error) ? (
+                publicResearchErrors[error]
+              ) : (
+                "Live research couldn’t finish. Try again later."
+              )
+            ) : (
+              <>
+                {error === "PUBLIC_RESEARCH_LIMIT_REACHED"
+                  ? "The daily research limit has been reached. Try again tomorrow (UTC)"
+                  : error === "INVALID_RESEARCH_REQUEST"
+                    ? "Use a product or service request without personal details or credentials"
+                    : Object.hasOwn(judgeErrors, error)
+                      ? judgeErrors[error]
+                      : researching
+                        ? "Online research couldn’t finish"
+                        : "The evaluation couldn’t finish"}
+                . No purchase intent or payment was created.
+              </>
+            )}
           </p>
         )}
         {discovery && (
@@ -483,7 +541,7 @@ export function PurchasingChat({
         />
         {publicResearch && (
           <>
-            <label htmlFor={`${id}-budget`}>Demo budget (USD)</label>
+            <label htmlFor={`${id}-budget`}>Budget (USD)</label>
             <input
               id={`${id}-budget`}
               type="number"
@@ -495,9 +553,7 @@ export function PurchasingChat({
               value={budget}
               onChange={(event) => setBudget(event.target.value)}
             />
-            <small>
-              Up to $10. Used to compare offers. No funds are set aside.
-            </small>
+            <small>Up to $10 for offer comparison.</small>
           </>
         )}
         <div>

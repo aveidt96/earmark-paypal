@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
-import { createDatabase, type Pool } from "@flint/agent/server";
+import { AgentError, createDatabase, type Pool } from "@flint/agent/server";
 import { z } from "zod";
 import { discoveryInstruction, discoverOffers } from "./offer-discovery";
 import { PaymentError } from "./domain";
@@ -12,6 +12,22 @@ const input = z.strictObject({
   budgetMinor: z.number().int().min(1).max(1000),
 });
 const MAX_BODY_BYTES = 4096;
+
+const providerFailures = {
+  TAVILY_AUTH_ERROR: "PUBLIC_RESEARCH_SEARCH_UNAVAILABLE",
+  TAVILY_RATE_LIMITED: "PUBLIC_RESEARCH_SEARCH_UNAVAILABLE",
+  TAVILY_API_ERROR: "PUBLIC_RESEARCH_SEARCH_UNAVAILABLE",
+  TAVILY_INVALID_RESPONSE: "PUBLIC_RESEARCH_SEARCH_UNAVAILABLE",
+  MODEL_AUTH_ERROR: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE",
+  MODEL_RATE_LIMITED: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE",
+  MODEL_API_ERROR: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE",
+  MODEL_TRANSPORT_ERROR: "PUBLIC_RESEARCH_PROVIDER_UNAVAILABLE",
+  DISCOVERY_MODEL_UNSUPPORTED: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE",
+  DISCOVERY_REPORT_REQUIRED: "PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE",
+  INVALID_MODEL_RESPONSE: "PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE",
+  DISCOVERY_GROUNDING_REQUIRED: "PUBLIC_RESEARCH_NO_SOURCES",
+  MODEL_TIMEOUT: "PUBLIC_RESEARCH_TIMEOUT",
+} as const;
 
 function profile(env: Env) {
   if (
@@ -131,15 +147,15 @@ export async function handlePublicResearch(
   const hostMatches = config?.origin.host === request.headers.get("host");
   if (request.method === "GET")
     return json({ available: Boolean(config && hostMatches) });
-  if (!config || !hostMatches)
-    return json({ error: "PUBLIC_RESEARCH_DISABLED" }, 404);
-  if (request.headers.get("origin") !== config.origin.origin)
+  if (!config) return json({ error: "PUBLIC_RESEARCH_DISABLED" }, 404);
+  if (!hostMatches || request.headers.get("origin") !== config.origin.origin)
     return json({ error: "PUBLIC_RESEARCH_ORIGIN_REQUIRED" }, 403);
   const ip = config.hosted
     ? (request.headers.get("x-vercel-forwarded-for") ?? "")
     : "127.0.0.1";
   const version = isIP(ip);
-  if (!version) return json({ error: "PUBLIC_RESEARCH_UNAVAILABLE" }, 503);
+  if (!version)
+    return json({ error: "PUBLIC_RESEARCH_CONTEXT_UNAVAILABLE" }, 503);
 
   let payload: z.infer<typeof input>;
   try {
@@ -169,7 +185,8 @@ export async function handlePublicResearch(
     ]);
     if (!admitted) return json({ error: "PUBLIC_RESEARCH_LIMIT_REACHED" }, 429);
   } catch {
-    return json({ error: "PUBLIC_RESEARCH_UNAVAILABLE" }, 503);
+    console.warn("public-research: quota storage unavailable");
+    return json({ error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE" }, 503);
   } finally {
     clearTimeout(timer);
   }
@@ -192,6 +209,19 @@ export async function handlePublicResearch(
   } catch (error) {
     if (error instanceof PaymentError && safeInstructionErrors.has(error.code))
       return json({ error: "INVALID_RESEARCH_REQUEST" }, 400);
+    const code =
+      error instanceof PaymentError || error instanceof AgentError
+        ? error.code
+        : "";
+    if (Object.hasOwn(providerFailures, code)) {
+      const reason = providerFailures[code as keyof typeof providerFailures];
+      console.warn("public-research:", code);
+      return json(
+        { error: reason },
+        reason === "PUBLIC_RESEARCH_TIMEOUT" ? 504 : 502,
+      );
+    }
+    console.warn("public-research: backend unavailable");
     return json({ error: "PUBLIC_RESEARCH_UNAVAILABLE" }, 502);
   }
 }

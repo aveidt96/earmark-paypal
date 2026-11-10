@@ -51,12 +51,7 @@ export function discoveryInstruction(
   instruction: string,
   forbidden: readonly string[] = [],
 ) {
-  if (
-    !z.string().min(1).max(1000).safeParse(instruction).success ||
-    !/\b(?:weather|telemetry|providers?|services?|products?|plans?|subscriptions?|offers?|api)\b/i.test(
-      instruction,
-    )
-  )
+  if (!z.string().trim().min(1).max(1000).safeParse(instruction).success)
     throw new PaymentError("DISCOVERY_INSTRUCTION_REQUIRED");
   assertNoSensitiveMaterialInAgentPayload(instruction, forbidden);
   if (
