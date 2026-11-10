@@ -8,6 +8,7 @@ import { Brand, Icon, Button, Modal, Badge } from "./glass";
 import { useWorkspace } from "./workspace-provider";
 import { short } from "../lib/model";
 import { switchLocal } from "../lib/wallet";
+import { NorwayNavIcon } from "./public-paypal-pages";
 export function Navigation() {
   const path = usePathname();
   const { preference } = useTheme();
@@ -191,40 +192,6 @@ export function Navigation() {
         </Modal>
       )}
     </>
-  );
-}
-function NorwayNavIcon({ href }: { href: string }) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      {href === "/activity" ? (
-        <>
-          <circle cx="10" cy="10" r="7" />
-          <path d="M10 6v4l3 2" />
-        </>
-      ) : (
-        <path
-          d={
-            href === "/"
-              ? "M3 4h14v9H8l-4 3v-3H3z"
-              : href === "/mandates"
-                ? "M10 2l6 2v5c0 4-3 7-6 9-3-2-6-5-6-9V4z"
-                : href === "/security"
-                  ? "M4 5h12M4 10h12M4 15h8"
-                  : "M3 4h14v13H3zM6 8h8M6 12h5"
-          }
-        />
-      )}
-    </svg>
   );
 }
 export function Notices() {

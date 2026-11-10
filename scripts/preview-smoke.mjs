@@ -47,28 +47,67 @@ try {
     paymentsImplemented: false,
     paymentsEnabled: false,
   });
+  const workspace = await fetch(`${origin}/api/workspace`);
+  expect(workspace.status).toBe(200);
+  expect(await workspace.json()).toMatchObject({
+    error: "PUBLIC_DEMO_READ_ONLY",
+  });
+  expect(
+    (await fetch(`${origin}/api/workspace/launch`, { method: "POST" })).status,
+  ).toBe(403);
+  expect((await fetch(`${origin}/api/security-demos`)).status).toBe(404);
   browser = await chromium.launch();
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const externalRequests = [];
+  const legacyRequests = [];
+  const walletProbes = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.origin !== origin) externalRequests.push(url.hostname);
+    if (/^\/api\/(?:workspace|security-demos)(?:\/|$)/.test(url.pathname))
+      legacyRequests.push(url.pathname);
+  });
+  page.on("console", (message) => {
+    if (message.text() === "EARMARK_WALLET_PROBE") walletProbes.push(true);
+  });
+  await page.addInitScript(() => {
+    const record = () => console.debug("EARMARK_WALLET_PROBE");
+    Object.defineProperty(window, "ethereum", { get: record });
+    window.addEventListener("eip6963:requestProvider", record);
+  });
+  async function assertPayPalOnly() {
+    await expect(page.locator(".wallet-tools")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(
+      /Monad|Local Anvil|mock USDC|Connect (?:your )?wallet|Resolve escrow directly onchain|Legacy EVM|Create an Earmark/i,
+    );
+    await expect(
+      page.locator('a[href="/resolve"], a[href="/mandates/new"]'),
+    ).toHaveCount(0);
+  }
   // Smoke verification cannot call external services or submit mutations.
   await page.route("**/*", (route) => {
     const request = route.request();
+    const url = new URL(request.url());
+    const judgePolicy =
+      url.pathname === "/api/judge-sandbox" &&
+      request.method() === "POST" &&
+      request.postDataJSON()?.action === "evaluate" &&
+      request.postDataJSON()?.mode === "policy";
     return new URL(request.url()).origin === origin &&
-      request.method() === "GET"
+      (request.method() === "GET" || judgePolicy)
       ? route.continue()
       : route.abort();
   });
   const routes = [
     "/",
     "/mandates",
-    "/mandates/new",
     "/payments",
     "/activity",
     "/security",
-    "/resolve",
     "/paypal-test",
     "/agent-checkout",
   ];
@@ -100,6 +139,11 @@ try {
   await appearance.selectOption("norway");
   await page.reload();
   await expect(appearance).toHaveValue("norway");
+  for (const path of ["/resolve", "/mandates/new", "/executions/fixture"]) {
+    expect((await page.goto(origin + path)).status()).toBe(404);
+    await assertPayPalOnly();
+  }
+  await page.goto(origin);
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await navigation.getByRole("link", { name: "Policies", exact: true }).click();
   await expect(page).toHaveURL(`${origin}/security`);
@@ -112,10 +156,10 @@ try {
       page.getByRole("link", { name: "Earmark PayPal home" }),
     ).toBeVisible();
     await expect(page.getByRole("main")).toBeVisible();
+    await assertPayPalOnly();
     if (
       [
         "/mandates",
-        "/mandates/new",
         "/payments",
         "/activity",
         "/agent-checkout",
@@ -131,6 +175,7 @@ try {
   for (const path of routes) {
     await page.goto(origin + path);
     await expect(page.getByRole("main")).toBeVisible();
+    await assertPayPalOnly();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -183,7 +228,6 @@ try {
         policy: rect(".norway-policy-rail"),
         merchant: rect(".norway-merchant-name"),
         price: rect(".norway-price"),
-        intro: rect(".workspace-intro"),
         overflow: document.documentElement.scrollWidth > innerWidth,
       };
     });
@@ -229,24 +273,10 @@ try {
   }
   await page.goto(`${origin}/mandates`);
   await expect(page.locator(".norway-legacy-label")).toBeHidden();
-  await expect(page.locator(".workspace-footer")).toBeHidden();
   await expect(page.locator(".norway-recorded-receipt")).toBeVisible();
-  // Full legacy scenario controls live on Policies, outside the Norway workspace.
-  await page.goto(`${origin}/security`);
-  await page.getByRole("button", { name: "Demo Mode", exact: true }).click();
-  for (const name of [
-    "A — Normal Purchase",
-    "B — Prompt Injection",
-    "C — Invalid Delivery",
-    "D — Budget Exhaustion",
-  ]) {
-    const button = page.getByRole("button", { name, exact: true });
-    await button.click();
-    await expect(button).toHaveAttribute("aria-pressed", "true");
-  }
-  await page
-    .getByRole("button", { name: "PayPal Agent · Policy", exact: true })
-    .click();
+  // The former legacy intro URL now opens the same PayPal Policies page.
+  await page.goto(`${origin}/security?scene=intro`);
+  await assertPayPalOnly();
   await expect(page.getByTestId("paypal-completed-receipt")).toContainText(
     "6U113515L79775315",
   );
@@ -261,19 +291,105 @@ try {
       .locator("h3")
       .evaluate((element) => getComputedStyle(element).fontWeight),
   ).toBe("600");
+  // Exercise actual judge requests on the primary homepage, not only Policies.
+  await page.goto(origin);
   await page
-    .getByRole("button", { name: "Live Gemini chat", exact: true })
+    .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
-  await expect(chat).toContainText(
-    "Live chat is disabled in this read-only public preview",
-  );
+  await expect(chat).toContainText("Public live Gemini is unavailable");
   await expect(page.locator(".norway-policy-card")).toContainText(
     "AWAITING EVALUATION",
   );
   await expect(
-    chat.getByRole("button", { name: "Send to Gemini" }),
+    chat.getByRole("button", { name: "Evaluate instruction" }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Policy demo", exact: true }).click();
+  await expect(chat.getByLabel("Owner login secret")).toHaveCount(0);
+  await expect(chat.getByLabel("Judge evaluation mode")).toHaveCount(0);
+  const judgeLiveDenied = await fetch(`${origin}/api/judge-sandbox`, {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "evaluate",
+      mode: "gemini",
+      instruction: "Find approved weather data within $10",
+    }),
+  });
+  expect(judgeLiveDenied.status).toBe(403);
+  expect(
+    (
+      await fetch(`${origin}/api/judge-sandbox`, {
+        method: "POST",
+        headers: { Origin: origin, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "evaluate",
+          mode: "discovery",
+          instruction: "Find affordable weather API under $10",
+        }),
+      })
+    ).status,
+  ).toBe(403);
+  expect((await fetch(`${origin}/api/paypal/agent-checkout/chat`)).status).toBe(
+    403,
+  );
+  for (const [instruction, amount] of [
+    [
+      "Find the cheapest approved weather feed within $10 and 15 minutes. Do not execute payment.",
+      "400",
+    ],
+    [
+      "Use approved backup only for weather data within $10 and 15 minutes.",
+      "600",
+    ],
+    ["Find approved weather data for no more than $3 within 15 minutes.", null],
+  ]) {
+    await chat.getByLabel("Your purchasing instruction").fill(instruction);
+    const response = page.waitForResponse(
+      (r) =>
+        r.url().endsWith("/api/judge-sandbox") &&
+        r.request().method() === "POST",
+    );
+    await chat.getByRole("button", { name: "Evaluate instruction" }).click();
+    const r = await response;
+    expect(r.status()).toBe(200);
+    const { evaluation } = await r.json();
+    expect(evaluation.objective.instruction).toBe(instruction);
+    expect(evaluation.source).toBe("DETERMINISTIC_POLICY_ENGINE");
+    expect(evaluation.proposal?.amountMinor ?? null).toBe(amount);
+    expect(
+      evaluation.persisted ||
+        evaluation.ownerAuthorized ||
+        evaluation.fundsReserved,
+    ).toBe(false);
+    await expect(chat.getByRole("article")).toContainText(
+      amount ? "Human authorization required" : "TRANSACTION_LIMIT_EXCEEDED",
+    );
+    await expect(chat).toContainText(
+      "Mock AI planner · real deterministic policy engine",
+    );
+  }
+  await chat.screenshot({ path: `${root}.tools/task07i-judge-desktop.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await chat
+    .getByLabel("Your purchasing instruction")
+    .fill("Find approved weather data within $10 and 2 minutes.");
+  const slaResponse = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/judge-sandbox") && r.request().method() === "POST",
+  );
+  await chat.getByRole("button", { name: "Evaluate instruction" }).click();
+  const slaResult = await (await slaResponse).json();
+  expect(slaResult.evaluation.authorizationDecision.verdictCode).toBe(
+    "OBJECTIVE_MISMATCH",
+  );
+  await expect(chat.getByRole("article")).toContainText("Proposal blocked");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+  ).toBe(false);
+  await chat.screenshot({ path: `${root}.tools/task07i-judge-mobile.png` });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${origin}/security`);
   // Browser-only interception. No chat POST or owner credential reaches the server.
   // Full native tool/guard/policy integration is covered by paypal-agent-chat.test.ts.
   const fixture = await (
@@ -283,13 +399,86 @@ try {
   ).json();
   const submitted = [];
   const firstResponse = Promise.withResolvers();
-  await page.route("**/api/paypal/agent-checkout/chat", async (route) => {
+  const researchResponse = Promise.withResolvers();
+  const researchSource = `https://example.com/weather/${"pricing-".repeat(35)}`;
+  await page.route("**/api/judge-sandbox", async (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({
-        json: { authenticated: true, csrfToken: "browser-mock-csrf" },
+        json: {
+          authenticated: true,
+          localGeminiAvailable: true,
+          localDiscoveryAvailable: true,
+          publicLiveGemini: false,
+          csrfToken: "browser-mock-csrf",
+        },
       });
     }
-    const { instruction } = route.request().postDataJSON();
+    const { instruction, mode } = route.request().postDataJSON();
+    if (mode === "discovery") {
+      if (instruction === "Test research failure")
+        return route.fulfill({
+          status: 409,
+          json: { error: "RAW_PROVIDER_DETAIL_FIXTURE" },
+        });
+      await researchResponse.promise;
+      return route.fulfill({
+        json: {
+          discovery: {
+            source: "OFFLINE_SEARCH_FIXTURE",
+            instruction,
+            retrievedAt: "2026-11-04T12:00:00.000Z",
+            summary:
+              "Offline research fixture. No current price or PayPal support is verified.",
+            offers: [
+              {
+                id: "fixture-weather-api-month",
+                provider: "Fixture weather provider",
+                service: "Weather API",
+                priceMinor: "500",
+                currency: "USD",
+                billing: "per month",
+                availability: "Listed for signup (claim)",
+                delivery: null,
+                slaMinutes: null,
+                paypal: "unknown",
+                paypalEvidence: null,
+                sources: [{ url: researchSource, cited: true }],
+                factStatus: "claimed",
+                pricing: {
+                  status: "source-matched",
+                  period: "month",
+                  sourceUrl: researchSource,
+                },
+                reviewFit: "matches",
+                policy: {
+                  eligible: false,
+                  canonicalVerdict: "UNAPPROVED_MERCHANT",
+                  reasons: [
+                    "EXTERNAL_MERCHANT_NOT_BOUND",
+                    "IMMUTABLE_TERMS_UNVERIFIED",
+                  ],
+                },
+              },
+            ],
+            reviewRecommendation: 0,
+            searchSuggestions:
+              '<p>Offline search suggestions fixture</p><script>parent.document.documentElement.dataset.searchScript="executed"</script>',
+            proposal: null,
+            ownerAuthorized: false,
+            persisted: false,
+            fundsReserved: false,
+            evidence: {
+              httpStatus: 200,
+              durationMs: 1,
+              modelTurns: 1,
+              collectedTool: "reportDiscoveredOffers",
+              citedSourceCount: 1,
+              outboundGuardPassed: true,
+            },
+          },
+        },
+      });
+    }
     submitted.push(instruction);
     if (instruction === "Find the cheapest eligible weather feed.")
       await firstResponse.promise;
@@ -345,8 +534,9 @@ try {
     });
   });
   await page
-    .getByRole("button", { name: "Live Gemini chat", exact: true })
+    .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
+  await chat.getByLabel("Judge evaluation mode").selectOption("gemini");
   for (const [instruction, expected] of [
     ["Find the cheapest eligible weather feed.", "$4.00 USD"],
     ["Use the approved backup merchant only.", "$6.00 USD"],
@@ -376,7 +566,9 @@ try {
     .getByLabel("Your purchasing instruction")
     .fill("Test model failure");
   await chat.getByRole("button", { name: "Send to Gemini" }).click();
-  await expect(chat.getByRole("alert")).toContainText("MODEL_TIMEOUT");
+  await expect(chat.getByRole("alert")).toContainText(
+    "The evaluation took too long",
+  );
   await expect(page.locator(".norway-policy-card")).toContainText(
     "AWAITING EVALUATION",
   );
@@ -406,6 +598,83 @@ try {
   await page
     .getByTestId("norway-purchasing-conversation")
     .screenshot({ path: `${root}.tools/paypal-norway-conversation.png` });
+  // New research UI is explicitly stubbed; hosted backend remains denied above.
+  await chat.getByLabel("Judge evaluation mode").selectOption("discovery");
+  await chat.getByRole("button", { name: "Use example" }).click();
+  await expect(chat.getByLabel("Your purchasing instruction")).toHaveValue(
+    /Find weather API plans costing less than/,
+  );
+  await expect(
+    chat.getByRole("region", { name: "Online offer research" }),
+  ).toHaveCount(0);
+  const researchInstruction = "Find an affordable weather API under $10.";
+  await chat
+    .getByLabel("Your purchasing instruction")
+    .fill(researchInstruction);
+  await chat
+    .getByRole("button", { name: "Research offers", exact: true })
+    .click();
+  await expect(chat.getByRole("status")).toContainText("20–30 seconds");
+  await expect(
+    chat.getByRole("button", { name: "Research offers" }),
+  ).toBeDisabled();
+  await expect(chat.getByLabel("Judge evaluation mode")).toBeDisabled();
+  researchResponse.resolve();
+  const research = chat.getByRole("region", { name: "Online offer research" });
+  await expect(research).toContainText(
+    "Offline search fixture · no live research",
+  );
+  await expect(research).toContainText("UNAPPROVED_MERCHANT");
+  await expect(research).toContainText("PayPal acceptance: unknown");
+  await expect(research).toContainText("Recommended for review");
+  await expect(research).toContainText("Ineligible for Earmark payment");
+  await research.getByText("Sources (1)", { exact: true }).click();
+  const source = research.getByRole("link", {
+    name: "Pricing evidence · example.com",
+  });
+  await expect(source).toHaveAttribute("href", researchSource);
+  await expect(source).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(
+    research.getByRole("button", { name: "Review for manual checkout" }),
+  ).toHaveCount(0);
+  await expect(chat.locator(".chat-user")).toHaveText(researchInstruction);
+  await expect(
+    research.getByRole("button", { name: "Payment execution disabled" }),
+  ).toBeDisabled();
+  await expect(research.locator("iframe")).toHaveAttribute(
+    "sandbox",
+    "allow-popups",
+  );
+  expect(
+    await page.locator("html").getAttribute("data-search-script"),
+  ).toBeNull();
+  await research.screenshot({
+    path: `${root}.tools/task07j-discovery-desktop.png`,
+  });
+  for (const width of [1280, 768, 390, 375]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+    ).toBe(false);
+    await expect(source).toBeVisible();
+    await expect(
+      chat.getByRole("button", { name: "Research offers" }),
+    ).toBeEnabled();
+  }
+  await research.screenshot({
+    path: `${root}.tools/task07j-discovery-mobile.png`,
+  });
+  await chat
+    .getByLabel("Your purchasing instruction")
+    .fill("Test research failure");
+  await chat.getByRole("button", { name: "Research offers" }).click();
+  await expect(chat.getByRole("alert")).toContainText(
+    "Online research couldn’t finish",
+  );
+  await expect(chat).not.toContainText("RAW_PROVIDER_DETAIL_FIXTURE");
+  await page.setViewportSize({ width: 1440, height: 1000 });
   for (const [name, expectedVerdict] of [
     ["A — Normal Purchase", "PROPOSAL AUTHORIZED — NO PAYPAL ORDER CREATED"],
     ["B — Prompt Injection", "PROPOSAL REJECTED (UNAPPROVED_MERCHANT)"],
@@ -434,8 +703,9 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin);
   await page
-    .getByRole("button", { name: "Live Gemini chat", exact: true })
+    .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
+  await chat.getByLabel("Judge evaluation mode").selectOption("gemini");
   await chat
     .getByLabel("Your purchasing instruction")
     .fill("Find the cheapest eligible weather feed.");
@@ -471,6 +741,7 @@ try {
   for (const path of routes) {
     await page.goto(origin + path);
     await expect(page.getByRole("main")).toBeVisible();
+    await assertPayPalOnly();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -478,7 +749,9 @@ try {
     ).toBe(false);
   }
   await page.goto(origin);
-  await expect(page.getByTestId("norway-purchasing-conversation")).toBeHidden();
+  await expect(
+    page.getByTestId("norway-purchasing-conversation"),
+  ).toBeVisible();
   await page.screenshot({ path: `${root}.tools/paypal-classic-mobile.png` });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: `${root}.tools/paypal-classic-desktop.png` });
@@ -486,8 +759,11 @@ try {
   await page.reload();
   await expect(appearance).toHaveValue("norway");
   expect(errors).toEqual([]);
+  expect(externalRequests).toEqual([]);
+  expect(legacyRequests).toEqual([]);
+  expect(walletProbes).toEqual([]);
   console.log(
-    `PASS: ${routes.length} production routes, Norway/Classic Light persistence and legacy migration under OS dark, four recorded and four PayPal scenarios, typed chat with explicitly mocked comparison/proposal/rejection/error states, public chat lockdown, disabled payments, desktop/mobile layout and no browser exceptions. External services/mutations blocked.`,
+    `PASS: ${routes.length} PayPal pages and three legacy page denials, both themes, four PayPal policy scenarios, deterministic Judge and offline research, hosted endpoint denials, disabled payments and responsive layout. Zero browser exceptions, external requests, legacy API requests or injected wallet probes.`,
   );
 } finally {
   await browser?.close();

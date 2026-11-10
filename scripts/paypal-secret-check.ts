@@ -25,7 +25,13 @@ try {
     secret,
     Buffer.from(`${id}:${secret}`).toString("base64"),
   ];
-  for (const name of ["GEMINI_API_KEY", "AI_API_KEY"]) {
+  for (const name of [
+    "GEMINI_API_KEY",
+    "TAVILY_API_KEY",
+    "AI_API_KEY",
+    "EARMARK_JUDGE_LOGIN_SECRET",
+    "EARMARK_JUDGE_SESSION_SECRET",
+  ]) {
     const value = process.env[name];
     if (value) values.push(value);
   }

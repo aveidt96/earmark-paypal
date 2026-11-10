@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
-import { PaymentResolution } from "../../components/payment-resolution";
+import { notFound } from "next/navigation";
 export const metadata: Metadata = { title: "Resolve Escrow" };
-export default PaymentResolution;
+export default async function Page() {
+  if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true") notFound();
+  const { PaymentResolution } =
+    await import("../../components/legacy-web-profile");
+  return <PaymentResolution />;
+}

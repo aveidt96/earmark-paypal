@@ -4,6 +4,21 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  webpack(config, { webpack }) {
+    if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true") {
+      // Exclude the legacy client graph before the App Router collects client references.
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /(?:^|\/)legacy-web-profile$/,
+          resolve(
+            process.cwd(),
+            "src/components/disabled-legacy-web-profile.ts",
+          ),
+        ),
+      );
+    }
+    return config;
+  },
   outputFileTracingRoot: resolve(process.cwd(), ".."),
   outputFileTracingIncludes: {
     "/api/workspace": ["../agent/dist/**/*", "../agent/package.json"],

@@ -251,6 +251,8 @@ export interface GeminiSettings {
   /** Optional custom system instruction and tool declarations (e.g. PayPal purchasing agent). */
   systemInstruction?: string;
   customTools?: readonly CustomToolDefinition[];
+  /** Research-only collector sessions may opt into a 3000-token structured response. */
+  maxOutputTokens?: 600 | 3000;
   /** Last check before each HTTP attempt; no request body may bypass this hook. */
   outboundPolicy?: (url: string, init: RequestInit) => void;
 }
@@ -381,15 +383,11 @@ export class GeminiModel implements AgentModel {
             parts: [{ text: this.#settings.systemInstruction ?? instruction }],
           },
           contents: this.#settings.conversation ? this.#history : contents,
-          tools: [
-            {
-              functionDeclarations,
-            },
-          ],
+          tools: [{ functionDeclarations }],
           generationConfig: {
             // Keep the bounded configuration verified by the native API;
             // low thinking limits work for these narrow tool requests.
-            maxOutputTokens: 600,
+            maxOutputTokens: this.#settings.maxOutputTokens ?? 600,
             thinkingConfig: { thinkingLevel: "low" },
           },
         });
