@@ -219,6 +219,11 @@ describe("anonymous Norway research", () => {
     const fetcher = transport();
     const evaluate: typeof discoverOffers = (instruction, env, _, budget) => {
       expect(env.AI_TIMEOUT_MS).toBe("16000");
+      expect(env).toMatchObject({
+        EARMARK_OFFER_DISCOVERY_ENABLED: "true",
+        EARMARK_GEMINI_ENABLED: "true",
+        AI_ENABLE_NETWORK: "true",
+      });
       return discoverOffers(instruction, env, fetcher, budget);
     };
     const res = await handlePublicResearch(
@@ -302,6 +307,65 @@ describe("anonymous Norway research", () => {
     expect(await failed.json()).toEqual({
       error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE",
     });
+    expect(discover).not.toHaveBeenCalled();
+  });
+
+  it("identifies configuration failures before quota without exposing values", async () => {
+    const reserve = vi.fn(async () => true);
+    const discover = vi.fn<typeof discoverOffers>();
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const [overrides, error, prerequisite] of [
+        [
+          { EARMARK_PUBLIC_RESEARCH_ENABLED: "" },
+          "PUBLIC_RESEARCH_NOT_ENABLED",
+          "EARMARK_PUBLIC_RESEARCH_ENABLED",
+        ],
+        [
+          { EARMARK_PUBLIC_DEMO_ONLY: "false" },
+          "PUBLIC_RESEARCH_PROFILE_BLOCKED",
+          "EARMARK_PUBLIC_DEMO_ONLY",
+        ],
+        [
+          { EARMARK_RESEARCH_DATABASE_URL: "" },
+          "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
+          "EARMARK_RESEARCH_DATABASE_URL",
+        ],
+        [
+          { EARMARK_RESEARCH_QUOTA_SECRET: "not-a-valid-fixture" },
+          "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
+          "EARMARK_RESEARCH_QUOTA_SECRET",
+        ],
+        [
+          { GEMINI_API_KEY: "" },
+          "PUBLIC_RESEARCH_PROVIDERS_NOT_CONFIGURED",
+          "GEMINI_API_KEY",
+        ],
+        [{ VERCEL: "" }, "PUBLIC_RESEARCH_RUNTIME_NOT_CONFIGURED", "VERCEL"],
+        [
+          { EARMARK_PUBLIC_RESEARCH_ORIGIN: `${origin}/` },
+          "PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED",
+          "EARMARK_PUBLIC_RESEARCH_ORIGIN",
+        ],
+      ] as const) {
+        const reply = await handlePublicResearch(
+          request(payload),
+          { ...publicEnv, ...overrides },
+          reserve,
+          discover,
+        );
+        expect(reply.status).toBe(404);
+        expect(await reply.json()).toEqual({ error });
+        expect(log).toHaveBeenLastCalledWith(
+          "public-research: configuration",
+          error,
+          [prerequisite],
+        );
+      }
+    } finally {
+      log.mockRestore();
+    }
+    expect(reserve).not.toHaveBeenCalled();
     expect(discover).not.toHaveBeenCalled();
   });
 

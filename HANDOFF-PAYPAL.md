@@ -1,12 +1,23 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-10**
+Last updated: **2026-11-11**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **Task 09D, 2026-11-11: offline recovery verified; publication authorized.**
+  The direct-Vercel release preserves approved Norway composition. Hosted
+  configuration/account verification and a genuine provider smoke remain.
+
+
+- **Task 09C, 2026-11-10: approved Norway layout restored locally.**
+  The ordinary checkout uses the original navigation, budget card, research
+  chat and policy/activity rail. Judge simulation stays at `/judge`. Public
+  research reports distinct configuration failures. Hosted provider execution
+  is still unverified.
 
 - **Task 09B, 2026-11-10: public research is the default in local code.**
   The public homepage and purchasing entry point open the live research
@@ -7032,3 +7043,216 @@ offline substitution, and the mocked merchant handoff marked Not paid.
 The final rebuild and Chromium rerun also verified that a same-origin
 cookie reached the research request. Browser checks made zero external,
 legacy API, payment or wallet requests.
+
+### 2026-11-10 — Task 09C approved Norway interface and research configuration
+
+Compared Task 09B release `d833fb0` with the approved Norway baseline
+`deb0d53`. Restored the original shell and navigation in
+`web/src/components/public-paypal-pages.tsx`, the original layout hierarchy
+in `web/src/app/layout.tsx`, the approved homepage title in
+`web/src/app/page.tsx`, and the exact approved stylesheet in
+`web/src/app/norway.css`. Public notice and navigation copy describes
+research and disabled payments. `web/src/components/paypal-agent-console.tsx`
+reuses the original conversation, budget and policy/activity rail with
+real merchant research as its public conversation. The public home no
+longer mounts the deterministic console or its fetch. The existing
+`/agent-checkout` public alias shares the restored shell. `/judge` retains
+the simulation controls. The visible historical Sandbox activity remains
+explicitly recorded evidence.
+
+On the deployed Task 09B code, `PurchasingChat` posts to
+`/api/paypal/research`. The original `profile(env)` in
+`web/src/server/paypal/public-research.ts` returns null for any unmet
+prerequisite. The route then returns 404 with `PUBLIC_RESEARCH_DISABLED`.
+The browser mapped an unstructured 404 to the same error. That message
+alone could not identify a setting or even prove the route ran.
+
+The public gate requires `EARMARK_PUBLIC_RESEARCH_ENABLED=true` and both
+`NEXT_PUBLIC_DEMO_ONLY=true` and `EARMARK_PUBLIC_DEMO_ONLY=true`.
+`EARMARK_ENABLE_TESTNET_EXECUTION`, `PAYPAL_BACKEND_ENABLED` and
+`PAYPAL_PAYMENTS_ENABLED` must stay off, and TLS verification must stay
+enabled. Provide a dedicated direct Neon `EARMARK_RESEARCH_DATABASE_URL`
+distinct from the payment DB, the existing quota schema and role grants,
+and a 64-hex-character `EARMARK_RESEARCH_QUOTA_SECRET`. For direct Vercel
+research, provide server-only `GEMINI_API_KEY` and `TAVILY_API_KEY`. Expose
+Vercel system environment variables so `VERCEL=1` is available. Set
+`EARMARK_PUBLIC_RESEARCH_ORIGIN` to the exact serving HTTPS origin,
+without a path, trailing slash or non-default port. A configured route
+then checks both Host and Origin plus the Vercel client address, validates
+the body and reserves quota before provider execution. Global
+`AI_ENABLE_NETWORK`, `EARMARK_GEMINI_ENABLED` and
+`EARMARK_OFFER_DISCOVERY_ENABLED` are not admission gates. Only the
+admitted direct request overrides them to true internally.
+
+The local shell and `web/.env.local` lacked both public-demo flags, the
+research opt-in, origin, quota DB URL and quota secret. Both provider key
+names were present. With the two demo flags supplied by the local public
+profile, the absent research opt-in is still the first gate. No Vercel
+token or CLI was available. A read-only request to the specified branch
+Preview returned a 302, and the schema-invalid POST probe timed out. The
+deployed environment and exact hosted missing prerequisite remain
+unverified. No live provider request was attempted.
+
+`web/src/server/paypal/public-research.ts` returns distinct 404 codes for
+configuration failures and logs only their categories and prerequisite
+names. `web/src/components/purchasing-chat.tsx` shows distinct copy for the
+configuration categories and a bare route 404. The same-origin cookie,
+quota, provider, evidence and budget logic stay in place. The release uses the direct Next.js provider pipeline.
+`web/test/offer-discovery.test.ts` checks the new failure categories and
+request-scoped provider flags. `scripts/preview-smoke.mjs` checks the
+restored navigation, budget, composer and policy card, plus the separate
+Judge route and the existing live-only and merchant handoff behavior.
+
+Matched screenshot pairs are stored locally in `.tools/task09c/`, using
+1440 × 1000 desktop and 390 × 844 mobile for the before and after views.
+Hosted verification requires checking the target Preview's settings and
+Runtime Logs, then one separately authorized valid research request after
+the required Preview configuration is present. No Git commit, push,
+deployment, Production action or financial operation was performed.
+
+Verification passed 116 focused tests across six suites, targeted Prettier
+and zero-warning lint, TypeScript and the production build. The secret scan
+found zero matches and the browser boundary scan passed 48 chunks. Chromium
+passed eight pages, three legacy route denials, four Judge policy scenarios,
+both themes, responsive layout and the mocked public research and manual
+handoff. The browser smoke verified same-origin cookie delivery, rejected
+offline fixture output on the public surface and showed the manual state as
+Not paid. Both screenshot pairs were captured after retrying intermittent
+local Chromium navigation timeouts. The Norway stylesheet exactly matches
+`deb0d53`. The branch independently advanced to empty author-verification
+commit `45e4f1e` during the session. Task 09C changes remain unstaged and
+unpublished.
+
+### 2026-11-10 — Task 09D release recovery
+
+- The Git remote is `aveidt96/earmark-paypal`. The release branch is
+  `paypal-hackathon-primary-release`, and the authenticated branch API
+  reported `45e4f1ebe7bc5cfc5708e7962b5514135af8d8fd`. GitHub confirmed the
+  repository is private, `aveidt96` owns it and has admin and push
+  permission, and the branch is reported as unprotected. Its default
+  branch is `main`.
+- Effective author and committer use the repository-local
+  `189458132+aveidt96@users.noreply.github.com` identity. The global email
+  differs, and no author or committer environment override was present.
+  Credential Manager had two GitHub accounts, so the read-only API lookup
+  explicitly selected `aveidt96`. GitHub returned user ID `189458132` and
+  author and committer attribution to `aveidt96` for both `45e4f1e` and
+  `d833fb0`. The email-list API did not authorize access, so direct
+  verification of the Task 09B address in account settings was unavailable.
+- GitHub's Vercel status histories for both commits contained pending then
+  success for `samuelid22/earmark-paypal`. Neither contained the reported
+  author-block event. The local Vercel link names `earmark-paypal` and
+  includes a team scope. Read-only Vercel account, team and project
+  requests all returned HTTP 403. The workspace owner, Login Connections,
+  GitHub installation grants, actual blocked deployment, and Preview
+  environment are still unknown. Do not infer Vercel authority from
+  GitHub repository ownership or historical authorship.
+- The hosted message still maps to the Task 09B research admission 404
+  or its bare-404 browser fallback. The first missing local gate remains
+  `EARMARK_PUBLIC_RESEARCH_ENABLED`. Both public-demo flags, origin, quota
+  URL and quota secret were absent locally. The two provider keys were
+  present by name. Hosted configuration and live providers were not tested.
+- `web/src/server/paypal/public-research.ts`,
+  `web/src/components/purchasing-chat.tsx` and
+  `web/test/offer-discovery.test.ts` now distinguish a canonical HTTPS
+  origin with no Vercel runtime indicator from a malformed origin. This
+  adds a safe `VERCEL` prerequisite diagnosis without changing admission.
+  The Task 09C Norway UI is preserved.
+- The exact 10-path release delta, including the Task 09C handoff,
+  is at `.tools/task09d/task09d-release.patch`. Its base is `45e4f1e`,
+  and its Git tree is `a8aa5de1be11eb3e9044c8f454929f953c80d272`.
+  The isolated source snapshot has the published lockfile, exact approved
+  Norway CSS, and a direct Next.js research handler with no Task 10 imports.
+  The working tree still contains the separately paused Task 10 work.
+
+For the blocked event, open Vercel Deployments and locate the exact
+blocked SHA and target project. Switch to that project's owning Hobby
+workspace and confirm its owner account. In that owner's Account Settings
+→ Authentication → Login Connections, verify GitHub `aveidt96` is linked.
+In Project Settings → Git, confirm `aveidt96/earmark-paypal` is connected
+and the release branch is a Preview branch. In GitHub Settings →
+Applications → Installed GitHub Apps → Vercel, confirm this repository
+is included. If those all match, use the failed deployment ID and SHA in
+a Vercel support case. Keep account and repository changes separately
+authorized.
+
+For a subsequent authorized Preview, verify project root `web`, the Next.js
+Node runtime and the research route's 60-second duration. Scope the required
+variables described in Task 09C to the release branch's Preview environment,
+and expose Vercel system variables. Set the origin to the exact HTTPS host
+used by the browser, without a trailing slash. Confirm the separate direct
+Neon quota database, existing quota schema and role grants. Keep all PayPal
+and Monad execution disabled. Use the tested tree for the next real
+release-branch commit, then check one separately authorized live research
+request on the configured Preview. No Git stage, commit, push, deployment
+or account change was made by Task 09D.
+
+### 2026-11-11 — Task 09D verification completion
+
+- Continued the interrupted verification without changing application behavior.
+  Updated this handoff's current-state summary and recorded the actual final
+  results. The frozen 10-path candidate/tree documented above is unchanged;
+  this final verification log remains outside that frozen snapshot.
+- Verified the isolated candidate, not the mixed working tree containing paused
+  Task 10 changes. Passed: 110 tests in five discovery, Judge, agent/payment and
+  checkout suites; agent TypeScript build; production web TypeScript check;
+  changed-code Prettier; zero-warning Biome lint over 166 files; production
+  Next.js build/static generation; 48-chunk browser boundary scan; release-source
+  and compiled-browser credential scans; patch application/whitespace checks;
+  and fresh working-tree `git diff --check`. The compiled research route declares
+  maxDuration 60. No live provider behavior is proved by these offline checks.
+- The first resumed standard preview smoke failed at its initial homepage
+  navigation with Playwright's 30-second load timeout. A local diagnostic copy
+  at `.tools/task09d/release/scripts/.task09d-preview-smoke.mjs` enabled server
+  output and a bounded 90-second navigation timeout, without changing the
+  production source or checked-in smoke assertions. That complete run passed:
+  eight PayPal pages, three legacy-route denials, both themes, four policy
+  scenarios, deterministic Judge, offline public research/manual checkout,
+  restricted endpoints and disabled payments. No browser exceptions, external
+  requests, legacy API requests or wallet probes; no overflow at 1440, 1280,
+  1024, 390 and 375 pixels. Aborted `/security` navigation/prefetch requests
+  appeared during route changes; all final route/assertion checks passed.
+  The cause of the initial local load delay is not established.
+- Fresh screenshots are local-only under `.tools/task09d/release/.tools/`,
+  including `paypal-norway-1440.png`, `paypal-norway-390.png`, Classic Light,
+  Judge and discovery views. Matched before/after restoration comparisons
+  remain `.tools/task09c/before-desktop.png`, `after-desktop.png` (1440x1000),
+  and `before-mobile.png`, `after-mobile.png` (390x844). Norway CSS remains
+  identical to the approved Task 09 baseline.
+- Publication must use the isolated direct-Vercel patch, not stage the entire
+  current worktree. Paused Lambda source/dependencies, 11 diagnostic scripts,
+  all `.tools` evidence and environment/credential files remain excluded.
+  The real Git index is empty. No commit, push, deployment, account/settings
+  change, provider evaluation, database mutation or financial operation was
+  performed. Monad and unattended saved-Wallet execution remain disabled.
+- Remaining actions: inspect the exact reported blocked deployment and owning
+  Vercel Login Connections; confirm branch-specific Preview configuration and
+  dedicated quota database/schema; separately authorize publication/deployment
+  and one genuine provider smoke. Local offline verification is complete;
+  hosted research success and the original author-block cause remain unproven.
+
+
+### 2026-11-11 — Authorized recovery publication
+
+User authorized one recovery commit and normal push to the existing
+paypal-hackathon-primary-release branch. Author and committer are aveidt96
+using its GitHub noreply identity. Task 09 commit deb0d53 is an ancestor;
+the remote branch matched the reviewed base 45e4f1e before staging.
+
+The release contains HANDOFF-PAYPAL.md, scripts/preview-smoke.mjs,
+web/src/app/layout.tsx, web/src/app/norway.css, web/src/app/page.tsx,
+web/src/components/paypal-agent-console.tsx,
+web/src/components/public-paypal-pages.tsx,
+web/src/components/purchasing-chat.tsx,
+web/src/server/paypal/public-research.ts and
+web/test/offer-discovery.test.ts. These restore the approved Norway
+composition and diagnose research configuration while preserving quotas,
+Judge, evidence validation and disabled payment/Monad execution.
+
+Application and test blobs match the previously tested direct-Vercel
+candidate. Only the handoff gains the final verification/publication log.
+Paused Task 10 Lambda code/dependencies, 11 diagnostic scripts, .tools,
+environment files, credentials and private local evidence are excluded.
+No manual Vercel action or Production promotion is authorized. Git push
+may activate the existing Vercel Git integration. Actual commit/push
+outcome will be recorded in the local handoff after the operation.

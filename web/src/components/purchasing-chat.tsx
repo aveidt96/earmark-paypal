@@ -32,6 +32,20 @@ const judgeErrors: Record<string, string> = {
 
 const publicResearchErrors: Record<string, string> = {
   PUBLIC_RESEARCH_DISABLED: "Live research isn’t configured for this site.",
+  PUBLIC_RESEARCH_NOT_ENABLED:
+    "Live research is turned off for this deployment.",
+  PUBLIC_RESEARCH_PROFILE_BLOCKED:
+    "This deployment’s safety settings prevent public research.",
+  PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED:
+    "This deployment’s research quota isn’t configured.",
+  PUBLIC_RESEARCH_PROVIDERS_NOT_CONFIGURED:
+    "This deployment’s search or AI service isn’t configured.",
+  PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED:
+    "This deployment’s research address isn’t configured correctly.",
+  PUBLIC_RESEARCH_RUNTIME_NOT_CONFIGURED:
+    "This deployment’s hosting settings prevent live research.",
+  PUBLIC_RESEARCH_ROUTE_UNAVAILABLE:
+    "This deployment doesn’t serve the live research endpoint.",
   PUBLIC_RESEARCH_ORIGIN_REQUIRED:
     "This address isn’t enabled for research. Open the designated Earmark site and try again.",
   PUBLIC_RESEARCH_CONTEXT_UNAVAILABLE:
@@ -181,7 +195,7 @@ export function PurchasingChat({
             : response.status === 401 || response.status === 403
               ? "PUBLIC_RESEARCH_ACCESS_REQUIRED"
               : response.status === 404
-                ? "PUBLIC_RESEARCH_DISABLED"
+                ? "PUBLIC_RESEARCH_ROUTE_UNAVAILABLE"
                 : "CHAT_EVALUATION_FAILED";
         throw new Error(
           typeof body?.error === "string" ? body.error : fallback,
