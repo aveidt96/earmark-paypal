@@ -10,8 +10,20 @@ import {
   paymentInputSchema,
   PaymentError,
 } from "./domain";
-import { type PayPalClient, type PayPalOrder, PayPalError } from "./client";
-import type { OrderOnlyPermission, CaptureOnlyPermission } from "./config";
+import { PayPalClient, type PayPalOrder, PayPalError } from "./client";
+import type {
+  OrderOnlyPermission,
+  CaptureOnlyPermission,
+  PayPalCheckoutSettings,
+} from "./config";
+import {
+  type SavedWalletScope,
+  checkSavedWalletMandate,
+  checkSavedWalletPurchase,
+  checkSavedWalletWindow,
+  isSavedWalletPurchase,
+  validateSavedWalletConsent,
+} from "./saved-wallet";
 import { assertOrderScope } from "./us-order";
 import { assertCaptureScope } from "./us-capture";
 import {
@@ -40,6 +52,44 @@ function timestamp(tx: Mutation) {
 
 /** No methods here are registered as agent tools or unauthenticated financial routes. */
 export class PayPalPaymentService {
+  /** Private operator workflow only. No route, tool, or token lookup is installed. */
+  static async checkoutSavedWalletOnce(options: {
+    actor: Principal;
+    purchase: unknown;
+    consent: unknown;
+    expectedPayerId: string;
+    settings: PayPalCheckoutSettings;
+    repository: PaymentRepository;
+    now?: () => number;
+    fetch?: typeof fetch;
+  }): Promise<Attempt> {
+    const now = options.now ?? Date.now;
+    const settings = { ...options.settings, maxRetries: 0 };
+    const consent = validateSavedWalletConsent(
+      options.consent,
+      settings,
+      options.expectedPayerId,
+      now(),
+    );
+    const { ownerId, purchase, expiresAt } = consent;
+    requireOwner(options.actor, ownerId);
+    const client = new PayPalClient(settings, {
+      savedWallet: consent,
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+      now,
+    });
+    const service = new PayPalPaymentService(
+      options.repository,
+      client,
+      now,
+      settings.merchantId,
+    );
+    return service.createBoundOrder(options.actor, options.purchase, {
+      ownerId,
+      purchase,
+      expiresAt,
+    });
+  }
   constructor(
     readonly repository: PaymentRepository,
     readonly gateway: PayPalGateway,
@@ -69,13 +119,22 @@ export class PayPalPaymentService {
     });
   }
   async reserve(actor: Principal, raw: unknown) {
+    return this.reserveBound(actor, raw);
+  }
+  private async reserveBound(
+    actor: Principal,
+    raw: unknown,
+    wallet?: SavedWalletScope,
+  ) {
     const input = parse(paymentInputSchema, raw);
+    checkSavedWalletPurchase(wallet, input);
     this.merchant(input.merchantId);
     return this.repository.mutate(
       input.mandateId,
       { purchaseKey: input.purchaseKey },
       (tx) => {
         requireIdentity(actor, tx.mandate);
+        if (wallet) checkSavedWalletMandate(wallet, tx.mandate, tx.now);
         if (tx.attempt) {
           if (tx.attempt.fingerprint !== fingerprint(input))
             throw new PaymentError("IDEMPOTENCY_CONFLICT");
@@ -99,8 +158,15 @@ export class PayPalPaymentService {
     return a;
   }
   async createOrder(actor: Principal, raw: unknown): Promise<Attempt> {
+    return this.createBoundOrder(actor, raw);
+  }
+  private async createBoundOrder(
+    actor: Principal,
+    raw: unknown,
+    wallet?: SavedWalletScope,
+  ): Promise<Attempt> {
     requireOwner(actor, actor.ownerId);
-    const saved = await this.reserve(actor, raw);
+    const saved = await this.reserveBound(actor, raw, wallet);
     const claim = await this.repository.mutate(
       saved.mandateId,
       { id: saved.id },
@@ -108,6 +174,7 @@ export class PayPalPaymentService {
         requireOwner(actor, tx.mandate.ownerId);
         const a = attempt(tx);
         if (a.state !== "RESERVED") return undefined;
+        if (wallet) checkSavedWalletMandate(wallet, tx.mandate, tx.now);
         authorize(actor, tx.mandate, a, tx.now, a);
         a.state = "CREATING";
         timestamp(tx);
@@ -122,7 +189,13 @@ export class PayPalPaymentService {
     } catch (error) {
       return this.failedRequest(claim, "CREATE", error);
     }
-    return this.observe(claim, order);
+    const observed = await this.observe(claim, order);
+    // Only the invocation that claimed create may proceed. Replays never charge.
+    return wallet &&
+      observed.state === "APPROVED" &&
+      observed.budgetState === "RESERVED"
+      ? this.captureBound(actor, observed.id, wallet)
+      : observed;
   }
   /** Existing reservation only. Durable pre-dispatch claim is never reset/retried. */
   async createPreparedOrderOnce(
@@ -138,6 +211,7 @@ export class PayPalPaymentService {
         requireOwner(actor, tx.mandate.ownerId);
         const a = attempt(tx);
         assertOrderScope(a, scope);
+        checkSavedWalletPurchase(undefined, a);
         if (
           a.state !== "RESERVED" ||
           a.budgetState !== "RESERVED" ||
@@ -233,6 +307,7 @@ export class PayPalPaymentService {
   ): Promise<Attempt> {
     const saved = await this.owned(actor, scope.attemptId);
     assertCaptureScope(saved, scope);
+    checkSavedWalletPurchase(undefined, saved);
     if (saved.state === "SUCCEEDED" && saved.budgetState === "CONSUMED")
       return saved;
     if (
@@ -358,13 +433,23 @@ export class PayPalPaymentService {
     }
   }
   async capture(actor: Principal, id: string): Promise<Attempt> {
+    return this.captureBound(actor, id);
+  }
+  private async captureBound(
+    actor: Principal,
+    id: string,
+    wallet?: SavedWalletScope,
+  ): Promise<Attempt> {
     let saved = await this.owned(actor, id);
+    checkSavedWalletPurchase(wallet, saved);
+    if (wallet) checkSavedWalletWindow(wallet.expiresAt, this.now());
     if (saved.budgetState !== "RESERVED") return saved;
     if (!saved.orderId) throw new PaymentError("BUYER_APPROVAL_REQUIRED");
     // Fresh server-side API read; callback/frontend approval claims are never accepted.
     saved = await this.reconcile(saved.id);
     if (
       saved.budgetState !== "RESERVED" ||
+      (wallet && saved.state !== "APPROVED") ||
       ["CAPTURING", "CAPTURE_UNCERTAIN", "PENDING", "REVIEW_REQUIRED"].includes(
         saved.state,
       )
@@ -383,6 +468,7 @@ export class PayPalPaymentService {
           return undefined;
         if (a.state !== "APPROVED")
           throw new PaymentError("BUYER_APPROVAL_REQUIRED");
+        if (wallet) checkSavedWalletMandate(wallet, tx.mandate, tx.now);
         authorize(actor, tx.mandate, a, tx.now, a);
         a.state = "CAPTURING";
         timestamp(tx);
@@ -488,9 +574,11 @@ export class PayPalPaymentService {
       a.orderId = order.id;
       if (c) a.captureId = c.id;
       const remoteState = c?.status ?? order.status;
+      const savedWallet = isSavedWalletPurchase(a.purchaseKey);
       const changed = a.lastRemoteState !== remoteState;
       a.lastRemoteState = remoteState;
       delete a.errorCode;
+      if (savedWallet) delete a.approvalUrl;
       if (c?.status === "COMPLETED") {
         a.state = "SUCCEEDED";
         resolveBudget(tx, "CONSUMED");
@@ -509,6 +597,18 @@ export class PayPalPaymentService {
         a.state = "REVIEW_REQUIRED";
         a.errorCode = "PAYPAL_RECONCILIATION_REVIEW_REQUIRED";
       } else if (
+        savedWallet &&
+        (order.status === "PAYER_ACTION_REQUIRED" ||
+          order.links?.some(
+            (l) => l.rel === "approve" || l.rel === "payer-action",
+          ))
+      ) {
+        // Never turn a declined unattended flow into a buyer-facing checkout.
+        if (a.state === "CAPTURING") a.state = "CAPTURE_UNCERTAIN";
+        else if (!["CAPTURE_UNCERTAIN", "PENDING"].includes(a.state))
+          a.state = "AWAITING_APPROVAL";
+        a.errorCode = "PAYPAL_SAVED_WALLET_PAYER_ACTION_REQUIRED";
+      } else if (
         ["CAPTURING", "CAPTURE_UNCERTAIN", "PENDING"].includes(a.state)
       ) {
         if (a.state !== "PENDING") a.state = "CAPTURE_UNCERTAIN";
@@ -519,7 +619,7 @@ export class PayPalPaymentService {
         const approval = order.links?.find(
           (l) => l.rel === "approve" || l.rel === "payer-action",
         );
-        if (approval) {
+        if (approval && !savedWallet) {
           const url = new URL(approval.href);
           if (
             url.origin === "https://www.sandbox.paypal.com" &&

@@ -1,6 +1,4 @@
 import { isPublicDemoOnly } from "../../../../lib/paypal-agent";
-import { forwardApi } from "../../../../server/api-proxy";
-import { getService, readBody } from "../../../../server/runtime";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const limits = new Map<string, { until: number; count: number }>();
@@ -26,8 +24,10 @@ export async function POST(
   }
   try {
     const { action } = await params;
+    const { forwardApi } = await import("../../../../server/api-proxy");
     const response = await forwardApi(request, action);
     if (response) return response;
+    const { getService, readBody } = await import("../../../../server/runtime");
     const body = await readBody(request);
     if (
       ["challenge", "launch"].includes(action) &&
