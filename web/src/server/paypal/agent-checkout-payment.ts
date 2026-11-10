@@ -20,14 +20,24 @@ import { PayPalPaymentService, type PayPalGateway } from "./service";
 
 export type AgentPaymentAction = "authorize-order" | "capture" | "reconcile";
 
+export function isAgentPaymentCampaign(config: AgentCheckoutConfig) {
+  return (
+    config.campaign === "agent-05d-v1" || config.campaign === "agent-09-v1"
+  );
+}
+
 /** Explicit future opt-in, scoped to one NEW campaign. Never read from model/browser JSON. */
 export function agentPaymentEnabled(
   config: AgentCheckoutConfig,
   env: Record<string, string | undefined>,
 ) {
   return (
-    config.campaign === "agent-05d-v1" &&
-    env.PAYPAL_AGENT_CHECKOUT_EXECUTION === "task05d-one-synthetic-checkout" &&
+    ((config.campaign === "agent-05d-v1" &&
+      env.PAYPAL_AGENT_CHECKOUT_EXECUTION ===
+        "task05d-one-synthetic-checkout") ||
+      (config.campaign === "agent-09-v1" &&
+        env.PAYPAL_AGENT_CHECKOUT_EXECUTION ===
+          "task09-one-sandbox-checkout")) &&
     env.PAYPAL_AGENT_CHECKOUT_MANDATE_ID === agentCheckoutMandateId(config) &&
     env.PAYPAL_AGENT_BUYER_SEPARATE === "true"
   );
@@ -36,6 +46,7 @@ export function agentPaymentEnabled(
 /** This owner-only adapter is not a Gemini tool. The existing service owns every financial transition. */
 export class AgentCheckoutPaymentService {
   readonly enabled: boolean;
+  readonly captureEnabled: boolean;
   constructor(
     private readonly config: AgentCheckoutConfig,
     private readonly prepared: AgentCheckoutRepository,
@@ -56,6 +67,10 @@ export class AgentCheckoutPaymentService {
       ),
   ) {
     this.enabled = agentPaymentEnabled(config, env);
+    this.captureEnabled =
+      this.enabled &&
+      (config.campaign !== "agent-09-v1" ||
+        env.PAYPAL_AGENT_CAPTURE_MANDATE_ID === agentCheckoutMandateId(config));
   }
   private async context(actor: Principal) {
     requireOwner(actor, this.config.ownerId);
@@ -117,7 +132,7 @@ export class AgentCheckoutPaymentService {
     requireOwner(actor, this.config.ownerId);
     if (!["authorize-order", "capture", "reconcile"].includes(action))
       throw new PaymentError("AGENT_PAYMENT_EXECUTION_DISABLED");
-    if (!this.enabled)
+    if (!this.enabled || (action === "capture" && !this.captureEnabled))
       throw new PaymentError("AGENT_PAYMENT_EXECUTION_DISABLED");
     const { m, intent, input, a } = await this.context(actor);
     if (intent.evidence.kind !== "LIVE_GOOGLE_API")

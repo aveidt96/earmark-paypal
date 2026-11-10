@@ -98,7 +98,7 @@ export function Navigation() {
             <span>SANDBOX</span>
             <p>
               {PUBLIC_DEMO_ONLY
-                ? "Read-only demo. Live Gemini and payments are disabled. Synthetic offers and recorded Sandbox evidence."
+                ? "Public workspace. Judge Sandbox uses synthetic offers. Research, where available, is for manual review only. Earmark payments are disabled."
                 : "Owner authorization and buyer approval remain required."}
             </p>
           </div>

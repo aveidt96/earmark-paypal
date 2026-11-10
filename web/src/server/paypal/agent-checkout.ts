@@ -393,7 +393,9 @@ export async function inferPendingAgentIntent(
     ...config,
     // The new durable campaign reuses the already-allowlisted fictional model fixture.
     campaign:
-      config.campaign === "agent-05d-v1" ? "agent-05c-v1" : config.campaign,
+      config.campaign === "agent-05d-v1" || config.campaign === "agent-09-v1"
+        ? "agent-05c-v1"
+        : config.campaign,
     ownerId: "paypal-test-owner-synthetic-model",
     agentId:
       config.campaign !== "agent-05a"
@@ -605,7 +607,7 @@ export class AgentCheckoutPreparationService {
       intent: saved.intent,
       evaluationState: saved.evaluationState,
       orderCreationEnabled: this.payments?.enabled ?? false,
-      captureEnabled: this.payments?.enabled ?? false,
+      captureEnabled: this.payments?.captureEnabled ?? false,
       persistentReservationEnabled: this.payments?.enabled ?? false,
       ...(this.payments ? { payment: await this.payments.view(actor) } : {}),
     };

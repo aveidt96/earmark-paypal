@@ -8,6 +8,22 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **Task 09, 2026-11-10: implemented locally; hosted verification pending.**
+  Norway has an opt-in anonymous real-offer workflow with a demo budget and
+  review-only merchant links. The public Judge Sandbox remains deterministic.
+  A fresh owner-only, loopback PayPal Sandbox campaign is wired separately.
+  The deployed Preview was not changed; no purchase or capture was attempted.
+  Saved-Wallet execution remains disabled.
+
+- **Task 08D-R2 Git release, 2026-11-10: BLOCKED at GitHub authentication.**
+  The staged gate passed and release commit `a29e5ac` exists on local branch
+  `paypal-hackathon-release`. The single push attempt failed before publication.
+
+- **Task 08D-R Git release, 2026-11-10: BLOCKED at the staged whitespace check.**
+  The Judge formatting fix and public build passed. The release branch exists
+  locally, with the reviewed paths staged and no new commit or push. The
+  newly staged Task 04 report has trailing whitespace on lines 3 and 4.
+
 - **Task 08D publication review, 2026-11-10: BLOCKED before publication.**
   The Vercel project lookup returned HTTP 403. The exact 138-file proposed
   delta is documented. Public build, boundary, secret, lint and type checks
@@ -6786,3 +6802,142 @@ not exist locally or remotely during preflight. Task 08D-R authorizes one
 Git-only release commit and push on that branch. Vercel remains a separate
 manual step for the operator. The public profile keeps Monad isolated and
 autonomous saved-Wallet PayPal payments disabled.
+
+Staged 102 changes on `paypal-hackathon-release`. The index delta against
+`origin/main` matched the exact 138-path publication inventory. The staged
+secret scan found zero credential or prohibited artifact matches. The
+`git diff --cached --check` gate then failed on trailing whitespace on lines
+3 and 4 of `docs/task-04-gemini-integration-report.md`. This file was untracked
+during the earlier working-tree whitespace check. Stopped at this failure as
+instructed. The release branch remains at the existing `35133d5` checkpoint,
+with the reviewed changes staged. This outcome entry remains unstaged. No
+release commit or push was attempted. Vercel was not invoked and no Preview
+or Production action occurred. No live provider or financial calls were made.
+
+### 2026-11-10 — Task 08D-R2 release commit and push attempt
+
+Removed only two trailing spaces on each of lines 3 and 4 of
+`docs/task-04-gemini-integration-report.md`. The diff ignoring end-of-line
+whitespace was empty. Restaged only that file. The staged whitespace checks
+passed against HEAD and `origin/main`. The 102 staged changes matched the
+reviewed 138-path release delta, and all 11 local diagnostics remained
+excluded. The staged scan found zero configured credential matches or
+prohibited artifact paths. Prior application build and test results were reused.
+
+Created `a29e5acd3c6b50c5c66274b6020cd2d791563877` on
+`paypal-hackathon-release` with message `chore: prepare PayPal hackathon demo
+release`. The one authorized push to GitHub `origin` failed with exit 128
+because Git could not read a GitHub username with terminal prompts disabled.
+Stopped at the authentication failure. The release commit remains local.
+Vercel was not invoked and no deployment or Production change occurred.
+This outcome entry is a local handoff update outside the release commit.
+
+### 2026-11-10 — Task 09 public research and controlled Sandbox checkout
+
+Local starting point: `paypal-hackathon-primary-release` at `bc477ca`,
+tracking its existing origin branch. This is a different branch from the
+earlier 08D-R2 failed push. No Git publication or Vercel action in Task 09.
+
+- `web/src/app/api/paypal/research/route.ts`,
+  `web/src/server/paypal/public-research.ts`, and
+  `docs/public-research-quota.sql` add an anonymous, exact-origin research
+  endpoint and a quota table for a separate, non-financial database. The
+  runtime role can only read, insert, or update quota rows. Admission is
+  atomic across instances, with up to three evaluations per daily visitor
+  hash and 24 globally per UTC day. No raw IP, prompt, or result is stored in
+  the quota table. Missing quota configuration, quota DB failure, and
+  exhaustion prevent all provider calls. At most two Tavily requests and one
+  Gemini request per evaluation, without retries. Body read, quota admission,
+  and provider steps are bounded at 2, 3, and 16 seconds respectively.
+  Vercel function duration is 60 seconds. Local/hosted exact Host and Origin
+  checks apply; hosted visitor identity uses Vercel's forwarded IP.
+- `web/src/server/paypal/offer-discovery.ts`, `web/src/lib/offer-discovery.ts`,
+  `web/src/components/navigation.tsx`, `web/src/components/offer-discovery.tsx`,
+  `web/src/components/paypal-agent-console.tsx`, and
+  `web/src/components/purchasing-chat.tsx` connect the existing Norway chat
+  to research. The server applies the submitted USD demo budget (1–1,000
+  cents), narrowed by any lower budget in the instruction, to its existing
+  policy checks. Cited prices remain source claims rather than checkout
+  quotes. Each discovered merchant remains ineligible for Earmark payment.
+  Public manual checkout uses a safe cited merchant plan/price URL where
+  available. It never guesses a checkout URL. Manual approval is browser
+  state only, labeled **Not paid**. Judge mode, legacy route guards, and
+  historical receipt handling stay unchanged.
+- `scripts/paypal-agent-serve.ts`, `web/src/server/paypal/agent-checkout-config.ts`,
+  `web/src/server/paypal/agent-checkout-http.ts`,
+  `web/src/server/paypal/agent-checkout-payment.ts`,
+  `web/src/server/paypal/agent-checkout-postgres.ts`,
+  `web/src/server/paypal/agent-checkout.ts`, and
+  `web/src/server/paypal/test-auth.ts` add the isolated `agent-09-v1`
+  campaign namespace. This reuses the established loopback owner session,
+  CSRF, synthetic $10 mandate / $6 purchase, exact merchant and buyer
+  approval checks, durable attempt keys, and reconciliation service. No new
+  campaign or payment record was created. Hosted public routes do not
+  expose this workflow. For a separately authorized Sandbox run, start the
+  established private runner with `PAYPAL_AGENT_CAMPAIGN=agent-09-v1`.
+  Initialize and independently validate the fresh mandate and proposal.
+  Only then set `PAYPAL_AGENT_CHECKOUT_EXECUTION=task09-one-sandbox-checkout`,
+  `PAYPAL_AGENT_CHECKOUT_MANDATE_ID` to that mandate, and
+  `PAYPAL_AGENT_BUYER_SEPARATE=true`. Leave
+  `PAYPAL_AGENT_CAPTURE_MANDATE_ID` unset until separately authorized;
+  setting it to that mandate permits the existing buyer-approved capture
+  action. Buyer approval is verified from PayPal, never asserted by the UI.
+- `scripts/check-web-boundary.mjs`, `scripts/preview-smoke.mjs`,
+  `web/test/offer-discovery.test.ts`, and
+  `web/test/paypal-agent-payment.test.ts` cover the new browser boundary,
+  anonymous review, quota rejection, budgets, source gating, and Sandbox
+  permissions. The five focused suites passed 108 tests using offline
+  fixtures. No live provider calls, financial writes, or captures.
+
+Final verification: public production build and its TypeScript checks
+passed. The build manifest confirms a 60-second research function. Targeted
+Prettier, zero-warning lint and `git diff --check` passed. The browser
+boundary scan passed all 47 chunks and the secret scan found zero matches.
+Chromium smoke passed seven PayPal pages, three legacy route denials, both
+themes, four policy scenarios, deterministic Judge, and the mocked public
+research and Not paid journey on desktop and narrow mobile. No browser
+exceptions, external requests, wallet probes, or legacy API requests.
+The disposable PostgreSQL 17 test confirmed atomic caps of 3 per visitor
+and 24 globally across two concurrent connection pools, and confirmed the
+runtime role cannot delete. The Windows launch wrapper initially waited
+after the local server was ready; a separate loopback harness ran the
+schema and assertions successfully, then shut down only that test server.
+No hosted database was opened or modified.
+
+For an authorized Vercel Preview, retain `NEXT_PUBLIC_DEMO_ONLY=true`,
+`EARMARK_PUBLIC_DEMO_ONLY=true`, `EARMARK_ENABLE_TESTNET_EXECUTION=false`,
+`PAYPAL_BACKEND_ENABLED=false` and `PAYPAL_PAYMENTS_ENABLED=false`. Leave the
+existing global Gemini, Tavily/discovery, and Judge live flags disabled. Only
+the new research handler scopes provider opt-in. Provision the quota schema
+using the checked-in SQL in a separate Neon database, not the payment
+database. Give the function its own least-privilege database login and
+configure these Preview variables:
+
+| Variable | Setting |
+| --- | --- |
+| `EARMARK_PUBLIC_RESEARCH_ENABLED` | `true` after quota and provider setup |
+| `EARMARK_PUBLIC_RESEARCH_ORIGIN` | Exact stable Preview HTTPS origin, no trailing slash |
+| `EARMARK_RESEARCH_DATABASE_URL` | Server-only direct TLS Neon quota role URL |
+| `EARMARK_RESEARCH_QUOTA_SECRET` | Server-only random 32-byte value encoded as 64 hex characters |
+| `TAVILY_API_KEY`, `GEMINI_API_KEY` | Server-only research credentials, preferably dedicated and capped with the providers |
+| `GEMINI_COLLECTOR_MODEL` | Optional supported Gemini collector model override |
+
+Do not provision PayPal, owner auth, financial database or Monad
+configuration for the public Preview. Delete old quota rows periodically
+using the quota administrator; the runtime role has no delete privilege.
+After separate publication authorization, test one hosted research request
+against genuine providers, inspect evidence and manual approval, confirm
+Judge and payment restrictions, and leave Production unchanged. Set the
+new research flag to false to disable the route without broadening any
+other profile.
+
+Wallet investigation: the [PayPal Wallet guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal)
+and [Payment Method Tokens API](https://developer.paypal.com/api/payment-tokens/v3/payment-tokens-create)
+document customer mapping and distinguish merchant references from
+PayPal-generated customer identity. They do not establish that a matching
+Wallet payer ID plus an absent echoed merchant reference authenticates the
+changed Vault customer from Task 07N-G. Keep the existing rejection. Ask
+PayPal to explain the changed customer ID and omitted merchant reference
+using the prior sanitized debug IDs and UTC timestamps. Merchant-initiated
+transaction eligibility remains unverified. Autonomous saved-Wallet
+execution remains disabled. No Wallet calls or code changes.

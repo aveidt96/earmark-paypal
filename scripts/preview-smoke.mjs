@@ -56,6 +56,9 @@ try {
     (await fetch(`${origin}/api/workspace/launch`, { method: "POST" })).status,
   ).toBe(403);
   expect((await fetch(`${origin}/api/security-demos`)).status).toBe(404);
+  expect(await (await fetch(`${origin}/api/paypal/research`)).json()).toEqual({
+    available: false,
+  });
   browser = await chromium.launch();
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
@@ -401,6 +404,7 @@ try {
   const firstResponse = Promise.withResolvers();
   const researchResponse = Promise.withResolvers();
   const researchSource = `https://example.com/weather/${"pricing-".repeat(35)}`;
+  let discoveryFixture;
   await page.route("**/api/judge-sandbox", async (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({
@@ -421,63 +425,62 @@ try {
           json: { error: "RAW_PROVIDER_DETAIL_FIXTURE" },
         });
       await researchResponse.promise;
-      return route.fulfill({
-        json: {
-          discovery: {
-            source: "OFFLINE_SEARCH_FIXTURE",
-            instruction,
-            retrievedAt: "2026-11-04T12:00:00.000Z",
-            summary:
-              "Offline research fixture. No current price or PayPal support is verified.",
-            offers: [
-              {
-                id: "fixture-weather-api-month",
-                provider: "Fixture weather provider",
-                service: "Weather API",
-                priceMinor: "500",
-                currency: "USD",
-                billing: "per month",
-                availability: "Listed for signup (claim)",
-                delivery: null,
-                slaMinutes: null,
-                paypal: "unknown",
-                paypalEvidence: null,
-                sources: [{ url: researchSource, cited: true }],
-                factStatus: "claimed",
-                pricing: {
-                  status: "source-matched",
-                  period: "month",
-                  sourceUrl: researchSource,
-                },
-                reviewFit: "matches",
-                policy: {
-                  eligible: false,
-                  canonicalVerdict: "UNAPPROVED_MERCHANT",
-                  reasons: [
-                    "EXTERNAL_MERCHANT_NOT_BOUND",
-                    "IMMUTABLE_TERMS_UNVERIFIED",
-                  ],
-                },
+      discoveryFixture = {
+        discovery: {
+          source: "OFFLINE_SEARCH_FIXTURE",
+          instruction,
+          retrievedAt: "2026-11-04T12:00:00.000Z",
+          summary:
+            "Offline research fixture. No current price or PayPal support is verified.",
+          offers: [
+            {
+              id: "fixture-weather-api-month",
+              provider: "Fixture weather provider",
+              service: "Weather API",
+              priceMinor: "500",
+              currency: "USD",
+              billing: "per month",
+              availability: "Listed for signup (claim)",
+              delivery: null,
+              slaMinutes: null,
+              paypal: "unknown",
+              paypalEvidence: null,
+              sources: [{ url: researchSource, cited: true }],
+              factStatus: "claimed",
+              pricing: {
+                status: "source-matched",
+                period: "month",
+                sourceUrl: researchSource,
               },
-            ],
-            reviewRecommendation: 0,
-            searchSuggestions:
-              '<p>Offline search suggestions fixture</p><script>parent.document.documentElement.dataset.searchScript="executed"</script>',
-            proposal: null,
-            ownerAuthorized: false,
-            persisted: false,
-            fundsReserved: false,
-            evidence: {
-              httpStatus: 200,
-              durationMs: 1,
-              modelTurns: 1,
-              collectedTool: "reportDiscoveredOffers",
-              citedSourceCount: 1,
-              outboundGuardPassed: true,
+              reviewFit: "matches",
+              policy: {
+                eligible: false,
+                canonicalVerdict: "UNAPPROVED_MERCHANT",
+                reasons: [
+                  "EXTERNAL_MERCHANT_NOT_BOUND",
+                  "IMMUTABLE_TERMS_UNVERIFIED",
+                ],
+              },
             },
+          ],
+          reviewRecommendation: 0,
+          searchSuggestions:
+            '<p>Offline search suggestions fixture</p><script>parent.document.documentElement.dataset.searchScript="executed"</script>',
+          proposal: null,
+          ownerAuthorized: false,
+          persisted: false,
+          fundsReserved: false,
+          evidence: {
+            httpStatus: 200,
+            durationMs: 1,
+            modelTurns: 1,
+            collectedTool: "reportDiscoveredOffers",
+            citedSourceCount: 1,
+            outboundGuardPassed: true,
           },
         },
-      });
+      };
+      return route.fulfill({ json: discoveryFixture });
     }
     submitted.push(instruction);
     if (instruction === "Find the cheapest eligible weather feed.")
@@ -758,12 +761,59 @@ try {
   await appearance.selectOption("norway");
   await page.reload();
   await expect(appearance).toHaveValue("norway");
+  const publicPosts = [];
+  await page.route("**/api/paypal/research", async (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { available: true } });
+    const payload = route.request().postDataJSON();
+    publicPosts.push(payload);
+    const discovery = structuredClone(discoveryFixture.discovery);
+    discovery.instruction = payload.instruction;
+    discovery.offers[0].officialMerchantUrl = researchSource;
+    return route.fulfill({ json: { discovery } });
+  });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.reload();
+    await page.getByRole("button", { name: "Research real offers" }).click();
+    await chat.getByLabel("Demo budget (USD)").fill("5.00");
+    await chat
+      .getByLabel("Your purchasing instruction")
+      .fill("Find weather API plans under $5 per month");
+    await chat.getByRole("button", { name: "Research offers" }).click();
+    await expect(chat).toContainText("Offline search fixture");
+    await expect(chat).toContainText("Ineligible for Earmark payment");
+    await chat
+      .getByRole("button", { name: "Review for manual checkout" })
+      .click();
+    await expect(
+      chat.getByRole("link", { name: /Open official.*page in new tab/ }),
+    ).toHaveAttribute("href", researchSource);
+    await chat
+      .getByRole("button", { name: "Approve for manual checkout" })
+      .click();
+    await expect(chat).toContainText("Manual checkout intent · not paid");
+    await expect(
+      chat.getByRole("button", { name: "Payment execution disabled" }),
+    ).toBeDisabled();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+    ).toBe(false);
+  }
+  expect(publicPosts).toEqual(
+    Array(2).fill({
+      instruction: "Find weather API plans under $5 per month",
+      budgetMinor: 500,
+    }),
+  );
   expect(errors).toEqual([]);
   expect(externalRequests).toEqual([]);
   expect(legacyRequests).toEqual([]);
   expect(walletProbes).toEqual([]);
   console.log(
-    `PASS: ${routes.length} PayPal pages and three legacy page denials, both themes, four PayPal policy scenarios, deterministic Judge and offline research, hosted endpoint denials, disabled payments and responsive layout. Zero browser exceptions, external requests, legacy API requests or injected wallet probes.`,
+    `PASS: ${routes.length} PayPal pages and three legacy page denials, both themes, four PayPal policy scenarios, deterministic Judge and offline public research/manual checkout, hosted endpoint denials, disabled payments and responsive layout. Zero browser exceptions, external requests, legacy API requests or injected wallet probes.`,
   );
 } finally {
   await browser?.close();

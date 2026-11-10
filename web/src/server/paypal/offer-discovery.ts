@@ -1046,7 +1046,14 @@ export async function discoverOffers(
   instruction: string,
   env: Record<string, string | undefined>,
   fetcher?: typeof fetch,
+  budgetMinor = 1000,
 ): Promise<OfferDiscoveryResult> {
+  if (
+    !Number.isSafeInteger(budgetMinor) ||
+    budgetMinor < 1 ||
+    budgetMinor > 1000
+  )
+    throw new PaymentError("DISCOVERY_BUDGET_INVALID");
   const forbidden = Object.entries(env)
     .filter(([k]) => /SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL/.test(k))
     .map(([, v]) => v ?? "");
@@ -1191,7 +1198,7 @@ export async function discoverOffers(
     ),
   ]
     .map((match) => minorUnits(match[1] ?? match[2] ?? match[3] ?? "0"))
-    .reduce((a, b) => (a < b ? a : b), 1000n);
+    .reduce((a, b) => (a < b ? a : b), BigInt(budgetMinor));
   const requestedPeriod = billingPeriod(instruction);
   const maxMinutes = Math.min(
     ...[...instruction.matchAll(/\b(\d{1,3})\s*(?:minutes?|mins?)\b/gi)].map(
@@ -1394,6 +1401,19 @@ export async function discoverOffers(
       ...claims,
       ...classifiedPayPal,
       sources,
+      officialMerchantUrl:
+        domain === null
+          ? null
+          : ([
+              pricing.sourceUrl,
+              ...planSources.map((source) => source.url),
+            ].find(
+              (url): url is string =>
+                url !== null &&
+                sources.some((source) => source.cited && source.url === url) &&
+                (new URL(url).hostname === domain ||
+                  new URL(url).hostname.endsWith(`.${domain}`)),
+            ) ?? null),
       pricing,
       reviewFit: outside.length
         ? "does-not-match"

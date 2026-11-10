@@ -47,11 +47,13 @@ function unresolvedEvidence(offer: DiscoveredOffer): string[] {
 export function OfferDiscovery({
   result,
   assistedCheckout = false,
+  officialSourceOnly = false,
   initialSelectedOfferId = null,
   initialDecisions,
 }: {
   result: OfferDiscoveryResult;
   assistedCheckout?: boolean;
+  officialSourceOnly?: boolean;
   initialSelectedOfferId?: string | null;
   initialDecisions?: Record<string, ManualCheckoutDecision>;
 }) {
@@ -133,7 +135,11 @@ export function OfferDiscovery({
             safePaypalUrl && citedUrls.includes(safePaypalUrl)
               ? safePaypalUrl
               : null;
-          const verifiedMerchantUrl = selectVerifiedOfferSourceUrl(offer);
+          const verifiedMerchantUrl = officialSourceOnly
+            ? safeExternalOfferUrl(offer.officialMerchantUrl ?? "")
+            : selectVerifiedOfferSourceUrl(offer);
+          const canReview =
+            assistedCheckout && (!officialSourceOnly || verifiedMerchantUrl);
           const isSelected = assistedCheckout && selectedOfferId === offer.id;
           const decision = assistedCheckout
             ? decisions[`${resultKey}:${offer.id}`]
@@ -247,7 +253,7 @@ export function OfferDiscovery({
                   .map((reason) => reasonLabels[reason] ?? reason)
                   .join(" · ")}
               </p>
-              {assistedCheckout && (
+              {canReview && (
                 <>
                   <div className="norway-assisted-bar">
                     {decision === "approved-manual" ? (

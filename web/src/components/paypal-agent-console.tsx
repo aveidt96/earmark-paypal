@@ -29,12 +29,29 @@ function PurchasingConversation({
   loading: boolean;
 }) {
   const [chatMode, setChatMode] = useState(false);
+  const [publicResearch, setPublicResearch] = useState(false);
+  const [researchAvailable, setResearchAvailable] = useState(false);
+  useEffect(() => {
+    if (!PUBLIC_DEMO_ONLY) return;
+    const controller = new AbortController();
+    void fetch("/api/paypal/research", {
+      signal: controller.signal,
+      credentials: "omit",
+    })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!controller.signal.aborted)
+          setResearchAvailable(response.ok && body.available === true);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
   const [chatResult, setChatResult] = useState<PurchasingChatResult | null>(
     null,
   );
   const current = chatMode ? chatResult : loading ? null : result;
   const allowed = current?.authorizationDecision.allowed === true;
-  const judgeSandbox = PUBLIC_DEMO_ONLY && chatMode;
+  const judgeSandbox = PUBLIC_DEMO_ONLY && chatMode && !publicResearch;
   return (
     <div
       className="norway-commerce"
@@ -46,7 +63,9 @@ function PurchasingConversation({
             <h1>Agent checkout</h1>
             <p>
               {PUBLIC_DEMO_ONLY
-                ? "Try a controlled purchase with synthetic offers and real policy checks."
+                ? researchAvailable
+                  ? "Research real merchants or try a synthetic purchase in the Judge Sandbox."
+                  : "Try a controlled purchase with synthetic offers and real policy checks."
                 : "Compare synthetic offers under policy or research real merchants for manual review."}
             </p>
           </div>
@@ -58,7 +77,9 @@ function PurchasingConversation({
             chatMode
               ? judgeSandbox
                 ? "Synthetic judge policy budget"
-                : "Local evaluation limits"
+                : publicResearch
+                  ? "Real merchant research budget"
+                  : "Local evaluation limits"
               : "Recorded Sandbox accounting"
           }
         >
@@ -67,7 +88,9 @@ function PurchasingConversation({
               {judgeSandbox
                 ? "SYNTHETIC JUDGE POLICY"
                 : chatMode
-                  ? "LOCAL EVALUATION LIMITS"
+                  ? publicResearch
+                    ? "RESEARCH BUDGET"
+                    : "LOCAL EVALUATION LIMITS"
                   : "RECORDED SANDBOX MANDATE"}
             </h3>
             <Badge tone="success">
@@ -80,8 +103,9 @@ function PurchasingConversation({
                 $10.00 <span>evaluation ceiling</span>
               </strong>
               <p>
-                Synthetic proposals have a $6 purchase cap. Live research is
-                review only.
+                {publicResearch
+                  ? "Set your own budget in chat. Offers are for manual review only."
+                  : "Synthetic proposals have a $6 purchase cap. Live research is review only."}
               </p>
             </div>
           ) : (
@@ -144,25 +168,42 @@ function PurchasingConversation({
             aria-pressed={!chatMode}
             onClick={() => {
               setChatMode(false);
+              setPublicResearch(false);
               setChatResult(null);
             }}
           >
             Policy demo
           </Button>
           <Button
-            variant={chatMode ? "primary" : "soft"}
-            aria-pressed={chatMode}
+            variant={chatMode && !publicResearch ? "primary" : "soft"}
+            aria-pressed={chatMode && !publicResearch}
             onClick={() => {
               setChatMode(true);
+              setPublicResearch(false);
               setChatResult(null);
             }}
           >
             {PUBLIC_DEMO_ONLY ? "Judge sandbox" : "Live Gemini chat"}
           </Button>
+          {researchAvailable && (
+            <Button
+              variant={publicResearch ? "primary" : "soft"}
+              aria-pressed={publicResearch}
+              onClick={() => {
+                setChatMode(true);
+                setPublicResearch(true);
+                setChatResult(null);
+              }}
+            >
+              Research real offers
+            </Button>
+          )}
         </div>
         {chatMode ? (
           <PurchasingChat
-            judgeSandbox={PUBLIC_DEMO_ONLY}
+            key={publicResearch ? "public-research" : "purchasing-chat"}
+            judgeSandbox={judgeSandbox}
+            publicResearch={publicResearch}
             onEvaluation={setChatResult}
           />
         ) : (
@@ -264,7 +305,16 @@ function PurchasingConversation({
         className="norway-policy-rail"
         aria-label="Independent policy and recorded activity"
       >
-        <section className="norway-policy-card">
+        {publicResearch && (
+          <section className="norway-policy-card">
+            <h2>Review policy</h2>
+            <p>
+              Each offer shows its budget and evidence checks. Discovered
+              merchants cannot be paid through Earmark.
+            </p>
+          </section>
+        )}
+        <section className="norway-policy-card" hidden={publicResearch}>
           <div className="norway-card-heading">
             <h2>Policy checks</h2>
             <Badge
@@ -491,8 +541,8 @@ export function PayPalAgentConsole({
           </fieldset>
           {PUBLIC_DEMO_ONLY && (
             <p className="micro">
-              Public demo mode: live Gemini calls &amp; PayPal payment execution
-              are disabled · recorded $6.00 USD Sandbox receipt verified.
+              This policy demo runs without Gemini or PayPal calls. The $6.00
+              USD Sandbox receipt is historical.
             </p>
           )}
           <fieldset aria-label="PayPal agent security scenarios">

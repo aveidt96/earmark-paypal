@@ -18,6 +18,7 @@ import {
   discoverySource,
 } from "../src/server/paypal/offer-discovery";
 import { createJudgeHandler } from "../src/server/paypal/judge-http";
+import { handlePublicResearch } from "../src/server/paypal/public-research";
 import { handleAgentCheckout } from "../src/server/paypal/agent-checkout-http";
 import { TestOwnerAuth } from "../src/server/paypal/test-auth";
 import { agentPreparationFixture } from "./fixtures/agent-checkout";
@@ -146,6 +147,163 @@ function transport(
     });
   });
 }
+
+it("applies the selected public budget independently and only exposes a merchant's cited plan URL for manual checkout", async () => {
+  const instruction = "Find weather API plans under $10 per month";
+  const within = await discoverOffers(instruction, env, transport(), 500);
+  expect(within.offers[0]).toMatchObject({
+    officialMerchantUrl: url,
+    policy: { eligible: false },
+  });
+  const over = await discoverOffers(instruction, env, transport(), 499);
+  expect(over.reviewRecommendation).toBeNull();
+  expect(over.offers[0]).toMatchObject({
+    reviewFit: "does-not-match",
+    policy: {
+      eligible: false,
+      reasons: expect.arrayContaining(["RESEARCH_BUDGET_EXCEEDED"]),
+    },
+  });
+  const unrelated = await discoverOffers(
+    instruction,
+    env,
+    transport([{ ...offer, provider: "Unrelated Merchant" }]),
+  );
+  expect(unrelated.offers[0]?.officialMerchantUrl).toBeNull();
+  expect(
+    renderToStaticMarkup(
+      createElement(OfferDiscovery, {
+        result: unrelated,
+        assistedCheckout: true,
+        officialSourceOnly: true,
+      }),
+    ),
+  ).not.toContain("Review for manual checkout");
+});
+
+describe("anonymous Norway research", () => {
+  const origin = "https://preview.example.com";
+  const publicEnv = {
+    ...env,
+    EARMARK_OFFER_DISCOVERY_ENABLED: "false",
+    EARMARK_GEMINI_ENABLED: "false",
+    AI_ENABLE_NETWORK: "false",
+    NEXT_PUBLIC_DEMO_ONLY: "true",
+    EARMARK_PUBLIC_DEMO_ONLY: "true",
+    EARMARK_PUBLIC_RESEARCH_ENABLED: "true",
+    EARMARK_PUBLIC_RESEARCH_ORIGIN: origin,
+    EARMARK_RESEARCH_DATABASE_URL: "offline-quota-url",
+    EARMARK_RESEARCH_QUOTA_SECRET: "a".repeat(64),
+    VERCEL: "1",
+  };
+  const payload = {
+    instruction: "Find weather API plans under $10 per month",
+    budgetMinor: 499,
+  };
+  const request = (body: unknown, headers: Record<string, string> = {}) =>
+    new Request(`${origin}/api/paypal/research`, {
+      method: "POST",
+      headers: {
+        Host: new URL(origin).host,
+        Origin: origin,
+        "Content-Type": "application/json",
+        "x-vercel-forwarded-for": "192.0.2.45",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("reuses the real pipeline with capped calls and no financial authority", async () => {
+    const reserve = vi.fn(async () => true);
+    const fetcher = transport();
+    const evaluate: typeof discoverOffers = (instruction, env, _, budget) => {
+      expect(env.AI_TIMEOUT_MS).toBe("16000");
+      return discoverOffers(instruction, env, fetcher, budget);
+    };
+    const res = await handlePublicResearch(
+      request(payload),
+      publicEnv,
+      reserve,
+      evaluate,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toMatchObject({
+      discovery: {
+        source: "OFFLINE_SEARCH_FIXTURE",
+        ownerAuthorized: false,
+        persisted: false,
+        fundsReserved: false,
+        offers: [{ reviewFit: "does-not-match", policy: { eligible: false } }],
+      },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(reserve).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      publicEnv.EARMARK_RESEARCH_DATABASE_URL,
+    );
+  });
+
+  it("rejects disabled, cross-origin, private, oversized and malformed requests before quota or provider work", async () => {
+    const reserve = vi.fn(async () => true);
+    const discover = vi.fn<typeof discoverOffers>();
+    for (const [req, overrides, status] of [
+      [request(payload), { EARMARK_PUBLIC_RESEARCH_ENABLED: "false" }, 404],
+      [request(payload), { PAYPAL_PAYMENTS_ENABLED: "true" }, 404],
+      [request(payload, { Origin: "https://wrong.example.com" }), {}, 403],
+      [request(payload, { "x-vercel-forwarded-for": "" }), {}, 503],
+      [
+        request({
+          ...payload,
+          instruction: "Find an API for someone@example.org",
+        }),
+        {},
+        400,
+      ],
+      [request({ ...payload, budgetMinor: 1001 }), {}, 400],
+      [request({ ...payload, ownerId: "unexpected" }), {}, 400],
+      [
+        request({ ...payload, instruction: "weather API ".repeat(400) }),
+        {},
+        400,
+      ],
+    ] as const) {
+      const res = await handlePublicResearch(
+        req,
+        { ...publicEnv, ...overrides },
+        reserve,
+        discover,
+      );
+      expect(res.status).toBe(status);
+    }
+    expect(reserve).not.toHaveBeenCalled();
+    expect(discover).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on quota exhaustion or failure without leaking diagnostics", async () => {
+    const discover = vi.fn<typeof discoverOffers>();
+    const denied = await handlePublicResearch(
+      request(payload),
+      publicEnv,
+      async () => false,
+      discover,
+    );
+    expect(denied.status).toBe(429);
+    const failed = await handlePublicResearch(
+      request(payload),
+      publicEnv,
+      async () => {
+        throw new Error("raw quota diagnostic");
+      },
+      discover,
+    );
+    expect(failed.status).toBe(503);
+    expect(await failed.json()).toEqual({
+      error: "PUBLIC_RESEARCH_UNAVAILABLE",
+    });
+    expect(discover).not.toHaveBeenCalled();
+  });
+});
 const origin = "http://127.0.0.1:3032";
 type MutableTavilyEnvelope = {
   query: string;

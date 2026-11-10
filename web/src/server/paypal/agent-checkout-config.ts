@@ -11,7 +11,7 @@ import { merchantBinding } from "./test-config";
 import { sandboxFlags } from "./config";
 
 export type AgentCheckoutConfig = LocalOwnerAuthConfig & {
-  campaign: "agent-05a" | "agent-05c-v1" | "agent-05d-v1";
+  campaign: "agent-05a" | "agent-05c-v1" | "agent-05d-v1" | "agent-09-v1";
   merchantId: string;
   agentId: string;
 };
@@ -57,7 +57,11 @@ export function agentCheckoutConfig(
   )
     throw new PaymentError("AGENT_SELLER_BINDING_REQUIRED");
   const campaign = env.PAYPAL_AGENT_CAMPAIGN ?? "agent-05a";
-  if (!["agent-05a", "agent-05c-v1", "agent-05d-v1"].includes(campaign))
+  if (
+    !["agent-05a", "agent-05c-v1", "agent-05d-v1", "agent-09-v1"].includes(
+      campaign,
+    )
+  )
     throw new PaymentError("UNKNOWN_AGENT_CAMPAIGN");
   return {
     campaign: campaign as AgentCheckoutConfig["campaign"],
