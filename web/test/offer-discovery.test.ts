@@ -19,6 +19,7 @@ import {
 } from "../src/server/paypal/offer-discovery";
 import { createJudgeHandler } from "../src/server/paypal/judge-http";
 import { handlePublicResearch } from "../src/server/paypal/public-research";
+import { AgentError } from "@flint/agent/server";
 import { handleAgentCheckout } from "../src/server/paypal/agent-checkout-http";
 import { TestOwnerAuth } from "../src/server/paypal/test-auth";
 import { agentPreparationFixture } from "./fixtures/agent-checkout";
@@ -299,9 +300,31 @@ describe("anonymous Norway research", () => {
     );
     expect(failed.status).toBe(503);
     expect(await failed.json()).toEqual({
-      error: "PUBLIC_RESEARCH_UNAVAILABLE",
+      error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE",
     });
     expect(discover).not.toHaveBeenCalled();
+  });
+
+  it("routes ordinary product requests to live research and distinguishes upstream failures", async () => {
+    const reserve = vi.fn(async () => true);
+    const instruction = "Find a USB-C cable under $10";
+    const discover = vi.fn<typeof discoverOffers>();
+    for (const [code, status, expected] of [
+      ["MODEL_AUTH_ERROR", 502, "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE"],
+      ["MODEL_TIMEOUT", 504, "PUBLIC_RESEARCH_TIMEOUT"],
+    ] as const) {
+      discover.mockRejectedValueOnce(new AgentError(code));
+      const reply = await handlePublicResearch(
+        request({ ...payload, instruction }),
+        publicEnv,
+        reserve,
+        discover,
+      );
+      expect(reply.status).toBe(status);
+      expect(await reply.json()).toEqual({ error: expected });
+    }
+    expect(discover).toHaveBeenCalledTimes(2);
+    expect(discover.mock.calls[0]?.[0]).toBe(instruction);
   });
 });
 const origin = "http://127.0.0.1:3032";

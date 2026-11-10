@@ -113,6 +113,7 @@ try {
     "/security",
     "/paypal-test",
     "/agent-checkout",
+    "/judge",
   ];
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(origin);
@@ -147,11 +148,13 @@ try {
     await assertPayPalOnly();
   }
   await page.goto(origin);
-  const navigation = page.getByRole("navigation", { name: "Main navigation" });
-  await navigation.getByRole("link", { name: "Policies", exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/security`);
-  await navigation.getByRole("link", { name: "Checkout", exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/`);
+  await expect(
+    page.getByRole("heading", { name: "Find the right offer" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Judge sandbox", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("paypal-completed-receipt")).toHaveCount(0);
   for (const path of routes) {
     const response = await page.goto(origin + path);
     expect(response.status()).toBe(200);
@@ -193,7 +196,7 @@ try {
     }
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(origin);
+  await page.goto(`${origin}/judge`);
   await expect(
     page.getByTestId("norway-purchasing-conversation"),
   ).toBeVisible();
@@ -224,7 +227,6 @@ try {
       };
       return {
         nav: rect(".floating-nav"),
-        notice: rect(".workspace-mode-notice"),
         primary: rect(".norway-commerce"),
         chat: rect(".purchasing-chat"),
         budget: rect(".norway-budget"),
@@ -238,7 +240,7 @@ try {
       path: `${root}.tools/paypal-norway-${width}.png`,
     });
     console.log(
-      `Norway ${width}px: assistantTop=${Math.round(geometry.chat.top)}, budgetTop=${Math.round(geometry.budget.top)}, noticeHeight=${Math.round(geometry.notice.height)}, overflow=${geometry.overflow}`,
+      `Norway ${width}px: assistantTop=${Math.round(geometry.chat.top)}, budgetTop=${Math.round(geometry.budget.top)}, overflow=${geometry.overflow}`,
     );
     expect(geometry.overflow).toBe(false);
     if (
@@ -261,7 +263,6 @@ try {
       expect(geometry.nav.right).toBe(232);
       expect(geometry.chat.top).toBeLessThan(650);
       expect(geometry.budget.top).toBeLessThan(220);
-      expect(geometry.notice.height).toBeLessThan(45);
     }
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -294,8 +295,8 @@ try {
       .locator("h3")
       .evaluate((element) => getComputedStyle(element).fontWeight),
   ).toBe("600");
-  // Exercise actual judge requests on the primary homepage, not only Policies.
-  await page.goto(origin);
+  // Exercise actual judge requests on the dedicated route.
+  await page.goto(`${origin}/judge`);
   await page
     .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
@@ -704,7 +705,7 @@ try {
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: `${root}.tools/paypal-preview-desktop.png` });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(origin);
+  await page.goto(`${origin}/judge`);
   await page
     .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
@@ -753,7 +754,7 @@ try {
   }
   await page.goto(origin);
   await expect(
-    page.getByTestId("norway-purchasing-conversation"),
+    page.getByRole("heading", { name: "Find the right offer" }),
   ).toBeVisible();
   await page.screenshot({ path: `${root}.tools/paypal-classic-mobile.png` });
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -762,26 +763,43 @@ try {
   await page.reload();
   await expect(appearance).toHaveValue("norway");
   const publicPosts = [];
+  await page
+    .context()
+    .addCookies([
+      { name: "preview-smoke-session", value: "fixture", url: origin },
+    ]);
   await page.route("**/api/paypal/research", async (route) => {
     if (route.request().method() === "GET")
       return route.fulfill({ json: { available: true } });
     const payload = route.request().postDataJSON();
+    expect((await route.request().allHeaders()).cookie).toContain(
+      "preview-smoke-session=fixture",
+    );
     publicPosts.push(payload);
     const discovery = structuredClone(discoveryFixture.discovery);
     discovery.instruction = payload.instruction;
+    discovery.source =
+      publicPosts.length === 1
+        ? "OFFLINE_SEARCH_FIXTURE"
+        : "LIVE_TAVILY_SEARCH";
     discovery.offers[0].officialMerchantUrl = researchSource;
     return route.fulfill({ json: { discovery } });
   });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page.reload();
-    await page.getByRole("button", { name: "Research real offers" }).click();
-    await chat.getByLabel("Demo budget (USD)").fill("5.00");
+    await chat.getByLabel("Budget (USD)").fill("5.00");
     await chat
       .getByLabel("Your purchasing instruction")
       .fill("Find weather API plans under $5 per month");
     await chat.getByRole("button", { name: "Research offers" }).click();
-    await expect(chat).toContainText("Offline search fixture");
+    if (width === 1440) {
+      await expect(chat.getByRole("alert")).toContainText(
+        "couldn’t verify the offer evidence",
+      );
+      await expect(chat).not.toContainText("Offline search fixture");
+      await chat.getByRole("button", { name: "Research offers" }).click();
+    }
     await expect(chat).toContainText("Ineligible for Earmark payment");
     await chat
       .getByRole("button", { name: "Review for manual checkout" })
@@ -803,7 +821,7 @@ try {
     ).toBe(false);
   }
   expect(publicPosts).toEqual(
-    Array(2).fill({
+    Array(3).fill({
       instruction: "Find weather API plans under $5 per month",
       budgetMinor: 500,
     }),

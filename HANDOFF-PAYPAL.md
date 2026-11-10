@@ -8,6 +8,12 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **Task 09B, 2026-11-10: public research is the default in local code.**
+  The public homepage and purchasing entry point open the live research
+  composer directly. The deterministic Judge Sandbox and historical receipt
+  are available at `/judge`. The reported Preview requires Vercel
+  authentication, and hosted provider execution is unverified.
+
 - **Task 09, 2026-11-10: implemented locally; hosted verification pending.**
   Norway has an opt-in anonymous real-offer workflow with a demo budget and
   review-only merchant links. The public Judge Sandbox remains deterministic.
@@ -6941,3 +6947,88 @@ PayPal to explain the changed customer ID and omitted merchant reference
 using the prior sanitized debug IDs and UTC timestamps. Merchant-initiated
 transaction eligibility remains unverified. Autonomous saved-Wallet
 execution remains disabled. No Wallet calls or code changes.
+
+### 2026-11-10 — Task 09B public research first and hosted diagnosis
+
+Task 09 is committed as `deb0d53` on the release branch. The exact
+reported Preview redirects unauthenticated GETs to Vercel and returns HTTP
+401 with `Protected deployment` on a schema-invalid research POST. The
+older public alias returns HTTP 200 on its homepage and HTTP 404 at both
+`/api/paypal/research` and `/api/judge-sandbox`. The browser integration
+had no authenticated session available. The protected Preview's deployed
+commit, environment values, quota schema and provider logs could not be
+verified. The invalid POST could not reserve quota or call a provider.
+
+In Task 09's source, the exact copy “The evaluation couldn’t finish” is
+the generic non-research chat fallback. Public merchant research used
+“Online research couldn’t finish” instead. The old homepage opened the
+synthetic policy console and omitted the real research tab when its
+availability GET failed. This establishes the wrong default and message
+path. The client also omitted same-origin credentials on public research
+and Judge policy requests, including the old research availability check.
+On a Vercel-protected Preview this drops the hosting authentication cookie
+from the API request even when the visitor can load the page. The chat now
+uses same-origin credentials while Earmark research remains anonymous.
+The exact original response remains unverified without an authenticated
+runtime trace.
+
+The direct Vercel path is POST `/api/paypal/research` → strict input,
+Host, Origin and Vercel client address checks → Neon quota admission →
+Tavily offer search → Gemini extraction → targeted Tavily merchant
+verification → evidence and independent budget policy → Norway offer
+cards. The direct handler scopes network enablement to this route. Keep
+the legacy AI and execution flags disabled. The Node function allows 60
+seconds, with a 2-second body read, 3-second quota deadline and up to three
+16-second provider calls. This release uses the direct Vercel backend.
+
+- `web/src/app/page.tsx`, `web/src/app/agent-checkout/page.tsx`,
+  `web/src/app/layout.tsx`, `web/src/app/norway.css`, and
+  `web/src/components/public-paypal-pages.tsx` replace the public
+  demo-first shell with a clean Norway research entry point. The default
+  page starts with an empty request and a USD budget control. Removed
+  recorded activity, sandbox copy and demo navigation from the primary
+  experience.
+- `web/src/app/judge/page.tsx` and
+  `web/src/components/paypal-agent-console.tsx` retain the deterministic
+  scenarios and historical receipt on a dedicated route. Public research
+  is no longer a tab in that console.
+- `web/src/components/purchasing-chat.tsx` reports safe, distinct failure
+  messages and rejects synthetic or offline responses in the default
+  experience. The existing cited merchant link and manual intent still
+  show Not paid. `web/src/server/paypal/offer-discovery.ts` removes the
+  weather and SaaS keyword gate for normal product requests while keeping
+  privacy and policy checks. `web/src/server/paypal/public-research.ts`
+  distinguishes configuration, origin, quota, provider and timeout
+  errors, with allowlisted server diagnostics. Quotas remain 3 per visitor
+  and 24 globally per UTC day.
+- `web/test/offer-discovery.test.ts` and `scripts/preview-smoke.mjs`
+  cover general product input, upstream failure responses, public
+  research by default, no synthetic substitution, and the separate Judge
+  route.
+
+For a separately authorized Vercel Preview, set `NEXT_PUBLIC_DEMO_ONLY=true`,
+`EARMARK_PUBLIC_DEMO_ONLY=true`, `EARMARK_PUBLIC_RESEARCH_ENABLED=true`,
+and `EARMARK_PUBLIC_RESEARCH_ORIGIN` to the exact serving HTTPS origin.
+Set server-only `EARMARK_RESEARCH_DATABASE_URL` to the dedicated direct
+Neon quota database with `docs/public-research-quota.sql` applied, and
+`EARMARK_RESEARCH_QUOTA_SECRET` to 64 hex characters. Configure server-only
+`TAVILY_API_KEY` and `GEMINI_API_KEY`. Use `GEMINI_COLLECTOR_MODEL` if a model
+override is required. Leave `EARMARK_ENABLE_TESTNET_EXECUTION`,
+`PAYPAL_BACKEND_ENABLED` and
+`PAYPAL_PAYMENTS_ENABLED` off. The local environment lists both provider
+key names but has no public research origin or quota configuration.
+Next verify the protected Preview's deployment and failed request in
+Vercel Runtime Logs, then run one authorized live-provider smoke test.
+No provider calls, push, deployment, Production changes, or financial
+operations occurred during this task.
+
+Local verification passed 115 tests across six focused suites. The public
+production build and TypeScript checks passed in the direct profile. Web
+lint, targeted lint, formatting, smoke-script syntax and whitespace checks
+passed. The browser boundary scan checked 49 chunks, and the secret scan
+found zero matches. Chromium covered both themes, eight
+public pages, four policy scenarios, desktop and narrow mobile, rejected
+offline substitution, and the mocked merchant handoff marked Not paid.
+The final rebuild and Chromium rerun also verified that a same-origin
+cookie reached the research request. Browser checks made zero external,
+legacy API, payment or wallet requests.
