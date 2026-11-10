@@ -24,17 +24,20 @@ function formatMinorUsd(minor: string | undefined, currency = "USD") {
 function PurchasingConversation({
   result,
   loading,
+  publicResearch = false,
 }: {
   result: PayPalAgentEvaluationResult | null;
   loading: boolean;
+  publicResearch?: boolean;
 }) {
-  const [chatMode, setChatMode] = useState(false);
+  const [chatOpen, setChatMode] = useState(false);
+  const chatMode = publicResearch || chatOpen;
   const [chatResult, setChatResult] = useState<PurchasingChatResult | null>(
     null,
   );
   const current = chatMode ? chatResult : loading ? null : result;
   const allowed = current?.authorizationDecision.allowed === true;
-  const judgeSandbox = PUBLIC_DEMO_ONLY && chatMode;
+  const judgeSandbox = PUBLIC_DEMO_ONLY && chatMode && !publicResearch;
   return (
     <div
       className="norway-commerce"
@@ -45,43 +48,63 @@ function PurchasingConversation({
           <div>
             <h1>Agent checkout</h1>
             <p>
-              {PUBLIC_DEMO_ONLY
-                ? "Try a controlled purchase with synthetic offers and real policy checks."
-                : "Compare synthetic offers under policy or research real merchants for manual review."}
+              {publicResearch
+                ? "Research real merchants and compare offers within your budget."
+                : PUBLIC_DEMO_ONLY
+                  ? "Try a controlled purchase with synthetic offers and real policy checks."
+                  : "Compare synthetic offers under policy or research real merchants for manual review."}
             </p>
           </div>
-          <Badge>{PUBLIC_DEMO_ONLY ? "Public demo" : "Sandbox"}</Badge>
+          <Badge>
+            {publicResearch
+              ? "Research"
+              : PUBLIC_DEMO_ONLY
+                ? "Public demo"
+                : "Sandbox"}
+          </Badge>
         </header>
         <section
           className="norway-budget"
           aria-label={
-            chatMode
-              ? judgeSandbox
-                ? "Synthetic judge policy budget"
-                : "Local evaluation limits"
-              : "Recorded Sandbox accounting"
+            publicResearch
+              ? "Real merchant research budget"
+              : chatMode
+                ? judgeSandbox
+                  ? "Synthetic judge policy budget"
+                  : "Local evaluation limits"
+                : "Recorded Sandbox accounting"
           }
         >
           <div className="norway-card-heading">
             <h3>
-              {judgeSandbox
-                ? "SYNTHETIC JUDGE POLICY"
-                : chatMode
-                  ? "LOCAL EVALUATION LIMITS"
-                  : "RECORDED SANDBOX MANDATE"}
+              {publicResearch
+                ? "RESEARCH BUDGET"
+                : judgeSandbox
+                  ? "SYNTHETIC JUDGE POLICY"
+                  : chatMode
+                    ? "LOCAL EVALUATION LIMITS"
+                    : "RECORDED SANDBOX MANDATE"}
             </h3>
             <Badge tone="success">
-              {chatMode ? "Evaluation only" : "Completed"}
+              {publicResearch
+                ? "Review only"
+                : chatMode
+                  ? "Evaluation only"
+                  : "Completed"}
             </Badge>
           </div>
           {chatMode && !judgeSandbox ? (
             <div className="norway-budget-main">
               <strong>
-                $10.00 <span>evaluation ceiling</span>
+                $10.00{" "}
+                <span>
+                  {publicResearch ? "research ceiling" : "evaluation ceiling"}
+                </span>
               </strong>
               <p>
-                Synthetic proposals have a $6 purchase cap. Live research is
-                review only.
+                {publicResearch
+                  ? "Set your budget in chat. Offers are for manual review."
+                  : "Synthetic proposals have a $6 purchase cap. Live research is review only."}
               </p>
             </div>
           ) : (
@@ -138,31 +161,34 @@ function PurchasingConversation({
         </section>
       </aside>
       <div className="norway-chat-panel">
-        <div className="norway-card-heading">
-          <Button
-            variant={!chatMode ? "primary" : "soft"}
-            aria-pressed={!chatMode}
-            onClick={() => {
-              setChatMode(false);
-              setChatResult(null);
-            }}
-          >
-            Policy demo
-          </Button>
-          <Button
-            variant={chatMode ? "primary" : "soft"}
-            aria-pressed={chatMode}
-            onClick={() => {
-              setChatMode(true);
-              setChatResult(null);
-            }}
-          >
-            {PUBLIC_DEMO_ONLY ? "Judge sandbox" : "Live Gemini chat"}
-          </Button>
-        </div>
+        {!publicResearch && (
+          <div className="norway-card-heading">
+            <Button
+              variant={!chatMode ? "primary" : "soft"}
+              aria-pressed={!chatMode}
+              onClick={() => {
+                setChatMode(false);
+                setChatResult(null);
+              }}
+            >
+              Policy demo
+            </Button>
+            <Button
+              variant={chatMode ? "primary" : "soft"}
+              aria-pressed={chatMode}
+              onClick={() => {
+                setChatMode(true);
+                setChatResult(null);
+              }}
+            >
+              {PUBLIC_DEMO_ONLY ? "Judge sandbox" : "Live Gemini chat"}
+            </Button>
+          </div>
+        )}
         {chatMode ? (
           <PurchasingChat
             judgeSandbox={judgeSandbox}
+            publicResearch={publicResearch}
             onEvaluation={setChatResult}
           />
         ) : (
@@ -270,36 +296,42 @@ function PurchasingConversation({
             <Badge
               tone={current ? (allowed ? "success" : "danger") : "neutral"}
             >
-              {current
-                ? allowed
-                  ? "ALL PASSED"
-                  : "BLOCKED"
-                : "AWAITING EVALUATION"}
+              {publicResearch
+                ? "REVIEW ONLY"
+                : current
+                  ? allowed
+                    ? "ALL PASSED"
+                    : "BLOCKED"
+                  : "AWAITING EVALUATION"}
             </Badge>
           </div>
           <p className="chat-source">
-            {chatMode
-              ? current
-                ? chatResult?.source === "DETERMINISTIC_POLICY_ENGINE"
-                  ? "Real policy execution · mock AI planner"
-                  : chatResult?.source === "MOCKED_TRANSPORT_TEST"
-                    ? "Mocked transport test"
-                    : "Real Gemini evaluation"
-                : judgeSandbox
-                  ? "Awaiting judge instruction"
-                  : "No validated live result"
-              : "Independent policy simulation · synthetic catalog"}
+            {publicResearch
+              ? "Each offer shows its evidence and budget checks. Discovered merchants cannot be paid through Earmark."
+              : chatMode
+                ? current
+                  ? chatResult?.source === "DETERMINISTIC_POLICY_ENGINE"
+                    ? "Real policy execution · mock AI planner"
+                    : chatResult?.source === "MOCKED_TRANSPORT_TEST"
+                      ? "Mocked transport test"
+                      : "Real Gemini evaluation"
+                  : judgeSandbox
+                    ? "Awaiting judge instruction"
+                    : "No validated live result"
+                : "Independent policy simulation · synthetic catalog"}
           </p>
-          <p className="norway-check-total">
-            <strong>
-              {current
-                ? current.authorizationDecision.checks.filter((c) => c.passed)
-                    .length
-                : "—"}
-              /{current?.authorizationDecision.checks.length ?? "—"}
-            </strong>{" "}
-            checks passed
-          </p>
+          {!publicResearch && (
+            <p className="norway-check-total">
+              <strong>
+                {current
+                  ? current.authorizationDecision.checks.filter((c) => c.passed)
+                      .length
+                  : "—"}
+                /{current?.authorizationDecision.checks.length ?? "—"}
+              </strong>{" "}
+              checks passed
+            </p>
+          )}
           <div className="norway-check-meter" aria-hidden="true">
             {current?.authorizationDecision.checks.map((c) => (
               <span key={c.id} className={c.passed ? "passed" : "failed"} />
@@ -360,14 +392,28 @@ function PurchasingConversation({
           </h3>
           <p>Gemini never receives PayPal credentials.</p>
           <p>
-            {chatMode && !judgeSandbox
-              ? "Controlled evaluations use a bounded synthetic catalog. Online research uses public merchant sources."
-              : "Only permitted synthetic catalog and policy data may leave the server."}
+            {publicResearch
+              ? "Online research uses public merchant sources."
+              : chatMode && !judgeSandbox
+                ? "Controlled evaluations use a bounded synthetic catalog. Online research uses public merchant sources."
+                : "Only permitted synthetic catalog and policy data may leave the server."}
           </p>
-          <p>Owner authorization and PayPal buyer approval remain mandatory.</p>
+          <p>
+            {publicResearch
+              ? "Research cannot authorize or execute a payment."
+              : "Owner authorization and PayPal buyer approval remain mandatory."}
+          </p>
         </section>
       </aside>
     </div>
+  );
+}
+
+export function PayPalResearchConsole() {
+  return (
+    <section className="execution-console" aria-label="Execution Console">
+      <PurchasingConversation result={null} loading={false} publicResearch />
+    </section>
   );
 }
 

@@ -29,35 +29,86 @@ const providerFailures = {
   MODEL_TIMEOUT: "PUBLIC_RESEARCH_TIMEOUT",
 } as const;
 
+function configurationFailure(error: string, ...prerequisites: string[]) {
+  return { error, prerequisites } as const;
+}
+
 function profile(env: Env) {
+  if (env.EARMARK_PUBLIC_RESEARCH_ENABLED !== "true")
+    return configurationFailure(
+      "PUBLIC_RESEARCH_NOT_ENABLED",
+      "EARMARK_PUBLIC_RESEARCH_ENABLED",
+    );
+  const profileFlags = [
+    ...["NEXT_PUBLIC_DEMO_ONLY", "EARMARK_PUBLIC_DEMO_ONLY"].filter(
+      (name) => env[name] !== "true",
+    ),
+    ...[
+      "EARMARK_ENABLE_TESTNET_EXECUTION",
+      "PAYPAL_BACKEND_ENABLED",
+      "PAYPAL_PAYMENTS_ENABLED",
+    ].filter((name) => env[name] === "true"),
+  ];
+  if (env.NODE_TLS_REJECT_UNAUTHORIZED === "0")
+    profileFlags.push("NODE_TLS_REJECT_UNAUTHORIZED");
+  if (profileFlags.length)
+    return configurationFailure(
+      "PUBLIC_RESEARCH_PROFILE_BLOCKED",
+      ...profileFlags,
+    );
+
+  const quotaSettings: string[] = [];
   if (
-    env.NEXT_PUBLIC_DEMO_ONLY !== "true" ||
-    env.EARMARK_PUBLIC_DEMO_ONLY !== "true" ||
-    env.EARMARK_PUBLIC_RESEARCH_ENABLED !== "true" ||
-    env.EARMARK_ENABLE_TESTNET_EXECUTION === "true" ||
-    env.PAYPAL_BACKEND_ENABLED === "true" ||
-    env.PAYPAL_PAYMENTS_ENABLED === "true" ||
-    env.NODE_TLS_REJECT_UNAUTHORIZED === "0" ||
-    !env.EARMARK_RESEARCH_DATABASE_URL ||
-    env.EARMARK_RESEARCH_DATABASE_URL === env.PAYPAL_DATABASE_URL ||
-    !/^[a-f0-9]{64}$/i.test(env.EARMARK_RESEARCH_QUOTA_SECRET ?? "") ||
-    !env.GEMINI_API_KEY ||
-    !env.TAVILY_API_KEY
+    !env.EARMARK_RESEARCH_DATABASE_URL?.trim() ||
+    env.EARMARK_RESEARCH_DATABASE_URL === env.PAYPAL_DATABASE_URL
   )
-    return null;
+    quotaSettings.push("EARMARK_RESEARCH_DATABASE_URL");
+  if (!/^[a-f0-9]{64}$/i.test(env.EARMARK_RESEARCH_QUOTA_SECRET ?? ""))
+    quotaSettings.push("EARMARK_RESEARCH_QUOTA_SECRET");
+  if (quotaSettings.length)
+    return configurationFailure(
+      "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
+      ...quotaSettings,
+    );
+
+  const providerSettings = ["GEMINI_API_KEY", "TAVILY_API_KEY"].filter(
+    (name) => !env[name]?.trim(),
+  );
+  if (providerSettings.length)
+    return configurationFailure(
+      "PUBLIC_RESEARCH_PROVIDERS_NOT_CONFIGURED",
+      ...providerSettings,
+    );
+
   try {
     const origin = new URL(env.EARMARK_PUBLIC_RESEARCH_ORIGIN ?? "");
     const hosted = env.VERCEL === "1";
+    if (
+      !hosted &&
+      origin.origin === env.EARMARK_PUBLIC_RESEARCH_ORIGIN &&
+      origin.protocol === "https:" &&
+      !origin.port
+    )
+      return configurationFailure(
+        "PUBLIC_RESEARCH_RUNTIME_NOT_CONFIGURED",
+        "VERCEL",
+      );
     if (
       origin.origin !== env.EARMARK_PUBLIC_RESEARCH_ORIGIN ||
       (hosted
         ? origin.protocol !== "https:" || !!origin.port
         : origin.protocol !== "http:" || origin.hostname !== "127.0.0.1")
     )
-      return null;
+      return configurationFailure(
+        "PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED",
+        "EARMARK_PUBLIC_RESEARCH_ORIGIN",
+      );
     return { origin, hosted };
   } catch {
-    return null;
+    return configurationFailure(
+      "PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED",
+      "EARMARK_PUBLIC_RESEARCH_ORIGIN",
+    );
   }
 }
 
@@ -144,10 +195,17 @@ export async function handlePublicResearch(
   discover = discoverOffers,
 ) {
   const config = profile(env);
-  const hostMatches = config?.origin.host === request.headers.get("host");
-  if (request.method === "GET")
-    return json({ available: Boolean(config && hostMatches) });
-  if (!config) return json({ error: "PUBLIC_RESEARCH_DISABLED" }, 404);
+  if ("error" in config) {
+    if (request.method === "GET") return json({ available: false });
+    console.warn(
+      "public-research: configuration",
+      config.error,
+      config.prerequisites,
+    );
+    return json({ error: config.error }, 404);
+  }
+  const hostMatches = config.origin.host === request.headers.get("host");
+  if (request.method === "GET") return json({ available: hostMatches });
   if (!hostMatches || request.headers.get("origin") !== config.origin.origin)
     return json({ error: "PUBLIC_RESEARCH_ORIGIN_REQUIRED" }, 403);
   const ip = config.hosted

@@ -149,8 +149,25 @@ try {
   }
   await page.goto(origin);
   await expect(
-    page.getByRole("heading", { name: "Find the right offer" }),
+    page.getByRole("heading", { name: "Agent checkout", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
+  ).toHaveText(["Checkout", "Mandates", "Policies", "Activity", "Purchases"]);
+  await expect(
+    page.getByRole("button", { name: "Research offers" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByTestId("norway-purchasing-conversation")
+      .getByRole("heading", { name: "Policy checks" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Real merchant research budget" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Independent policy simulation · synthetic catalog"),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Judge sandbox", exact: true }),
   ).toHaveCount(0);
@@ -754,7 +771,7 @@ try {
   }
   await page.goto(origin);
   await expect(
-    page.getByRole("heading", { name: "Find the right offer" }),
+    page.getByRole("heading", { name: "Agent checkout", exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: `${root}.tools/paypal-classic-mobile.png` });
   await page.setViewportSize({ width: 1440, height: 1000 });

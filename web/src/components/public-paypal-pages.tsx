@@ -3,21 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Brand } from "./glass";
-import { PurchasingChat } from "./purchasing-chat";
+import { PayPalResearchConsole } from "./paypal-agent-console";
 import { RecordedPayPalCard } from "./recorded-paypal-card";
 import { ThemeSelector, useTheme } from "./theme-provider";
 
+const links = [
+  ["Checkout", "/"],
+  ["Mandates", "/mandates"],
+  ["Policies", "/security"],
+  ["Activity", "/activity"],
+  ["Purchases", "/payments"],
+] as const;
+
 export function PublicPayPalNavigation() {
-  const path = usePathname();
+  const pathname = usePathname();
   const { preference } = useTheme();
   return (
-    <header
-      className={
-        path === "/judge" || path === "/security"
-          ? "floating-nav"
-          : "floating-nav public-research-nav"
-      }
-    >
+    <header className="floating-nav">
       <Link href="/" aria-label="Earmark PayPal home">
         {preference === "norway" ? (
           <span className="norway-brand">
@@ -28,26 +30,35 @@ export function PublicPayPalNavigation() {
           <Brand priority />
         )}
       </Link>
+      <nav className="nav-links" aria-label="Main navigation">
+        {links.map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className={pathname === href ? "active" : undefined}
+          >
+            {preference === "norway" && <NorwayNavIcon href={href} />}
+            {label}
+          </Link>
+        ))}
+      </nav>
       <div className="nav-actions">
         <ThemeSelector />
       </div>
+      {preference === "norway" && (
+        <div className="norway-sandbox">
+          <span>SANDBOX</span>
+          <p>Research merchant offers. Payment execution is disabled.</p>
+        </div>
+      )}
     </header>
   );
 }
 
 export function PublicPayPalHome() {
   return (
-    <main id="main" className="page-shell public-research-home">
-      <header className="page-heading">
-        <div>
-          <h1>Find the right offer</h1>
-          <p>
-            Describe what you need and compare merchant offers against your
-            budget.
-          </p>
-        </div>
-      </header>
-      <PurchasingChat publicResearch />
+    <main id="main" className="operational-workspace public-paypal-home">
+      <PayPalResearchConsole />
     </main>
   );
 }

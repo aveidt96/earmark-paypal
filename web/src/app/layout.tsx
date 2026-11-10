@@ -49,30 +49,36 @@ export default async function RootLayout({
       </a>
       <div className="application">
         {Navigation ? <Navigation /> : <PublicPayPalNavigation />}
-        {legacy && (
-          <p className="notice workspace-mode-notice" role="status">
-            Earmark PayPal · Controlled, buyer-approved Sandbox checkout is
-            isolated at /paypal-test. Main-workspace wallet actions and recorded
-            payment evidence belong to the preserved legacy EVM application.
-          </p>
-        )}
+        <p
+          className="notice workspace-mode-notice"
+          data-public-demo={process.env.NEXT_PUBLIC_DEMO_ONLY === "true"}
+          role="status"
+        >
+          {process.env.NEXT_PUBLIC_DEMO_ONLY === "true" ? (
+            <>
+              <span className="classic-label">
+                Earmark PayPal · Merchant research and budget review. Payment
+                execution is disabled.
+              </span>
+              <span className="norway-label">
+                Merchant research · Budget review · Payments disabled.
+              </span>
+            </>
+          ) : (
+            "Earmark PayPal · Controlled, buyer-approved Sandbox checkout is isolated at /paypal-test. Main-workspace wallet actions and recorded payment evidence belong to the preserved legacy EVM application."
+          )}
+        </p>
         {Notices && <Notices />}
         {children}
         <footer className="workspace-footer">
           <Brand />
-          <p>
-            {legacy
-              ? "Purpose-bound payments for autonomous agents."
-              : "Merchant research and purchasing decisions."}
-          </p>
+          <p>Purpose-bound payments for autonomous agents.</p>
+          <span>PayPal AI Hackathon · Sandbox integration in preparation.</span>
+          <span>
+            The agent chooses. The mandate constrains. Delivery settles.
+          </span>
           {legacy && (
             <>
-              <span>
-                PayPal AI Hackathon · Sandbox integration in preparation.
-              </span>
-              <span>
-                The agent chooses. The mandate constrains. Delivery settles.
-              </span>
               <span>
                 Legacy demonstration payments use local or testnet mock assets.
                 Recorded demos use a deterministic mock agent and simulated
