@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CreateMandate } from "../../../components/create-mandate";
+import { notFound } from "next/navigation";
 export const metadata: Metadata = {
   title: { absolute: "Create an Earmark | Earmark PayPal" },
 };
@@ -8,6 +8,9 @@ export default async function Page({
 }: {
   searchParams: Promise<{ task?: string }>;
 }) {
+  if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true") notFound();
+  const { CreateMandate } =
+    await import("../../../components/legacy-web-profile");
   const p = await searchParams;
   return (
     <CreateMandate

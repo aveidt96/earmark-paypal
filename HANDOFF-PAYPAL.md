@@ -1,12 +1,323 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-04**
+Last updated: **2026-11-10**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **Task 08D publication review, 2026-11-10: BLOCKED before publication.**
+  The Vercel project lookup returned HTTP 403. The exact 138-file proposed
+  delta is documented. Public build, boundary, secret, lint and type checks
+  passed. One Judge handler formatting warning remains. No Git release or
+  Preview was created.
+
+- **Task 08C Monad isolation, 2026-11-10.** The public PayPal profile uses
+  PayPal-only navigation and pages, gates legacy transaction routes, and
+  excludes the legacy browser entry during compilation. The public build and
+  Chromium smoke passed with zero external or legacy browser requests. The legacy workspace,
+  wallet, Solidity/Foundry and deployment code remain available outside the
+  public build. No new flag or dependency was added.
+
+- **Task 08B deployment audit, 2026-11-10: READY WITH ACTIONS.** The public
+  demo targets Vercel as one Next.js app and needs no external worker, Neon,
+  or provider credentials. Private research stays authenticated on loopback.
+  The operator must verify dashboard settings and separately authorize
+  publication and deployment. Autonomous saved-Wallet payment stays disabled.
+
+- **Task 08A demo polish, 2026-11-08.** Norway distinguishes controlled
+  synthetic evaluation from live merchant research, presents source evidence
+  in expandable sections, and makes manual approval's `not paid` state clear.
+  Autonomous saved-PayPal-Wallet payments remain unresolved and disabled.
+
+- **Task 07P-T2 live assisted checkout, 2026-11-08: PASS.** One authenticated
+  Norway discovery rendered a real-offer card after two Tavily searches and
+  one Gemini extraction. The cited Weatherstack pricing page opened over
+  HTTPS. Manual approval showed `not paid` and issued zero mutation requests.
+  Public Judge restrictions and deterministic policy passed. Zero PayPal or
+  financial operations occurred.
+
+- **Task 07P-T-FIX, 2026-11-08: offline diagnostics verified.** The retained
+  07P-T trace cannot distinguish the exact Gemini rejection. Offline fixtures
+  reproduce the same HTTP 409 for invalid native tool arguments and multiple
+  native tool calls. Opt-in authenticated owner discovery now traces only the
+  rejection stage and category locally. Validation and public behavior are
+  unchanged. No additional live evaluation ran.
+
+- **Task 07P-T live assisted checkout, 2026-11-08: PARTIAL.** One authenticated
+  Norway submission reached Tavily and Gemini (both HTTP 200). The application
+  returned `INVALID_MODEL_RESPONSE` before the merchant-specific payment search
+  or any offer card. Live merchant navigation and manual approval remain
+  unverified. The one authorized evaluation was consumed, with zero retries
+  and zero financial operations.
+
+- **Task 07P-SMOKE public preview, 2026-11-08: PASS.** The complete Chromium
+  suite passed after updating the discovery button selector and the stale
+  mock response. Assisted checkout is absent from public Judge research.
+  Production UI and public restrictions were unchanged.
+
+- **Task07P-S real-offer assisted checkout, 2026-11-07: verified offline.**
+  Added a minimal session-only assisted manual checkout review flow to
+  authenticated Norway owner chat (`!judgeSandbox && Boolean(csrf)`) on real
+  discovered offer cards, while keeping synthetic offer flows and public Judge
+  Sandbox unchanged. Provenance-checked HTTPS links open the official merchant
+  page in a new tab; `"Approve for manual checkout"` and `"Reject"` record local
+  session intent only (`not paid`, never `PAID`/`COMPLETED`), creating zero
+  orders, mandates, intents, reservations or DB writes. 108 focused tests,
+  offline Chromium UI checks, lint, typecheck, public demo build and secret
+  scans pass.
+
+- **Task07P-R tier-specific evidence & merchant payment search, 2026-11-07: verified offline.**
+  Fixed the 07P-L3 AccuWeather Free/Starter availability defect by enforcing
+  header-aligned tier-row matching, excluding overage/feature cells, withholding
+  claims when row/column context is lost, and requiring explicit tier-bound
+  availability evidence. Reordered discovery to `offer search -> Gemini
+  extraction -> targeted merchant payment-method search` within the existing
+  2-Tavily / 1-Gemini budget while isolating payment evidence per merchant.
+  106 focused tests, lint, typecheck, public demo build and boundary checks pass
+  offline; zero live API, PayPal or DB activity.
+
+- **Task07P-L3 live offer evidence verification, 2026-11-07: PARTIAL.**
+  The revised searches retrieved first-party pricing and a named Starter
+  tier. Norway rendered one AccuWeather card with price and PayPal unknown,
+  no recommendation and no checkout eligibility. Its availability label was
+  not supported by the tier evidence. No financial activity.
+
+- **Task07P-Q offer evidence accuracy, 2026-11-07: verified offline.**
+  The 07P-L2 billing changelog now yields PayPal `unknown`. Discovery favors
+  named pricing tiers with explicit currency and billing, within the same
+  provider-call budget. Both historical cards remain price-unknown.
+
+- **Task07P-L2 live real-offer retest, 2026-11-07: PARTIAL.**
+  The fixed Gemini envelope passed live. Norway showed two source-linked
+  research cards. Neither had sufficient price and billing evidence for a
+  recommendation. WeatherAPI's `not-listed` PayPal label overstates a generic
+  billing reference. No PayPal calls or financial operations.
+
+- **Task07P-FIX collector normalization, 2026-11-07: verified offline.**
+  The reproduced whitespace mismatch is fixed. The strict Gemini guard and
+  request builder now use the same canonical observations. Live extraction
+  and Norway proposal rendering still need a separately authorized retest.
+
+- **Task07P-L live real-offer verification, 2026-11-07: PARTIAL.**
+  The authenticated Norway chat submitted once. Two Tavily searches returned
+  HTTP 200. The app rejected the Gemini outbound envelope before dispatch,
+  so no cards or offers were produced. A truncation/trim mismatch reproduces
+  offline. No PayPal, financial or database activity.
+
+- **Task07P real-offer proposals, 2026-11-07: implemented and checked offline.**
+  Authenticated local chat can request Tavily/Gemini research. Comparison
+  cards distinguish source-matched claims, unknowns and conflicting evidence,
+  and can suggest a comparable offer for review. External merchants remain
+  ineligible for Earmark checkout.
+
+- **Task07N-G live Wallet identity diagnostic, 2026-11-07: PARTIAL.**
+  Manual buyer consent, setup provenance and payer-ID matching passed. The
+  exchange returned a different Vault customer ID and omitted the merchant
+  reference echoed by setup and approval. The runner rejected the token and
+  exited before checkout. No financial operations or database access.
+
+- **Task07N-F Wallet identity binding, 2026-11-07: hardened offline.**
+  The local runner now requires Earmark owner login, verifies setup provenance,
+  and requires consistent merchant references, PayPal payer IDs and Vault
+  customer IDs. The Sandbox mismatch and unattended payment remain unverified
+  with these changes. No live calls were made.
+
+- **Task07N-E Wallet identity review, 2026-11-07: provider clarification needed.**
+  The token-only exchange is documented. PayPal illustrates equal Vault
+  customer IDs and gives no universal equality guarantee or documented way
+  to reconcile this mismatch. The fail-closed guard remains in place.
+
+- **Wallet customer binding live diagnostic, 2026-11-07: mismatch reproduced.**
+  Setup creation and approved lookup returned the same Vault customer ID.
+  HTTP 200 exchange returned a different Vault customer ID. The runner stopped
+  with no token retained locally, no database access and no payment. PayPal
+  response timestamps and debug references are in an ignored local file.
+
+- **Task07N-D-ID Wallet customer binding, 2026-11-07: verified offline.**
+  The 07N-D-R failure compared the exchange against setup creation. The
+  runner now requires a valid customer ID from the approved setup lookup and
+  an exact match at exchange. The direct Wallet request shape is documented.
+  The cause of the Sandbox response discrepancy remains unverified.
+
+- **Task07N-D-R unattended $1 Sandbox purchase, 2026-11-07: PARTIAL.**
+  PayPal confirmed manual consent and returned HTTP 200 with a Wallet token ID.
+  The runner rejected it because the Vault customer IDs in setup creation
+  and the exchange response differed. No mandate, order, capture or accounting
+  writes. The one-shot authorization is consumed. Merchant-initiated checkout
+  eligibility remains untested.
+
+- **Task07N-D-FIX exchange diagnostics, 2026-11-07: verified offline.**
+  HTTP 200 was already accepted; the exact prior predicate failure cannot be
+  reconstructed. The local runner now records only status and validation flags.
+  Fifteen fixtures passed; payer and customer binding checks remain enforced.
+
+- **Task07N-D unattended $1 Sandbox purchase, 2026-11-07: PARTIAL.**
+  Buyer consent was confirmed. The HTTP 200 token exchange response did not
+  pass the local Wallet/customer binding checks, so the runner stopped before
+  creating a mandate or sending an order. Four API requests, no retries or charge.
+  Merchant-initiated checkout eligibility remains untested.
+
+- **Task07N-C saved Wallet checkout, 2026-11-07: prepared offline.**
+  Added an unrouted server-only one-purchase entry point with consent, payer,
+  app/merchant and dedicated mandate checks. Reuses the Orders client and
+  accounting; no new consent or live payment. The 07N-B token was discarded;
+  merchant-initiated entitlement and actual checkout remain unverified.
+
+- **Task07N-B fresh consent attempt, 2026-11-07: PASS.** Corrected local
+  navigation opened PayPal Sandbox; the buyer approved. The setup POST was
+  HTTP 201, approval lookup HTTP 200 / `APPROVED`, and the single exchange
+  HTTP 201. A Wallet payment token was issued and discarded from local memory.
+  Zero charges; reference-transaction eligibility remains unverified.
+
+- **Task07N-B-FIX consent navigation, 2026-11-07: verified offline.** The
+  recovered loopback runner serves `Referrer-Policy: same-origin` so Chromium
+  submits the valid local Origin without forwarding a Referer to PayPal.
+  Continue/cancel, expiry, and access controls passed offline. Ready for a
+  separately authorized fresh consent attempt; no live API calls or exchange.
+
+- **Task07N-B Wallet consent, 2026-11-07: PARTIAL.** One fresh setup POST
+  returned HTTP 201 / `PAYER_ACTION_REQUIRED`. The local Continue button hit
+  an Origin/referrer-policy mismatch before redirect; the local window expired
+  without buyer consent or token exchange. No payment token or charge.
+
+- **Task07N-A Wallet Vaulting setup, 2026-11-07: PASS for initiation only.**
+  The existing US Sandbox app/seller binding matched. One setup-token POST
+  returned HTTP 201, `PAYER_ACTION_REQUIRED`, and a Sandbox `approve` link.
+  No buyer approval, token exchange, or charge; reference transactions and
+  unattended payment remain unverified.
+
+- **Task07N unattended Sandbox purchase, 2026-11-07: gated on account eligibility.**
+  PayPal supports merchant-scoped saved Wallet payments after initial buyer
+  consent, but the existing US Sandbox record confirms seller identity only.
+  Vault enablement and billing-agreement/reference-transaction entitlement are
+  unverified for that exact app/account. No unattended code path or mandate was
+  added; buyer approval remains mandatory for the existing checkout.
+
+- **Task07M targeted PayPal acceptance research (offline),2026-11-05:** extended
+  Earmark's Tavily + Gemini offer discovery (`web/src/server/paypal/offer-discovery.ts`)
+  to run a targeted second Tavily basic search (`max_results: 3`,
+  `buildTargetedPayPalQuery(merchantDomain)`) for a selected discovered
+  merchant's supported payment methods (prioritizing official FAQ, billing
+  documentation and checkout pages via `prioritizePaymentResults`). Extracted
+  direct evidence and the official source URL (`paypalSourceUrl`) and added
+  deterministic server-side classification (`classifyPayPalEvidence`) across
+  three states: explicitly confirmed on an official merchant page
+  (`paypal: "claimed"`), PayPal not mentioned in published payment methods on an
+  official merchant page (`paypal: "not-listed"`, including credit-card-only
+  FAQs), and insufficient evidence (`paypal: "unknown"`, including PayPal
+  branding on unrelated third-party sites). Updated Norway research cards
+  (`web/src/components/offer-discovery.tsx`) to show the explicit 3-state status,
+  supporting evidence and clickable `Official payment source` link while keeping
+  all external merchants unapproved (`eligible: false`,
+  `canonicalVerdict: "UNAPPROVED_MERCHANT"`).81 focused web tests (`4` files,
+  including `26/26` in `web/test/offer-discovery.test.ts`), full typecheck,
+  4-file Biome lint, `@flint/web` production build,54-chunk browser boundary
+  scan and secret scan pass. Zero live API, PayPal or DB operations.
+
+- **Task07L-R live Tavily + Gemini discovery verification,2026-11-05: PASS.**
+  Submitted the exact user-supplied monthly $10 weather/PayPal research
+  instruction once through the authenticated Norway Judge Sandbox UI (`1`
+  Tavily Search request + `1` Gemini collector request total, zero retries).
+  Tavily `POST https://api.tavily.com/search` (`search_depth: "basic"`,
+  `max_results: 5`, `418` bytes) returned HTTP `200` (`4352ms` headers /
+  `4469ms` body, `5` public `https://` results). Sanitized results passed
+  `boundary.allowCollector` into Gemini `models/gemini-3.5-flash-lite:generateContent`
+  (`6836` bytes, HTTP `200`, `37301ms` headers / `37321ms` body, `finishReason:
+  "STOP"`, `reportDiscoveredOffers` called once, `strictSchemaValid: true`).
+  Collected `Weatherstack · Standard API Plan (up to 50,000 requests)` at
+  `999` minor units (`$9.99 USD`, `Monthly` claim) with cited URL
+  `https://weatherstack.com/pricing` (`cited: true`), `slaMinutes: null`
+  (`unknown`), and `paypal: "unknown"` (`paypalEvidence: null`). Independent
+  policy (`authorize` / `policyFor`) rejected purchasing (`eligible: false`,
+  `canonicalVerdict: "UNAPPROVED_MERCHANT"`, reasons:
+  `EXTERNAL_MERCHANT_NOT_BOUND`, `IMMUTABLE_TERMS_UNVERIFIED`,
+  `HUMAN_AUTHORIZATION_REQUIRED`, `TRANSACTION_LIMIT_EXCEEDED`,
+  `DELIVERY_SLA_UNKNOWN`, `PAYPAL_ACCEPTANCE_UNVERIFIED`). Norway UI rendered
+  the research card, citation link, `UNKNOWN` labels and disabled payment
+  button with `0` browser runtime errors (`.tools/task07lr-chat-redacted.png`).
+  Public policy-only restrictions restored and verified (`policy` `200`,
+  `discovery` `403`, `owner chat` `403`); temporary servers stopped. Zero
+  PayPal, database or application-source changes.
+
+- **Task07L Tavily Search integration (offline),2026-11-05:** replaced Gemini
+  Google Search grounding in `web/src/server/paypal/offer-discovery.ts` with
+  Tavily's Search API (`POST https://api.tavily.com/search`, `search_depth:
+  "basic"`, `max_results: 5`, `Authorization: Bearer <TAVILY_API_KEY>`).
+  Sanitized Tavily results (`title`, validated `https://` `url`, `snippet`,
+  `retrievedAt`) pass through `boundary.allowCollector` (enforcing schema,
+  sensitive-material and prompt-injection checks) into the existing Gemini
+  `reportDiscoveredOffers` collector (`GEMINI_MODEL`, `maxOutputTokens: 3000`,
+  `thinkingLevel: "low"`, no `googleSearch`) and independent `policyFor`
+  workflow. Purchasing-agent model, Norway research cards, source citations,
+  `UNKNOWN` labels, loopback auth/CSRF/hosted denial and financial restrictions
+  are preserved.158 focused offline tests (`7` files, including `25/25` in
+  `web/test/offer-discovery.test.ts`), full typecheck,10-file Biome lint,
+  `@flint/web` production build,54-chunk browser boundary scan and secret scan
+  pass. Zero live API, PayPal or DB operations. Ready for one separately
+  authorized live Tavily + Gemini evaluation once `TAVILY_API_KEY` is populated
+  in `web/.env.local`.
+
+- **Task07K-R live discovery attempt,2026-11-05: FAIL (`404 NOT_FOUND` on
+  `models/gemini-2.5-flash`).** Rebuilt `@flint/web` with
+  `NEXT_PUBLIC_DEMO_ONLY=true` (`54/54` browser boundary chunks clean) and
+  submitted the exact user-supplied monthly $10 weather/PayPal research
+  instruction once through the authenticated Norway Judge Sandbox UI. Turn 1
+  sent `1` Google HTTP request (`1374` bytes) to
+  `models/gemini-2.5-flash:generateContent` with `tools: [{ googleSearch: {} }]`
+  only; Google returned HTTP `404` (`NOT_FOUND`, `775ms` headers / `817ms` body,
+  `1044ms` application roundtrip) stating `"This model models/gemini-2.5-flash is
+  no longer available to new users. Please update your code to use
+  models/gemini-3.8-flash for the latest features and improvements."` Turn 2
+  (`gemini-3.5-flash-lite` collector) was not called (`1` Google API request
+  total, zero retries). Application returned HTTP `400` (`MODEL_API_ERROR`);
+  Norway UI showed the alert with zero browser runtime errors and no fabricated
+  offers/cards/proposals. Public policy-only restrictions restored and verified
+  (`policy` `200`, `discovery` `403`, `owner chat` `403`); temporary servers
+  stopped. Zero PayPal, database or application-source changes.
+
+- **Task07K-FIX offline search-model split,2026-11-05:** configured the existing
+  research path (`web/src/server/paypal/offer-discovery.ts`) to run a separate
+  search-only Turn 1 on `gemini-2.5-flash` (`tools: [{ googleSearch: {} }]`,
+  `thinkingBudget: 0`, `maxOutputTokens: 3000`) and pass schema-validated
+  `searchFindings`, `groundedSources` and `webSearchQueries` into Turn 2's
+  existing `reportDiscoveredOffers` collector on `GEMINI_MODEL`
+  (`gemini-3.5-flash-lite` in `web/.env.local`; default `gemini-3.8-flash`)
+  without combining `googleSearch` and `functionDeclarations` in one request.
+  Purchasing-agent model, Norway research cards, source citations, uncertainty
+  labels, privacy/outbound guards, approved-merchant rules and financial
+  restrictions are unchanged.156 focused offline tests (`7` files), full
+  typecheck, scoped Biome lint, `@flint/web` production build,54-chunk browser
+  boundary scan and secret scan pass. Zero live Gemini, PayPal or DB operations.
+  Ready for one separately authorized live test (with a fresh one-use harness
+  allowing the2-turn `gemini-2.5-flash` -> `GEMINI_MODEL` sequence).
+
+- **Task07K live discovery attempt,2026-11-04: FAIL (provider quota).** One
+  authenticated Norway submission and one real Google HTTP request returned429
+  RESOURCE_EXHAUSTED (~793ms body,981ms application roundtrip). Zero returned
+  candidates/tool calls/grounding; no offer or policy result fabricated. No retry.
+  Public policy-only restrictions restored/verified; temporary servers closed.
+  No application-code/config-file, financial or database changes. A further live
+  attempt requires quota availability and new explicit authorization.
+
+- **Task07J local implementation,2026-11-04:** authenticated loopback-only
+  Google Search/native collector path and Norway research cards implemented;
+  disabled by default, public access denied.197 offline tests, production build/
+  typecheck, scoped lint,9-route/five-width browser smoke and credential scans
+  pass. No live discovery verified or provider/payment/DB operation performed.
+  All external merchants remain unapproved; no payable offer mapping exists.
+
+- **Task07I interactive judge sandbox,2026-11-04:** Norway Judge sandbox accepts
+  typed weather requests, runs real independent policy with a labeled mock
+  planner and shows comparisons/rejections/approval requirements. No financial
+  capability or persistent state. Separate loopback judge Gemini auth/session
+  path is implemented and offline-tested; public live Gemini is hard-disabled
+  pending distributed auth/quota/cost/abuse controls.133 targeted tests, final
+  production build/typecheck,9-route/five-width browser smoke, local judge login
+  preflight and54-chunk credential/client boundary scans pass. No real Gemini,
+  PayPal or database operation. See docs/task-07i-judge-sandbox.md.
 
 - **Task07H publication audit, 2026-11-04:** exact118-file publish inventory
   reviewed; local secrets/state/evidence remain ignored. Norway CSS31 selector-order
@@ -4751,3 +5062,1727 @@ Existing ignored browser evidence refreshed by the unchanged smoke runner:
 - .tools/paypal-preview-mobile.png
 - .tools/paypal-classic-desktop.png
 - .tools/paypal-classic-mobile.png
+
+
+## 2026-11-04 — Task07I interactive judge sandbox (in progress)
+
+Inspected Norway chat, native Gemini adapter/final synthetic privacy guard, real
+policy tools and public/owner boundaries. Public live Gemini is blocked pending
+shared cross-instance admission quotas and provider-cost controls; current process
+counters are insufficient. Implementing an isolated, request-local synthetic
+policy sandbox with explicitly mocked deterministic planning, and a separately
+authenticated loopback judge Gemini path using existing tools/auth. No real
+Gemini invocation, financial operation, persistent record or database access is
+authorized. Public owner checkout protections remain unchanged. Files/checks and
+final outcomes will be recorded below.
+
+Task07I progress: added web/src/server/paypal/judge-sandbox.ts and judge-http.ts
+plus web/src/app/api/judge-sandbox/route.ts; reused the existing agent tools and
+policy engine with isolated memory repositories and reserveOnProposal=false.
+Updated web/src/server/paypal/agent.ts for server-parsed tighter synthetic
+requirements and synthetic-only observations (historical anchors are not even
+attached); gemini-boundary.ts permits reductions within the unchanged600-minor
+ceiling only. Updated test-auth.ts with a separate judge cookie namespace; no
+owner config/credentials are used. Updated web/src/lib/paypal-agent.ts,
+web/src/components/purchasing-chat.tsx and gemini-console.tsx for judge input,
+comparison/trace/policy labels and an explicitly synthetic10-dollar/zero-used
+budget; historical receipts remain separate. Updated scripts/preview-smoke.mjs
+for actual deterministic judge POSTs and clearly intercepted Gemini UI tests.
+Added web/test/judge-sandbox.test.ts. The first test run had one wrong expected
+legacy budget verdict (72pass/1fail); corrected to actual BUDGET_EXHAUSTED.
+Latest six-file suite101/101 passes. Initial scoped lint found6 new non-null
+assertion warnings; fixed them rather than suppressing rules. Further build,
+browser, formatting, source/credential checks and final evidence remain pending.
+
+
+### Task07I — final implementation and verification
+
+Implemented the authorized safe fallback. Public Norway Judge sandbox accepts
+actual typed instructions through /api/judge-sandbox, with a labeled mock planner
+and the existing native tools/canonical policy engine. Three real HTTP/UI cases
+select Prime at400 minor, Backup at600, or reject a300-minor ceiling with
+TRANSACTION_LIMIT_EXCEEDED; a2-minute SLA yields OBJECTIVE_MISMATCH. Scope,
+financial-execution and override errors are explicit boundary rejections, not
+fabricated model responses. Numeric USD ceilings, minute SLA and backup preference
+are supported; this deterministic parser is not general language understanding.
+Each request owns fresh memory-only synthetic policy; no persistent campaign,
+intent, attempt or reservation is created. Human approval is always absent.
+
+The separately authenticated local judge mode reuses native Gemini and the final
+synthetic guard. It uses its own cookie and separate judge secrets, never owner
+auth files/credentials, and is denied on hosted profiles. Local bounds:1000 input
+characters,8192-byte/five-second body bounds,8 model steps,60s per turn/180s
+transport deadline,one HTTP attempt,one active evaluation,3 evaluations/session
+and12/process/hour. Those counters are local only, not public admission controls.
+Public Gemini remains unconditionally blocked across instances; enabling it
+requires separate hosted judge authentication, atomic shared request/token/cost
+quotas and concurrency leases, provider-approved cost ceiling and edge abuse
+controls. No service/configuration was provisioned or live key enabled.
+
+Fresh results:133/133 tests across8 files pass, no skips; final production build
+with TypeScript passes. Updated existing browser smoke passes9 routes/five widths,
+Norway/Classic Light and migration, actual3 homepage policy evaluations plus mobile
+SLA rejection,4 recorded/4 policy scenarios, explicitly intercepted Gemini UI
+states, real hosted-live and owner endpoint403, no overflow/runtime exceptions.
+Local judge browser preflight passed with synthetic credentials and server-side
+external-network blocking: session/CSRF verified, owner endpoint403, zero model
+submissions/provider requests. No real Google authentication/inference was tested.
+Configured-secret scan339 tracked/414 candidates/54 chunks:zero matches, env
+ignored; client boundary now covers judge-secret names and passes54 chunks.
+Source workspace is inside this checkout; project-flint status matches preflight.
+Final lint passes278 files with zero errors/warnings (187 informational notices); changed-source/report formatting and whitespace checks pass.
+
+Failures corrected rather than suppressed: initial wrong legacy budget-code
+assertion (72pass/1fail); six new non-null lint warnings; privacy regression
+(50pass/1fail) caught static receipt IDs in the deterministic judge trace before
+browser publication. Fixed all judge tools to synthetic-only and removed internal
+anchors for synthetic observations; privacy tests now prove returned data and
+full outbound turns omit historical IDs. No historical data was sent to Google.
+An initial scan invocation lacked --import tsx; the proper scan passed. Browser
+run initially reached the new cases then failed on a stale mobile tab label;
+updated the runner and the full smoke passes. Final source was rebuilt after the
+privacy and authentication/evaluation loading-state correction. No DB suites or
+full unrelated regression suite was run; no DB connection/write or financial
+operation occurred. No staging,commit,push,deployment or project-flint modification
+was performed by this task. Observed Git HEAD35133d5; prior07H publication inventory
+is historical and must not be reused without reviewing this new work.
+
+Affected paths (all changes and compatibility described in the task report):
+web/src/app/api/judge-sandbox/route.ts; web/src/server/paypal/judge-http.ts;
+web/src/server/paypal/judge-sandbox.ts; web/src/server/paypal/agent.ts;
+web/src/server/paypal/gemini-boundary.ts; web/src/server/paypal/test-auth.ts;
+web/src/lib/paypal-agent.ts; web/src/components/purchasing-chat.tsx;
+web/src/components/gemini-console.tsx; web/test/judge-sandbox.test.ts;
+scripts/preview-smoke.mjs; scripts/paypal-secret-check.ts;
+scripts/check-web-boundary.mjs; added docs/task-07i-judge-sandbox.md; this handoff.
+Norway CSS/theme/font/logo and financial service/accounting logic remain unchanged.
+Ignored local artifacts: .tools/task07i-baseline.json, .tools/task07i-lint.json,
+.tools/task07i-judge-desktop.png, .tools/task07i-judge-mobile.png,
+.tools/task07i-local-auth.mjs, .tools/task07i-no-network.mjs,
+.tools/task07i-local-auth-result.json, .tools/task07i-local-judge-auth.png,
+.tools/task07i-verification.json. Existing smoke screenshots refreshed at the
+22 paths listed in Task07H's browser-evidence entry (no new credentials/private
+request bodies). All temporary owned test servers closed. No persistent local
+preview or public deployment is claimed.
+
+Task07I final gate: repository-wide Biome278 files passes, zero warnings/errors
+(187 informational notices). Formatting of all14 changed source/test/script/report
+paths passes; Git diff whitespace check passes. Final verification metadata is
+.tools/task07i-verification.json. No new dependency or financial authority.
+Public judge interaction is real deterministic policy execution with a labeled
+mock planner; the local Gemini adapter was tested with offline native transports
+only. Public live Gemini requires the infrastructure and separately authorized
+verification in the task report. Stop after local verification.
+
+### 2026-11-04 — Task07J local offer discovery (verification in progress)
+
+Added web/src/server/paypal/offer-discovery.ts and web/src/lib/offer-discovery.ts:
+research-only Search/native collector schema, exact final request envelope guard,
+no private history/tool responses, bounded input, one60s request/no retry, source
+validation, explicit claims/unknowns, canonical authorize() rejection of unbound
+external merchants. Existing approved catalog/financial policy are unchanged;
+no external merchant has an approved immutable offer binding. There is no path
+from web claims to a payable offer or synthetic Sandbox purchase.
+
+Modified agent/src/models.ts only to opt into Google Search and a3000-token
+research response; existing purchasing sessions retain600 tokens and their
+unchanged synthetic guard. Modified web/src/server/paypal/judge-http.ts to reuse
+separate loopback judge session/CSRF/quotas and add disabled-by-default discovery.
+Hosted/default profiles deny it. Modified web/src/components/purchasing-chat.tsx
+and added web/src/components/offer-discovery.tsx for Norway research mode, cited
+links, billing/availability/delivery/PayPal uncertainty, no proposal/approval, and
+sandboxed CSP-restricted search-suggestions HTML. Classic/shared theme CSS intact.
+Added web/test/offer-discovery.test.ts; modified scripts/preview-smoke.mjs with
+explicitly stubbed research cards, iframe isolation and actual public discovery
+403 checks. This handoff records the work; no additional task report was created.
+
+Fresh targeted suite:197/197 across11 files, no skips. Includes23 new discovery
+cases, three distinct instructions, full-envelope canaries/mutations, unsafe or
+missing citations, missing prices/SLA, unsupported PayPal, unapproved merchants,
+budget rejection, injected instructions, strict tool/schema, no HTTP retry,
+authentication/CSRF/hosted denial and shared local quotas. Initial run96pass/8fail
+used stale compiled workspace agent; rebuilding the package resolves mismatch
+without relaxing guard. Initial scoped lint caught4 explicit-any warnings and
+one index-key error; fixed with typed mutations and deduplicated offer keys.
+Final scoped lint8 files and agent typecheck pass. Production build/Next
+TypeScript passes. Browser and credential scan results pending below. No live
+Google/Search, PayPal or database operations, deployment, staging, commit or push.
+
+Task07J final results: production build including Next TypeScript passes; separate
+agent typecheck passes. Scoped Biome8 files:zero warnings/errors. Formatting all8
+changed source/test/script paths passes; git diff --check passes (only an existing
+CRLF normalization notice).197 tests/11 files pass with no skips; no full-suite
+or PostgreSQL rerun was needed. Existing browser runner passes9 routes, widths
+1440/1280/1024/390/375, Norway/Classic persistence/migration, three actual public
+policy HTTP evaluations, four recorded/four real policy scenarios, and mocked
+Gemini/research UI states. Actual hosted discovery/Gemini/owner calls return403.
+Research fixture is explicitly labeled offline; source links/unknown PayPal,
+no proposal, disabled payment and CSP/sandbox script blocking verified. Desktop/
+mobile screenshots inspected at .tools/task07j-discovery-desktop.png and
+.tools/task07j-discovery-mobile.png. Existing smoke screenshot paths were also
+refreshed by the existing runner (same paths as Task07I/07H evidence). Temporary
+owned preview closed; no persistent server was started or unrelated process killed.
+Configured-secret scan:339 tracked/418 candidates/54 chunks,zero matches; env
+ignored/untracked. Client-boundary scan54 chunks passes. Git index remains empty.
+No writes outside this repository, no project-flint modification, no new dependency.
+No DB client/read/write, live Gemini/Search or PayPal execution was used. Financial
+preservation is by absence of DB/payment access, not a newly claimed Neon audit.
+
+Offline examples (invented fixtures, NOT current merchant offers): affordable
+weather under$10 returns a500-minor/month claim and rejects a1200-minor option
+against the research ceiling; both remain ineligible. Approved providers/PayPal
+request returns400-minor claim but unsupported acceptance is downgraded to unknown.
+15-minute service request with missing price/SLA shows unknowns/insufficient
+evidence. Canonical authorize() rejects priced external candidates as
+UNAPPROVED_MERCHANT. Additional research budget/SLA checks never grant authority.
+No immutable commitments, merchant IDs or checkout approval are fabricated.
+There are currently zero eligible real offers: approved catalog identities are
+synthetic Sandbox bindings only. Future real merchant onboarding/immutable terms
+verification requires its own authorized work; search names/URLs cannot create it.
+
+Live readiness/prerequisites (NOT executed): separately authorize one local
+research evaluation; run the existing application bound to127.0.0.1:3032, without
+hosted-provider markers; retain NEXT_PUBLIC_DEMO_ONLY/EARMARK_PUBLIC_DEMO_ONLY=true
+and disabled PayPal backend/payments/owner-checkout profiles. Set server-only
+EARMARK_JUDGE_LOCAL_GEMINI=true and EARMARK_OFFER_DISCOVERY_ENABLED=true plus
+EARMARK_GEMINI_ENABLED=true/AI_ENABLE_NETWORK=true; configure valid Gemini key,
+Search/native-function-capable Gemini3 model,60s AI_TIMEOUT_MS and separately
+scoped judge login/session secrets (minimum32/48 characters). Authenticate via
+Norway Judge sandbox, select Authenticated online offer research and submit one
+non-sensitive weather/provider instruction. Existing limits are shared with local
+judge Gemini:one active,3/session,12/process/hour; this research path is one native
+model turn/one HTTP attempt,3000 output tokens,1MB response,at most5 offers. No
+continuation/retry context can add web/private records to another request.
+Public mode remains deterministic only; local counters do NOT protect hosted AI.
+
+Live uncertainty remains explicit: key/quota/billing, configured model Search+
+function compatibility, actual grounding/native collector output, Google search
+suggestions rendering and real offer accuracy have NOT been tested. Missing
+native report/grounding fails closed with no replay/fallback. Search can fan out
+billable queries. Sources are URL/grounding associations, not independent fact
+verification; redirected/uncited sources cannot verify PayPal. Prices may be
+stale, recurring, region-specific or omit tax/usage; delivery/availability and
+PayPal acceptance remain claims/unknown until independently checked. No external
+webpage is fetched by Earmark, no claim is recycled into the synthetic catalog,
+and no real provider is described as paid by a Sandbox capture. Google's supported
+Search/native-functions and grounding metadata were checked in official docs:
+https://ai.google.dev/gemini-api/docs/google-search and
+https://ai.google.dev/api/generate-content . No runtime success is inferred from
+those docs. Implementation complete for offline verification; stop before live use.
+
+### 2026-11-04 — Task07K single live discovery verification (in progress)
+
+Read root/web instructions and Task07J handoff;3032 is free. Reusing the existing
+production build, separate local judge auth, Norway UI and final discovery guard.
+Added ignored .tools/task07k-run.mjs and .tools/task07k-trace.mjs by adapting the
+existing07I browser/profile and07F transport observer. Temporary process-only
+judge secrets/configuration, no owner auth, persistent environment edits or DB
+configuration. The observer permits only the exact authorized research request,
+one Google dispatch and no other external service; it logs sanitized timing,
+status/tool/grounding counts only. Existing app guard remains authoritative.
+One-use submission marker prevents accidental rerun; final cleanup will verify
+public policy-only settings and stop owned temporary servers. Syntax checks pass.
+Expected ignored evidence:task07k-submission.json,task07k-trace.jsonl,
+task07k-result.json,task07k-chat-redacted.png. No live submission yet.
+
+Task07K final outcome:FAIL due to provider quota, not a timeout. Submitted the exact
+user-supplied monthly$10 weather/PayPal research instruction once through real
+Norway UI, separate judge login/session and CSRF. One browser evaluation POST,
+one real Google request/attempted model turn; Google429 RESOURCE_EXHAUSTED,
+headers781ms/body793ms,application roundtrip981ms. Provider reported exceeded
+current quota and suggested checking plan/billing; this does NOT establish billing
+as the cause. Application returned400/MODEL_RATE_LIMITED. Zero candidates,
+finishReason absent, zero returned native calls/grounding/search-query/source
+metadata. No offers, prices, source URLs or PayPal evidence were obtained; all
+remain UNKNOWN. Independent offer policy evaluation was not reached, so no live
+merchant-policy verdict is claimed. No second diagnostic, model retry or quota
+probe was made. No application fix is justified by this external rejection.
+
+Actual final request checks passed before dispatch:exact instruction, research-only
+1000-minor USD context, empty observations, Google Search plus only the read-only
+reportDiscoveredOffers collector, no history/function responses, no configured
+credential values in body. Existing application exact-envelope guard passed;
+Google key was used only in its server-side authentication header. Private server
+had no DB configuration and payments disabled. No owner secret/history loaded into
+model context; no tool-response turn existed. Norway correctly showed the real
+MODEL_RATE_LIMITED error, with zero browser runtime errors and no research cards
+or purchase proposal. Redacted screenshot inspected:.tools/task07k-chat-redacted.png.
+
+Restoration passed with a temporary safe public profile:policy endpoint200,
+discovery403,owner chat403; live/discovery capability metadatafalse. No persistent
+environment/config file was edited; original3032 had no listener and both owned
+servers were closed afterward. No PayPal request, financial/DB read or write,
+merchant approval, persistent campaign/intent/reservation, staging,commit,push,
+deployment or project-flint modification. No claim of fresh Neon accounting audit.
+Only helper syntax checks and focused auth/browser/public read-only checks ran;
+Task07J's197 tests/build results remain prior evidence, not rerun results.
+Changed paths:this handoff and the two ignored diagnostic helpers recorded above;
+created the four ignored one-use/trace/result/screenshot artifacts listed above.
+No credential/raw authentication header/private request body was logged. Next step:
+resolve provider quota/model access externally, then obtain new explicit approval
+for another single live evaluation. Do not reuse this consumed one-use submission.
+
+### 2026-11-05 — Task07K-FIX Gemini 2.5 Flash search grounding split
+
+Request: configure Earmark's existing research path to use `gemini-2.5-flash` for
+Google Search grounding while keeping the purchasing-agent model unchanged; use a
+separate search-only model call (because Gemini 2.5 does not support combining
+`googleSearch` and `functionDeclarations` in one request) and pass validated
+research results into the existing `reportDiscoveredOffers` collector and
+independent policy workflow, reusing Task07J's implementation and Norway research
+cards, running focused offline tests/build checks only, with no live Gemini,
+PayPal, database, git or deployment operations.
+
+Modified files:
+- `agent/src/gemini-response.ts`: added optional `googleSearch = false` parameter
+  to `parseGeminiResponse`. When `googleSearch` is true, any `functionCall` part
+  is rejected (`MALFORMED_FUNCTION_CALL`), and non-thought grounded text
+  (`1..20000` chars) is returned as `{ kind: "finish", summary }` alongside
+  response diagnostics. Non-search tool-calling and purchasing-agent parsing
+  remain unchanged.
+- `agent/src/models.ts`: added optional `maxOutputTokens?: 600 | 3000` to
+  `GeminiSettings`, sent `tools: [{ googleSearch: {} }]` alone when
+  `googleSearch` is true (never combined with `functionDeclarations`), and set
+  `thinkingConfig` to `{ thinkingBudget: 0 }` for `gemini-2.5-*` models while
+  keeping `{ thinkingLevel: "low" }` and `maxOutputTokens: 600` for `gemini-3-*`
+  purchasing-agent requests and `GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"`.
+- `web/src/lib/offer-discovery.ts`: updated `OfferDiscoveryResult["evidence"]` to
+  support `modelTurns: 1 | 2` and optional `searchModel` / `collectorModel`
+  identifiers while keeping Norway research card types unchanged.
+- `web/src/server/paypal/offer-discovery.ts`: exported
+  `DISCOVERY_SEARCH_MODEL = "gemini-2.5-flash"` and `ValidatedResearchResults`;
+  split `discoverOffers` into Turn 1 (`searchClient` on `gemini-2.5-flash`,
+  `tools: [{ googleSearch: {} }]`, `maxOutputTokens: 3000`,
+  `thinkingConfig: { thinkingBudget: 0 }`) and Turn 2 (`collectorClient` on
+  `env.GEMINI_COLLECTOR_MODEL ?? env.GEMINI_MODEL ?? "gemini-3.8-flash"`,
+  `tools: [{ functionDeclarations: [reportDiscoveredOffers] }]`,
+  `maxOutputTokens: 3000`, `thinkingConfig: { thinkingLevel: "low" }` for
+  `gemini-3-*` or `{ thinkingBudget: 0 }` for `gemini-2.5-flash`). Turn 1
+  validates `groundingMetadata` (`webSearchQueries`, `groundingChunks`,
+  `groundingSupports`, `searchEntryPoint`), extracts public `https://` grounded
+  sources via `discoverySource`, and transitions the exact-envelope outbound
+  boundary via `boundary.allowCollector(researchResults)` (which enforces
+  `researchResultsSchema`, `assertNoSensitiveMaterialInAgentPayload` and prompt-
+  injection checks before Turn 2 can dispatch). Citation matching, PayPal claim
+  downgrading (`VERIFIED` -> `MENTIONED_UNVERIFIED` without PayPal evidence),
+  independent `policyFor` merchant rejection (`MERCHANT_NOT_APPROVED`) and
+  `nonBinding: true` remain unchanged.
+- `web/test/offer-discovery.test.ts`: updated offline transport fixtures and
+  added regression tests covering the two-turn `gemini-2.5-flash` search ->
+  `GEMINI_MODEL` collector workflow, rejection of combined `googleSearch` +
+  `functionDeclarations` in either turn, rejection of unexpected `functionCall`
+  parts or prompt-injection text in Turn 1, and rejection of unsupported
+  `GEMINI_SEARCH_MODEL`.
+- `HANDOFF-PAYPAL.md`: recorded this change log entry and updated the current
+  project state summary.
+
+Checks run and results (all offline):
+- `npx --workspace @flint/agent vitest run gemini.test.ts gemini-response.test.ts gemini-body.test.ts`:
+  PASS (`3/3` files, `78/78` tests).
+- `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
+  PASS (`4/4` files, `78/78` tests, including `23/23` in `offer-discovery.test.ts`).
+- `npm run typecheck`: PASS (`@flint/agent`, `@flint/web` and `api/src/tsconfig.json`).
+- `npx biome lint agent/src/models.ts agent/src/gemini-response.ts web/src/lib/offer-discovery.ts web/src/server/paypal/offer-discovery.ts web/test/offer-discovery.test.ts --error-on-warnings`:
+  PASS (`5` files checked, `0` warnings/errors).
+- `npm run build --workspace @flint/web`: PASS (`14/14` static pages and dynamic routes).
+- `node scripts/check-web-boundary.mjs`: PASS (`54` compiled browser chunks, `0` credential or private-key matches).
+- `npm run paypal:secrets:check`: PASS (`339` tracked files, `418` candidate files, `54` browser chunks, `0` credential matches).
+
+Skips/restrictions honored: zero live Gemini requests, zero PayPal requests,
+zero database reads or writes, no environment file edits, no git commit/push and
+no deployment. Next step: when a single live discovery test is separately
+authorized, use a fresh one-use runner/observer configured for the two-turn
+`gemini-2.5-flash` search -> `GEMINI_MODEL` collector sequence (do not reuse the
+consumed single-turn `.tools/task07k-*` gate/observer).
+
+### 2026-11-05 — Task07K-R single live Gemini 2.5 Flash search verification
+
+Request: execute one authorized live end-to-end discovery evaluation using the
+existing local Gemini credentials under a hard limit of two Google API requests
+(Request 1: `gemini-2.5-flash` with Google Search grounding; Request 2:
+configured collector model only if Request 1 succeeds), with no retries,
+fallbacks or application changes if an error occurs, then restore public
+restrictions and record the result.
+
+Added ignored local helpers and artifacts:
+- `.tools/task07kr-run.mjs` and `.tools/task07kr-trace.mjs` (syntax-checked via
+  `node --check`; enforces the 2-request hard limit, blocks Turn 2 unless Turn 1
+  succeeds with grounded output, and blocks all non-Google external hosts).
+- `.tools/task07kr-submission.json`, `.tools/task07kr-trace.jsonl`,
+  `.tools/task07kr-result.json`, `.tools/task07kr-chat-redacted.png`.
+- No application source, test or configuration files were modified during
+  Task07K-R; `@flint/web` was rebuilt with `NEXT_PUBLIC_DEMO_ONLY=true` (and
+  `node scripts/check-web-boundary.mjs` passed `54/54` chunks) after an initial
+  browser open (`0` UI submissions, `0` Google API requests) timed out waiting
+  for the `Judge sandbox` button because the prior build omitted
+  `NEXT_PUBLIC_DEMO_ONLY=true`.
+
+Execution and outcome (`FAIL` — external provider model availability):
+- Submitted the exact user instruction once through the authenticated Norway
+  Judge Sandbox UI (`authenticated: true`, `csrfVerified: true`,
+  `uiSubmissionCount: 1`, `liveEvaluations: 1`).
+- Outbound privacy/envelope checks passed before dispatch (`exactInstruction:
+  true`, `isolatedContext: true`, `permittedTools: true` with
+  `tools: [{ googleSearch: {} }]` only, `noHistory: true`, `noSensitiveValues:
+  true`, `applicationFinalGuardReached: true`, `requestBytes: 1374`,
+  `databaseAvailable: false`, `paymentsEnabled: false`).
+- **Google API Request 1 (`models/gemini-2.5-flash:generateContent`):** HTTP
+  `404`, `apiErrorStatus: "NOT_FOUND"`, `headersMs: 775`, `bodyMs: 817`, total
+  application roundtrip `durationMs: 1044`. Google API message: `"This model
+  models/gemini-2.5-flash is no longer available to new users. Please update
+  your code to use models/gemini-3.8-flash for the latest features and
+  improvements."`
+- **Google API Request 2 (`models/gemini-3.5-flash-lite:generateContent`):** NOT
+  called (`1` Google API request total; zero retries or fallback calls).
+- Zero candidates, `finishReason: null`, zero tool calls, `groundingPresent:
+  false`, `searchQueryCount: 0`, `sourceCount: 0`, `supportCount: 0`. All
+  online offer, pricing, SLA, availability and PayPal acceptance facts remain
+  `UNKNOWN`; no external merchant was approved and independent offer policy
+  evaluation was not reached.
+- Application returned HTTP `400` (`MODEL_API_ERROR`). Norway UI rendered the
+  alert `"Evaluation unavailable: MODEL_API_ERROR. No purchase intent or payment
+  was created."` with `0` browser runtime errors, no research cards and no
+  purchase proposal (`.tools/task07kr-chat-redacted.png`).
+- Restoration verified on temporary safe public server (`localGeminiAvailable:
+  false`, `localDiscoveryAvailable: false`, `publicLiveGemini: false`, policy
+  POST `200`, discovery POST `403`, owner chat GET `403`), and all owned servers
+  were stopped. Zero PayPal requests, zero DB reads/writes, no git staging/
+  commit/push and no deployment. Next step: select a search-grounding model
+  available to this Google project/account (such as `gemini-3.8-flash` per
+  Google's 404 message, subject to quota) under separate explicit authorization.
+
+### 2026-11-05 — Task07L Tavily Search integration (offline)
+
+Request: replace Google Search grounding in Earmark's discovery workflow with
+Tavily's free Search API (`POST https://api.tavily.com/search`) authenticated
+server-side via `TAVILY_API_KEY` (`search_depth: "basic"`, `max_results: 5`),
+passing sanitized Tavily results (`title`, `url`, `snippet`, `retrievedAt`) into
+the existing Gemini `reportDiscoveredOffers` collector, Norway research cards
+and independent policy engine, while removing Gemini Google Search grounding,
+keeping the purchasing-agent model unchanged, and running offline verification
+only.
+
+Modified files:
+- `agent/src/gemini-response.ts`: removed the `googleSearch` parameter/branch from
+  `parseGeminiResponse`; tool-calling and finish parsing remain unchanged.
+- `agent/src/models.ts`: removed `googleSearch` from `GeminiSettings` and
+  `GeminiModel.decide` while keeping `maxOutputTokens?: 600 | 3000` (default
+  `600` for purchasing-agent requests, `3000` for the offer collector) and
+  `thinkingConfig: { thinkingLevel: "low" }`.
+- `web/src/lib/offer-discovery.ts`: added `"LIVE_TAVILY_SEARCH"` source and
+  `searchProvider?: "tavily"`, `searchResultsCount?: number` evidence metadata.
+- `web/src/server/paypal/offer-discovery.ts`: exported `TAVILY_SEARCH_URL =
+  "https://api.tavily.com/search"` and `TAVILY_MAX_RESULTS = 5`; replaced Gemini
+  Google Search grounding with a guarded `POST https://api.tavily.com/search`
+  call (`Authorization: Bearer <TAVILY_API_KEY>`, `search_depth: "basic"`,
+  `max_results: 5`, `include_answer: false`, `include_raw_content: false`,
+  `include_images: false`, single attempt/no retry); validated and sanitized
+  Tavily results (`title`, `url` via `discoverySource`, `snippet`,
+  `retrievedAt`); enforced `boundary.allowCollector` (`researchResultsSchema`,
+  `assertNoSensitiveMaterialInAgentPayload` and prompt-injection checks) before
+  calling the existing Gemini `reportDiscoveredOffers` collector (`GEMINI_MODEL`)
+  and `policyFor` workflow.
+- `web/src/server/paypal/judge-http.ts`: required `Boolean(env.TAVILY_API_KEY)`
+  for `localDiscoveryAvailable` and `mode === "discovery"`.
+- `web/src/components/offer-discovery.tsx` and
+  `web/src/components/purchasing-chat.tsx`: updated discovery header/status copy
+  to reference Tavily Search + Gemini and retrieved search result citations.
+- `scripts/check-web-boundary.mjs`, `scripts/paypal-secret-check.ts`,
+  `.env.example` and `web/.env.example`: added `TAVILY_API_KEY` to browser
+  chunk/secret scans and environment templates.
+- `web/test/offer-discovery.test.ts`: updated and expanded offline tests (`25`
+  cases) covering successful Tavily + Gemini collection across three
+  instructions, empty Tavily results and empty collected offers, Tavily/Gemini
+  HTTP failures with zero retries (`401`, `429`, `503`), malformed Tavily JSON/
+  schemas, secret/prompt-injection rejection in instructions and snippets,
+  complete outbound envelope mutation guards, citation/PayPal downgrades, and
+  hosted/missing-key/unauthenticated/CSRF/quota enforcement.
+- `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
+
+Offline checks run and results:
+- `npx --workspace @flint/agent vitest run gemini.test.ts gemini-response.test.ts gemini-body.test.ts`:
+  PASS (`3/3` files, `78/78` tests).
+- `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
+  PASS (`4/4` files, `80/80` tests, including `25/25` in
+  `web/test/offer-discovery.test.ts`).
+- `npm run typecheck`: PASS (`@flint/agent`, `@flint/web`, `api/src/tsconfig.json`).
+- `npx biome lint ... --error-on-warnings` (`10` changed files): PASS (`0`
+  warnings/errors).
+- `npm run build --workspace @flint/web` (with `NEXT_PUBLIC_DEMO_ONLY=true`):
+  PASS (`14/14` static pages and dynamic routes).
+- `node scripts/check-web-boundary.mjs`: PASS (`54` compiled browser chunks, `0`
+  credential or private-key matches).
+- `npm run paypal:secrets:check`: PASS (`339` tracked files, `418` candidate
+  files, `54` browser chunks, `0` credential matches).
+
+Restrictions honored: zero live Tavily or Gemini calls, zero PayPal operations,
+zero database reads or writes, no git commit/push and no deployment. Next step:
+populate `TAVILY_API_KEY` in `web/.env.local` (currently unset locally) before a
+separately authorized single live Tavily + Gemini evaluation.
+
+### 2026-11-05 — Task07L-R single live Tavily + Gemini discovery verification
+
+Request: verify the real-time offer discovery integration end-to-end with
+exactly one live Tavily Search API request (`POST https://api.tavily.com/search`)
+and one conditional live Gemini collector API request
+(`models/gemini-3.5-flash-lite:generateContent`), with no retries, fallbacks,
+PayPal operations, database mutations or git/deployment actions, then restore
+public restrictions.
+
+Added ignored local helpers and artifacts:
+- `.tools/task07lr-run.mjs` and `.tools/task07lr-trace.mjs` (syntax-checked via
+  `node --check`; enforces the hard limit of `1` Tavily request + `1` conditional
+  Gemini request, verifies exact outbound envelopes and secret exclusion, and
+  blocks all other external hosts).
+- `.tools/task07lr-submission.json`, `.tools/task07lr-trace.jsonl`,
+  `.tools/task07lr-result.json`, `.tools/task07lr-chat-redacted.png`.
+- No application source, test or configuration files were modified during
+  Task07L-R.
+
+Execution and verified outcome (`PASS`):
+- Confirmed `TAVILY_API_KEY` and `GEMINI_API_KEY` (`GEMINI_MODEL="gemini-3.5-flash-lite"`)
+  were present in `web/.env.local` via boolean check without printing values.
+- Submitted the exact user instruction once through the authenticated Norway
+  Judge Sandbox UI (`authenticated: true`, `csrfVerified: true`,
+  `uiSubmissionCount: 1`, `liveEvaluations: 1`, `applicationHttpStatus: 200`,
+  `durationMs: 42059`).
+- **Tavily Request (`1/1`):** `POST https://api.tavily.com/search`, `418` bytes,
+  `searchDepth: "basic"`, `maxResults: 5`, `exactQuery: true`,
+  `noSensitiveValues: true`, HTTP `200`, `headersMs: 4352`, `bodyMs: 4469`,
+  `resultCount: 5` public `https://` results returned (including Weatherstack
+  pricing, Weatherbit pricing, and 2025/2026 weather API comparisons).
+- **Gemini Collector Request (`1/1`):**
+  `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent`,
+  `6836` bytes, `exactInstruction: true`, `isolatedContext: true`,
+  `sanitizedTavilyResultCount: 5`, `permittedTools: true`
+  (`reportDiscoveredOffers` only, no `googleSearch`), `noHistory: true`,
+  `noSensitiveValues: true`, `applicationFinalGuardReached: true`, HTTP `200`,
+  `headersMs: 37301`, `bodyMs: 37321`, `candidateCount: 1`,
+  `finishReason: "STOP"`, `toolCalls: ["reportDiscoveredOffers"]`,
+  `strictSchemaValid: true`.
+- **Collected Offer & Citations:** `Weatherstack` · `Standard API Plan (up to
+  50,000 requests)`, `priceMinor: "999"` (`$9.99 USD`, `billing: "Monthly"`,
+  `factStatus: "claimed"`), `availability: "Available online via sign up"`,
+  `delivery: "Instant digital access upon registration"`, `slaMinutes: null`
+  (`unknown`), `paypal: "unknown"` (`paypalEvidence: null`), cited source
+  `https://weatherstack.com/pricing` (`cited: true`).
+- **Independent Policy Verdict (`policyFor` / canonical `authorize`):**
+  `eligible: false`, `canonicalVerdict: "UNAPPROVED_MERCHANT"`, reasons:
+  `EXTERNAL_MERCHANT_NOT_BOUND`, `IMMUTABLE_TERMS_UNVERIFIED`,
+  `HUMAN_AUTHORIZATION_REQUIRED`, `TRANSACTION_LIMIT_EXCEEDED` (`999` minor >
+  `600` minor per-tx cap), `DELIVERY_SLA_UNKNOWN`,
+  `PAYPAL_ACCEPTANCE_UNVERIFIED`. `proposal: null`, `ownerAuthorized: false`,
+  `persisted: false`, `fundsReserved: false`.
+- **Norway UI & Restoration:** Rendered `Tavily Search + Gemini · online research`,
+  the `Weatherstack` research card, clickable cited URL, `UNKNOWN` SLA/PayPal
+  labels and disabled `Payment execution disabled` button with `0` browser
+  runtime errors (`.tools/task07lr-chat-redacted.png`). Public profile restored
+  and verified (`localGeminiAvailable: false`, `localDiscoveryAvailable: false`,
+  `publicLiveGemini: false`, policy POST `200`, discovery POST `403`, owner chat
+  GET `403`); all owned servers stopped. Zero PayPal or database operations.
+
+### 2026-11-05 — Task07M targeted PayPal acceptance research (offline)
+
+Request: extend Earmark's existing Tavily + Gemini offer discovery to
+investigate whether discovered merchants accept PayPal via a targeted search for
+supported payment methods (prioritizing official FAQ, billing documentation and
+checkout pages), extract direct evidence and the official source URL, distinguish
+explicitly confirmed PayPal support from PayPal not mentioned in published
+methods and insufficient evidence, avoid inferring PayPal from credit cards or
+unrelated sites, show evidence/uncertainty in Norway, and never approve or bind
+external merchants for Sandbox payments.
+
+Modified files:
+- `web/src/lib/offer-discovery.ts`: added `paypalSourceUrl?: string | null` to
+  `DiscoveredOffer` and `targetMerchantDomain?: string`,
+  `searchRequests?: 1 | 2`, `paymentSearchResultsCount?: number` to
+  `OfferDiscoveryResult`.
+- `web/src/server/paypal/offer-discovery.ts`: added `TAVILY_PAYMENT_MAX_RESULTS = 3`,
+  `buildTargetedPayPalQuery(merchantDomain)`, `selectTargetMerchantDomain`,
+  `prioritizePaymentResults`, `boundary.allowPaymentSearch` and deterministic
+  `classifyPayPalEvidence`. When Search 1 identifies a merchant domain, runs a
+  targeted basic Tavily search (`"${merchantDomain} supported payment methods
+  PayPal FAQ billing documentation checkout"`, `max_results: 3`), prioritizes
+  official merchant FAQ/billing/checkout pages, and verifies model claims
+  against cited official merchant domain snippets: `"claimed"` requires an
+  official merchant page explicitly confirming PayPal; `"not-listed"` records
+  official payment pages that publish accepted methods (such as credit cards,
+  Visa, MasterCard, bank transfer) without PayPal or explicitly exclude PayPal;
+  `"unknown"` is preserved when official evidence is missing or PayPal is only
+  mentioned on an unrelated third-party site. External merchants remain
+  `eligible: false` (`canonicalVerdict: "UNAPPROVED_MERCHANT"`).
+- `web/src/components/offer-discovery.tsx`: updated Norway research cards to
+  display the 3-state PayPal classification (`explicitly confirmed in official
+  merchant documentation`, `not mentioned in published payment methods`, or
+  `insufficient evidence`), supporting evidence snippet and clickable
+  `Official payment source` link (`paypalSourceUrl`).
+- `web/test/offer-discovery.test.ts`: updated offline fixtures for the targeted
+  payment search sequence and added offline verification covering all three
+  PayPal classifications (`claimed`, `not-listed` from credit-card-only official
+  FAQ even when model over-claims, `unknown` when PayPal appears on an unrelated
+  third-party site, and `unknown` when evidence is insufficient) plus
+  unapproved-merchant policy enforcement (`26/26` tests passing).
+- `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
+
+Offline checks run and results:
+- `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
+  PASS (`4/4` files, `81/81` tests, including `26/26` in
+  `web/test/offer-discovery.test.ts`).
+- `npm run typecheck`: PASS (`@flint/agent`, `@flint/web`, `api/src/tsconfig.json`).
+- `npx biome lint web/src/lib/offer-discovery.ts web/src/server/paypal/offer-discovery.ts web/src/components/offer-discovery.tsx web/test/offer-discovery.test.ts --error-on-warnings`:
+  PASS (`4` files, `0` warnings/errors).
+- `npm run build --workspace @flint/web` (with `NEXT_PUBLIC_DEMO_ONLY=true`):
+  PASS (`14/14` static pages and dynamic routes).
+- `node scripts/check-web-boundary.mjs`: PASS (`54` compiled browser chunks, `0`
+  credential or private-key matches).
+- `npm run paypal:secrets:check`: PASS (`339` tracked files, `418` candidate
+  files, `54` browser chunks, `0` credential matches).
+
+Restrictions honored: zero live Tavily or Gemini calls, zero PayPal operations,
+zero database reads or writes, no git staging/commit/push and no deployment.
+
+### 2026-11-07 — Task07N unattended PayPal Sandbox purchase
+
+Requested one saved-Wallet purchase after initial consent and a bounded Earmark
+mandate. Capability review only: the existing US profile attests to seller
+identity and the prior capture used standard buyer-approved checkout. The order
+client never requests vaulting, so the capture does not establish a reusable
+payment token or this seller's unattended-payment entitlement.
+
+PayPal's [Wallet setup guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal)
+requires billing-agreement/reference-transaction approval. On the exact US Sandbox
+REST app linked to the controlled Business seller, manually verify **Accept
+payments → Advanced options → Vault**. Confirm Wallet/reference-transaction
+eligibility with PayPal if the Dashboard does not show it. Neither capability is
+recorded locally; neither is proven disabled. A merchant-scoped token belongs to
+the consenting payer and the same seller; it does not authorize external sellers.
+
+After capability confirmation, the supported path is a Vault v3 setup token,
+buyer sign-in and explicit billing-agreement approval on PayPal, then server-side
+exchange of the approved setup token for a merchant payment token. Bind it to the
+payer, app and controlled seller and keep it out of client/model/log output. A
+separate, expiring Earmark mandate must pin one offer, merchant, currency, amount
+and purchase key; no renewal authority. Reuse the policy lock, durable operation
+claims, request IDs and validated capture accounting for an Orders v2 payment
+using the saved token. Stop on decline or unexpected payer action; reconcile
+uncertain outcomes without redispatching a charge. The implementation and offline
+stubs are gated on the entitlement check. Any live setup/exchange and the single
+subsequent Sandbox charge need explicit authorization for their exact scope.
+
+Only this handoff changed. No new flow or stub was implemented. Existing checkout
+and Judge Sandbox baseline: 109 offline tests passed (client, service, policy,
+agent payment and judge sandbox); scoped Biome lint passed on five modules.
+No PayPal/Gemini/Tavily requests, financial DB operations, mandates, deployments
+or Git publication. Gemini/Tavily discovery and all existing approvals are intact.
+Safe-profile `@flint/web` production build (including agent compilation and Next
+TypeScript) passed, generating 14 static pages. `git diff --check` passed with
+only the working-copy line-ending notice.
+
+### 2026-11-07 — Task07N-A one-shot Sandbox Wallet Vaulting capability test
+
+Read the [PayPal setup-token reference](https://developer.paypal.com/api/payment-tokens/v3/setup-tokens-create/).
+Offline preflight matched the configured Sandbox REST app and US Business
+merchant against the saved human-confirmed binding. Existing server-only OAuth
+returned HTTP 200. Exactly one `POST https://api-m.sandbox.paypal.com/v3/vault/setup-tokens`
+with a unique request ID, merchant Wallet source and loopback callbacks returned
+HTTP 201, `PAYER_ACTION_REQUIRED`, and a validated Sandbox `approve` link. Zero
+retries. PASS for initiating setup only. No link opened, buyer login/consent,
+billing agreement, payment-token exchange, order, capture, database operation,
+or model/search call. No token, approval URL, or credentials logged or persisted.
+Only this handoff changed; no application code, Git publication or deployment.
+Next: separately authorize buyer consent and exchange to test token issuance;
+reference-transaction entitlement and an unattended charge remain unverified.
+
+### 2026-11-07 — Task07N-B Sandbox Wallet consent and token exchange
+
+Local US Sandbox binding preflight passed. One fresh Wallet setup POST with an
+explicit no-charge consent description returned HTTP 201, `PAYER_ACTION_REQUIRED`.
+The temporary loopback page used a one-use launch ticket, session cookie, CSRF
+check and callback state; unauthenticated GET and forged POST both returned 403.
+The first Continue click failed locally before PayPal. Offline Chromium reproduced
+the `no-referrer` policy sending a null form Origin; using `same-origin` restored
+the expected Origin without sending a referrer to PayPal. The existing setup
+remained available for a correction in the same browser tab; no new setup request.
+
+Final: PARTIAL, local consent window expired and the listener exited. OAuth HTTP
+200 (one request), setup HTTP 201 (one POST), zero approval reads, exchanges or
+retries. No redirect to PayPal was recorded, no buyer consent or token issuance
+verified, and no token/approval URL retained by the runner. Zero payments, DB
+operations, Gemini/Tavily calls or Git publication. Only this handoff changed;
+no application code. Before a separately authorized fresh attempt, serve the
+local form with `Referrer-Policy: same-origin` and verify the button offline.
+Reference transactions and unattended payments remain unverified.
+
+### 2026-11-07 — Task07N-B-FIX loopback consent navigation
+
+Recovered the prior inline runner into ignored `.tools/paypal-vault-consent.mjs`.
+Changed `no-referrer` to `same-origin`; kept the exact-Origin check, session,
+CSRF, callback state, loopback binding and Vault API flow. Added a fixture-only
+mode that cannot dispatch provider calls. No Norway or application changes.
+
+Offline Chromium passed: the form sent the loopback Origin, returned 303, and
+reached the intercepted Sandbox approval path with no Referer. Cancel and
+expiry stopped the flow. Invalid session, public Host, null Origin, bad CSRF
+and invalid callback state were blocked. The final check used Chromium-level
+interception and a blocked-egress proxy after correcting the test probes.
+Node syntax, scoped Biome lint and the saved runner's local US binding preflight
+passed. App typecheck/build were skipped: no app or TypeScript changed.
+No live PayPal API call, setup, consent, exchange, payment, DB operation or Git
+publication. The runner is ready for a fresh attempt only with new authorization.
+
+### 2026-11-07 — Task07N-B fresh Sandbox consent attempt
+
+Fresh authorization covered one setup and one exchange. Syntax and local US
+binding preflight passed. The corrected loopback page opened the Sandbox buyer
+flow; the human buyer approved on PayPal. One OAuth request returned HTTP 200;
+one setup POST returned HTTP 201 / `PAYER_ACTION_REQUIRED`; one approval read
+returned HTTP 200 / `APPROVED`; one exchange returned HTTP 201 and issued a
+Wallet payment token. Zero retries. The runner held the token only transiently,
+discarded it and exited; it logged no token or approval URL. Future tests may
+require fresh consent or an authorized secure token-handling flow.
+
+No reference transaction, order, capture, payment, DB operation, model/search
+call or Git publication. Only this handoff changed. Reference-transaction
+eligibility and unattended payment still require separate verification and
+authorization.
+
+### 2026-11-07 — Task07N-C prepare a single saved Wallet purchase
+
+Added `web/src/server/paypal/saved-wallet.ts` and extended `client.ts` and
+`service.ts` in that directory. The operator-only entry point requires trusted
+verified consent for the expected payer, same Sandbox app/seller, exact USD
+offer and owner. Requires an active dedicated mandate with one merchant and
+cap/per-transaction limit equal to the price. It uses the fixed
+`paypal-wallet-once-v1` key. PayPal `vault_id` remains private and is sent only
+to Sandbox Orders; `MERCHANT` / `SUBSEQUENT` / `IMMEDIATE` matches the
+[non-recurring prepaid Wallet agreement](https://developer.paypal.com/api/payment-tokens/v3/definitions/paypal_wallet_response/).
+Reuses durable order/capture claims, request IDs, reconciliation and accounting.
+No extra capture if create already reports a verified capture; refusal, payer
+action and ambiguous responses stop without an automatic fallback or retry.
+No browser, Judge Sandbox, Gemini, Tavily or token lookup route was added.
+
+Added `web/test/paypal-saved-wallet.test.ts`: 9 offline tests. Targeted suite
+passed 171/171 across 8 files; the Wallet file passed again with the ordinary
+checkout fallback assertions. Scoped lint/format passed. Initial typecheck found
+a test-only override type too narrow for a deliberate invalid-currency input;
+corrected it. Web typecheck and the safe-profile production build passed
+(14 static pages); the 54-chunk browser boundary scan passed with no Wallet
+entry-point or guard markers present. `git diff --check` passed. No live API,
+consent, order, payment or DB operation; no campaign,
+deployment, staging, commit or push.
+
+Before any live attempt: authorize a fresh same-app/seller consent and exchange
+for the intended Personal buyer and exact one-off purchase, then pass the
+verified token in private process memory to the local authenticated operator
+flow. Do not store it in an environment/example file, DB, audit or client.
+Separately approve an unexpired one-seller exact-amount USD mandate and one
+order plus capture only if needed, with durable accounting and no retry. The
+07N-B token is unavailable; the entry point is not wired to the consent runner.
+PayPal app/seller authorization for a subsequent merchant-initiated reference
+transaction and no-step-up capture remains unverified.
+
+### 2026-11-07 — Task07N-D single $1.00 USD Sandbox Wallet purchase
+
+Added ignored local runners `.tools/paypal-wallet-07nd.mjs` and
+`.tools/paypal-wallet-07nd-checkout.mjs`; no app or route changes. Reused the
+corrected loopback consent page and 07N-C service. The buyer supplies the
+intended Personal account email only on loopback; it is matched to PayPal's
+Wallet metadata before the dedicated $1 mandate is inserted. The token stays
+in private process memory. The runner creates the non-secret, no-rerun marker
+`.tools/paypal-wallet-07nd-attempted.json` before its one setup request.
+Syntax checks and 28 targeted Wallet/Judge tests passed. Read-only preflight
+verified the direct Sandbox database, TLS, seller/profile and historical
+receipt binding, and no prior 07N-D mandate. No historical row reused or changed.
+
+Live result: PARTIAL. Exactly four Sandbox API requests: OAuth HTTP 200,
+setup HTTP 201 / `PAYER_ACTION_REQUIRED`, consent lookup HTTP 200 / `APPROVED`,
+exchange HTTP 200. The exchange failed the composite distinct token ID,
+Wallet shape and customer binding check (`EXCHANGE_RESPONSE_NOT_VERIFIABLE`).
+The specific predicate was not recorded; HTTP 200 alone is not proof of usable
+token issuance. No response body or token was retained; the runner exited.
+Zero retries, mandates, orders, captures, accounting/audit writes or charges;
+no receipt and no order-level payer-action or reference-transaction result.
+No public restriction changes, Gemini/Tavily calls, staging or deployment.
+Before a separately authorized new attempt, improve offline diagnostics to
+record only which exchange predicate failed, never a value or raw response.
+
+### 2026-11-07 — Task07N-D-FIX offline Wallet exchange diagnostics
+
+Reviewed the [PayPal v3 response schema](https://developer.paypal.com/api/payment-tokens/v3/definitions/payment_token_response/)
+and [Wallet exchange guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal).
+HTTP 200 and 201 are valid. The old HTTP 200 reached the composite body check;
+the discarded body prevents identifying invalid/non-distinct token ID, missing
+Wallet object, or customer ID mismatch as the actual failing predicate.
+Vault token ID, Vault customer ID, merchant's customer key and payer ID are
+separate fields; no evidence supports relaxing customer or payer binding.
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs` and added ignored
+`.tools/paypal-wallet-07nd-validation.mjs`. The gate explicitly accepts only
+200/201, rejects malformed supplied customer fields, and records JSON, token,
+Wallet, customer comparison and payer checks as booleans or not comparable.
+No response values are emitted. Fifteen offline response fixtures and both
+Node syntax checks passed. No live requests, DB operations or publication;
+the consumed one-shot marker was unchanged. The diagnostic runner is ready
+for a separately authorized attempt, not evidence of payment eligibility.
+
+### 2026-11-07 — Task07N-D-R one authorized Sandbox Wallet evaluation
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs` and
+`.tools/paypal-wallet-07nd-checkout.mjs` to select a fresh mandate namespace
+and atomically create `.tools/paypal-wallet-07nd-r-attempted.json` before the
+setup request. The original consumed marker was preserved. Both Node syntax
+checks and the marker ignore check passed. Read-only preflight verified the US
+Sandbox app and merchant binding, the dedicated Neon Sandbox schema and
+historical receipt binding, and the absence of a mandate in either namespace.
+
+Exactly four PayPal Sandbox API requests with zero retries. OAuth returned 200,
+setup returned 201 / `PAYER_ACTION_REQUIRED`, the lookup after manual buyer
+consent returned 200 / `APPROVED`, and exchange returned 200. JSON, response
+shape, token ID format and distinctness, Wallet shape and customer ID format
+passed. `customerIdMatches` was false and the gate returned
+`EXCHANGE_RESPONSE_NOT_VERIFIABLE`. `merchantCustomerIdPresent` was false
+(informational) and `walletPayerIdPresent` was true. The downstream payer and
+agreement checks were not reached. The process exited with no token retained
+locally. No response body, customer identifiers, approval URLs or credentials
+were recorded.
+
+No mandate, order, capture, receipt or accounting/audit write. No charge,
+order-level payer-action result or reference-transaction eligibility result.
+Public demo restrictions were unchanged. No Gemini/Tavily, publication or
+deployment. The single evaluation is consumed. Before any future authorized
+attempt, establish PayPal's binding semantics for these two customer IDs and
+retain a fail-closed consent, payer and merchant binding.
+
+### 2026-11-07 — Task07N-D-ID offline Wallet customer binding review
+
+Correction to the previous summary: `customerIdMatches: false` compared the
+exchange with the **setup creation** customer ID. The approved lookup was only
+compared when it returned an ID. Its presence was not recorded, so the
+exchange-versus-lookup relationship cannot be reconstructed. The same setup
+token and bound Sandbox OAuth app/merchant were used throughout. The expected
+buyer was supplied locally and remained subject to payer/email/arrangement
+checks. The prior run stopped before the final payer checks completed.
+
+PayPal's [direct Wallet guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal)
+uses only the approved `SETUP_TOKEN` at exchange and shows the same Vault
+customer ID in creation and exchange. The [v3 exchange schema](https://developer.paypal.com/api/payment-tokens/v3/payment-tokens-create)
+accepts an optional `customer.id`. The [SDK guide](https://developer.paypal.com/sdk/js/v5/save-without-purchase/paypal/)
+advises reusing an existing PayPal-generated ID already associated with a
+returning payer. This runner has no trusted saved mapping for that buyer.
+No required exchange field was missing. The schemas distinguish Vault customer
+ID, merchant customer ID, Wallet payer ID and both token IDs. The published
+example supports equality for the direct flow, with no universal guarantee
+documented. Why Sandbox returned a different ID remains unknown.
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs` and
+`.tools/paypal-wallet-07nd-validation.mjs` to require the approved lookup's
+schema-valid customer ID before exchange, reject conflicts with the creation
+ID when supplied, and require `customerIdMatches: true` against the approved
+ID before checkout. Added ignored `.tools/paypal-wallet-07nd-validation.test.mjs`.
+Three synthetic tests passed, covering both success statuses and missing,
+malformed or conflicting IDs, including a matching merchant alias. Both
+syntax checks passed after running outside the Windows filesystem sandbox
+because Node's initial path lookup returned `EPERM`. Diagnostics remain flags
+only. The exchange payload and payer checks were unchanged. No live requests,
+consent, DB operations, payment or publication. The consumed markers were not
+reused. A separately authorized evaluation needs a fresh marker and genuine
+consent, with a valid, consistent approved customer and verified payer before
+any mandate or payment. If PayPal returns another mismatch, stop and confirm
+the merchant-scoped Vault behavior with PayPal before changing the request.
+
+### 2026-11-07 — One live Sandbox Wallet binding diagnostic
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs` with a consent-only mode that
+does not load checkout or access Neon. The loopback page and PayPal consent
+description identify the no-charge diagnostic. A fresh atomic marker,
+`.tools/paypal-wallet-binding-attempted.json`, prevents reruns. Node syntax,
+all three offline validation tests and marker checks passed before launch.
+
+One OAuth request (200), one setup (201 / `PAYER_ACTION_REQUIRED`), one lookup
+after manual consent (200 / `APPROVED`), and one exchange (200). All three
+responses supplied a valid Vault customer ID. Creation and approval matched.
+Exchange returned a different ID (`customerIdMatches: false`), even though
+the response included a valid distinct token ID and Wallet object. The runner
+stopped before final payer verification. No credentials, tokens, customer
+IDs, buyer details or response bodies were retained locally. The ignored
+`.tools/paypal-wallet-binding-support.json` holds only response statuses,
+timestamps and PayPal debug references for a potential support case.
+
+Zero retries, mandates, orders, captures or database operations. No public
+profile change or publication. The single diagnostic is consumed. Ask PayPal
+Merchant Technical Support to explain the changed Vault customer association
+for the same approved setup token before changing the binding or authorizing
+another purchase test.
+
+### 2026-11-07 — Task07N-E PayPal Vault identity review
+
+The [Wallet guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal)
+documents exchanging the approved setup token for a separate payment token.
+It illustrates the same Vault `customer.id` in creation and exchange. The
+[v3 schema](https://developer.paypal.com/api/payment-tokens/v3/payment-tokens-create)
+makes the request customer reference optional. The Wallet and
+[SDK guides](https://developer.paypal.com/sdk/js/v5/save-without-purchase/paypal/)
+describe reusing a PayPal-generated ID already associated with a returning
+payer. Earmark has no trusted saved mapping here. A merchant customer alias
+is an app-side mapping aid. The optional Wallet `payer_id` identifies the
+PayPal account. Neither field explains or resolves the observed mismatch.
+
+Reviewed the local runner and 07N-C checkout. The runner uses the same setup
+ID for the provider-approved lookup and exchange with the bound Sandbox
+app/merchant. Customer matching, payer/expected-email checks and setup-token
+provenance precede checkout. The server-only checkout trusts its private
+caller for provider evidence and independently enforces owner, merchant,
+app fingerprint, expiry, exact purchase and mandate/budget policy. The
+runner's expected payer comes from the same verified flow as its consent
+record. The service equality check is not an independent PayPal lookup.
+
+The latest recorded diagnostic established that creation and approved lookup
+matched and exchange differed. The same request is valid and no implementation
+defect causing that result was found. No supported reconciliation rule was
+found, so no source or fixture changes. Two Node syntax checks, three local
+identity fixtures and nine mocked checkout tests passed. The web test command
+also ran the existing agent workspace pretest build. No live calls, consent,
+database operations or publication. An unchanged retry has no clear diagnostic
+benefit and unattended purchase eligibility remains unverified.
+
+Ask PayPal Merchant Technical Support: In Sandbox Payment Method Tokens v3,
+can a same-app, same-merchant `POST /v3/vault/payment-tokens` using only a
+matching approved `SETUP_TOKEN` legitimately return a different Vault
+`customer.id`? If yes, which server-verifiable fields or API lookup bind the
+resulting payment token to that exact consent and payer, and when must an
+already-associated `customer.id` be supplied? Provide endpoint sequence, HTTP
+statuses, approval state, equality flags, UTC timestamps and PayPal debug
+references from ignored `.tools/paypal-wallet-binding-support.json`. Exclude
+token values, customer and payer identifiers, credentials and raw bodies.
+
+### 2026-11-07 — Task07N-F Wallet identity binding hardening
+
+Prior 07N-D family requests omitted `permit_multiple_payment_tokens`. The
+[setup schema](https://developer.paypal.com/api/payment-tokens/v3/setup-tokens-create)
+defaults it to false. The opt-in permits multiple saved tokens for one payer
+and merchant/platform, including distinct merchant customer contexts for one
+Wallet. This does not explain the observed mismatch under the default.
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs`,
+`.tools/paypal-wallet-07nd-checkout.mjs`,
+`.tools/paypal-wallet-07nd-validation.mjs` and
+`.tools/paypal-wallet-07nd-validation.test.mjs`. The runner now validates the
+existing local owner credentials against the preserved US profile and uses
+the existing rate-limited `TestOwnerAuth` login on the one-use loopback form
+before creating setup. Its existing browser cookie, Origin, CSRF and callback
+state guards remain. One in-memory record binds owner, browser session,
+app/merchant fingerprint, expected buyer email, setup ID and expiry before
+redirect. The same record gates approval and the transition to checkout.
+
+Setup sends the documented false explicitly. Setup and exchange both send
+`customer.merchant_customer_id`, supported by the
+[Wallet guide](https://developer.paypal.com/api/payment-tokens/save-without-purchase/paypal)
+and [exchange schema](https://developer.paypal.com/api/payment-tokens/v3/payment-tokens-create).
+The 64-character opaque value is a domain-separated HMAC of the stable local
+owner identity and app/merchant binding using the existing server-side session
+secret. The runner requires an exact echo at creation, approval lookup and
+exchange as local policy. PayPal's lookup schema allows the field to be absent,
+so a missing echo stops the test. No previously issued `customer.id` is sent.
+The merchant reference does not authenticate the PayPal account.
+
+The runner requires both PayPal responses to supply the same valid Wallet
+`payer_id`. The expected email remains supplementary, and supplied conflicts
+block progress. Checkout receives the exchange payer ID and the approved lookup
+payer ID separately. The existing Vault customer ID comparison remains strict.
+No storage migration, app route, mandate, accounting or authorization changes.
+
+All three syntax checks, six offline identity tests, nine mocked checkout tests
+and the offline loopback smoke passed. The smoke checked private access, ticket
+reuse, owner login, Origin, CSRF, callback state and substituted setup ID without
+following the PayPal redirect. No live requests, database access, payment or
+publication. The provider mismatch remains unresolved. A useful future test
+would be one separately authorized, no-charge setup/approval/exchange with a
+fresh marker, recording only presence and equality flags and provider debug
+references. Stop on any missing or conflicting evidence. If Vault IDs still
+differ, require PayPal's documented binding rule before considering checkout.
+
+### 2026-11-07 — Task07N-G one no-charge Sandbox identity diagnostic
+
+Updated ignored `.tools/paypal-wallet-07nd.mjs` with a consent-only diagnostic
+mode and sanitized per-stage presence, comparison and provenance flags. The
+mode created `.tools/paypal-wallet-07ng-attempted.json` atomically and left
+earlier markers intact. Syntax, six offline identity fixtures and marker
+checks passed before launch. The existing US Sandbox app and merchant binding
+passed. Local owner login preceded setup, and the user manually approved on
+PayPal. Setup explicitly sent `permit_multiple_payment_tokens: false`. Setup
+and exchange used the same scoped opaque merchant reference.
+
+Four Sandbox requests, zero retries: OAuth 200, setup 201 / `PAYER_ACTION_REQUIRED`,
+lookup 200 / `APPROVED`, and exchange 200. The three Vault customer IDs were
+present and format-valid. Setup and lookup IDs matched. The exchanged ID
+differed. The merchant reference was present and matched at setup and lookup.
+It was absent at exchange, so there was no reference comparison. Both Wallet
+payer IDs were present, valid and equal. Expected buyer email checks and setup
+token provenance passed. Overall identity validation failed with
+`EXCHANGE_RESPONSE_NOT_VERIFIABLE`. The process exited and retained no token or
+private response data. Ignored `.tools/paypal-wallet-07ng-support.json` holds
+only sanitized outcomes, UTC timestamps and PayPal debug references.
+
+Zero orders, captures, charges, mandates, database access or financial writes.
+No public changes, live AI calls or publication. The single diagnostic was
+consumed. The customer mismatch reproduced with the merchant reference sent,
+and the exchange did not echo it. Ask PayPal to explain both results using the
+sanitized trace. A $1 unattended test is not justified while binding fails.
+
+### 2026-11-07 — Task07P real-offer discovery and review proposals
+
+- `web/src/server/paypal/agent-checkout-http.ts` and
+  `web/src/components/purchasing-chat.tsx` expose online research as an explicit
+  option in the existing local owner chat. It requires the existing discovery
+  and network flags, both server keys, payment/backend disabled, and normal
+  owner, Origin, CSRF and rate-limit checks. The chat branch does not open the
+  durable checkout repository. The synthetic and public Judge paths retain
+  their previous defaults and gates.
+- `web/src/server/paypal/offer-discovery.ts`, `web/src/lib/offer-discovery.ts`
+  and `web/src/components/offer-discovery.tsx` reuse the guarded Tavily searches,
+  Gemini collector, PayPal evidence checks and independent policy engine. The
+  comparison requires matching plan and explicit price/currency evidence from
+  retrieved snippets, withholds conflicting prices and keeps missing facts
+  unknown. It checks USD budget, requested billing and delivery constraints,
+  required PayPal evidence and approved-merchant requests. Norway cards show
+  retrieval time, reasons, cited external links and the lowest supported
+  comparable review candidate when available. `proposal` remains null and no
+  authorization, reservation or intent is created. Provider call counts per
+  evaluation are unchanged.
+- `web/test/offer-discovery.test.ts` adds offline coverage for conflicting,
+  ambiguous and unrelated-plan quotes, comparison constraints and the owner
+  chat request through mocked Tavily/Gemini. All 59 tests across discovery,
+  owner chat and Judge Sandbox passed. Formatting and warning-free lint of
+  the six edited files passed. Initial lint and TypeScript checks caught a
+  card key and strict typing issues, which were corrected. The final public
+  demo production build and standalone typecheck passed with discovery, AI
+  network and payments disabled. No browser session was used for this check.
+
+Only quoted snippet evidence is compared. Checkout price, stock, fulfillment
+and PayPal support remain unverified. Pricing support is limited to explicit
+currencies and recognizable billing periods. The targeted PayPal lookup covers
+one merchant per request, and other merchant evidence depends on the initial
+search. No live provider calls, financial operations, database changes or
+publication. A separately authorized next test can submit one weather API
+request with a $10/month cap and request PayPal evidence, allowing the existing
+two Tavily calls and one Gemini collector call. Inspect source fidelity and
+confirm external merchant rejection. Keep the payment backend disabled.
+
+### 2026-11-07 — Task07P-L live real-offer verification
+
+Added ignored `.tools/task07pl-run.mjs` and `.tools/task07pl-trace.mjs`, using
+the prior browser/transport pattern and the existing owner login and chat
+route. A temporary loopback development server isolated the public build.
+Both syntax checks and Chromium/ignore checks passed. The initial readiness
+timeout occurred before any dispatch or submission. Its sanitized artifacts
+were archived as `.tools/task07pl-preflight1-result.json` and
+`.tools/task07pl-preflight1-trace.jsonl`. A longer local readiness window passed
+with the expected unauthenticated HTTP 401, then owner login and CSRF passed.
+
+The exact requested prompt was submitted once, recorded in
+`.tools/task07pl-submission.json`. The offer Tavily search returned HTTP 200
+in 3,896 ms with five results. Targeted payment-method search returned HTTP
+200 in 2,398 ms with three results. Both outbound envelopes passed the guard.
+The app returned HTTP 409 `DISCOVERY_OUTBOUND_REJECTED` in 6,753 ms total.
+Zero Gemini requests and zero retries. No extracted offers, review cards,
+offer-level budget/payment-method verdicts or citations were produced. Norway
+showed the error with zero browser runtime errors. Synthetic mode was present
+without an evaluation. The browser checked public Judge live flags were false.
+Sanitized evidence is in `.tools/task07pl-trace.jsonl`,
+`.tools/task07pl-result.json` and `.tools/task07pl-chat.png`.
+
+The trace shows result snippets ending in whitespace at the clipping boundary.
+An isolated offline fixture reproduced the rejection when clipping leaves a
+trailing space and the schema trims it for the expected envelope, while the
+model serializes the pre-parse input. A non-whitespace control passed. This
+is the strongest supported live diagnosis. The exact differing live field
+was not recorded. Trim after clipping and add a boundary fixture before any
+separately authorized repeat. The guard and application source were unchanged.
+
+The temporary server and browser exited. Generated `.next/dev` output was
+isolated, the generated type reference was restored when needed and the
+public production build ID was preserved. Payments, the PayPal backend and
+DB access were disabled. Zero PayPal requests, orders, captures, mandates,
+financial writes, Git publication or deployment. The live evaluation was
+consumed and was not repeated.
+
+### 2026-11-07 — Task07P-FIX Gemini outbound request normalization
+
+The new offline regression reproduced `DISCOVERY_OUTBOUND_REJECTED` at the
+Gemini guard before the mocked transport. Clipping could leave trailing
+whitespace in a title or snippet. Schema parsing trimmed the expected
+envelope while Gemini previously serialized the pre-parse observations. The
+exact mismatching field from the historical live request remains unknown.
+
+Updated `web/src/server/paypal/offer-discovery.ts` to trim after clipping and
+pass the canonical schema output from the guard setup into the existing Gemini
+builder. Endpoint, redirect, timeout, exact headers and byte-for-byte body
+checks remain enforced. The collector now distinguishes request metadata,
+header and body rejections with fixed error codes and no payload logging.
+Updated `web/test/offer-discovery.test.ts` with coverage for titles and both
+search stages, the 600-character snippet boundary, exact envelope equality,
+modified observations and unauthorized headers. Existing source restrictions,
+privacy checks, synthetic paths and public Judge restrictions are unchanged.
+
+Before the fix, the targeted boundary fixture failed as expected. After the
+fix, 60 offline discovery, owner chat and Judge tests passed, with formatting
+and targeted warning-free lint. Standalone typecheck and the public demo build
+passed with AI and payments disabled. No live Tavily, Gemini or PayPal requests, DB
+mutations or publication. Next is one separately authorized owner-chat live
+retest to confirm provider extraction and Norway rendering.
+
+### 2026-11-07 — Task07P-L2 live real-offer discovery retest
+
+Reused ignored `.tools/task07pl-run.mjs` and `.tools/task07pl-trace.mjs`, adding
+only an isolated `--07pl2` artifact namespace and fresh atomic submission
+marker. Previous artifacts were preserved. Both syntax checks, ignore and
+marker checks, and the focused clipping regression passed. Temporary loopback
+owner login and CSRF passed with PayPal, payments and DB access disabled.
+
+One exact prompt submission and no retries. Tavily discovery returned HTTP 200
+in 3,671 ms with five results. Targeted payment search returned HTTP 200 in
+626 ms with three results. Gemini returned HTTP 200 in 1,544 ms with `STOP`
+and `reportDiscoveredOffers` containing two offers. The strict outbound guard
+passed with minimized, sanitized observations. Norway returned HTTP 200 in
+6,262 ms total and rendered both cards with zero browser runtime errors.
+
+WeatherAPI.com (paid 3M-call tier) and MeteoSource (generic paid plan) both
+rendered unknown price and billing. The cited posts mention $7/month for 3M
+calls and a $5/month starting price, respectively, but do not establish an
+explicit USD quote for the extracted plan labels. No price contradiction was
+flagged and no under- or over-budget verdict could be made. Features,
+availability and delivery were not established for the displayed plans.
+Both cards were `INSUFFICIENT_EVIDENCE` and ineligible, with no review
+recommendation, purchase proposal, authorization, reservation or persistence.
+MeteoSource PayPal was `unknown`. WeatherAPI was labeled `not-listed` even
+though the cited changelog only describes updating a billing method and does
+not enumerate payment methods. It should be `unknown` on that evidence.
+
+The browser verified safe cited links and a disabled payment control. All
+three cited destinations were reachable, including the WeatherAPI blog after
+its same-site trailing-slash redirect. Synthetic mode remained available and
+was not exercised. Judge live access was disabled and the public build ID
+was preserved. The browser and owned server exited. No PayPal requests,
+orders, captures, mandates, payments, DB writes, Git publication or deployment.
+
+Sanitized artifacts: `.tools/task07pl2-submission.json`,
+`.tools/task07pl2-result.json`, `.tools/task07pl2-trace.jsonl`, and
+`.tools/task07pl2-chat.png`. No app source changed. Smallest follow-up: require
+an actual list of payment methods or explicit exclusion for `not-listed`,
+and prefer first-party pricing pages with named tiers and explicit currency
+within the same search budget. The authorized live evaluation was consumed.
+
+### 2026-11-07 — Task07P-Q offer evidence accuracy
+
+Updated `web/src/server/paypal/offer-discovery.ts`. A generic mention of a
+payment method previously triggered `not-listed`. The classifier now uses
+retrieved merchant-domain payment documents and explicit acceptance or a
+complete accepted-method list. Changelogs and partial lists remain `unknown`.
+Consistent results keep the relevant evidence citation. Replaying the
+07P-L2 evidence offline changed WeatherAPI's PayPal verdict to `unknown`.
+MeteoSource stayed `unknown`, and neither result gained a price or a review
+recommendation.
+
+The existing offer search asks for first-party named-tier pricing, and
+pricing and plan pages rank ahead of editorial comparisons. The existing
+payment search requests the selected merchant site. Gemini still gets the
+original instruction and the canonical guarded evidence. The verifier now
+requires a price clause tied to the named tier, explicit currency and a
+consistent billing period. It withholds starting prices, bare dollar quotes,
+mixed billing terms and quotes tied to another tier. Competing prices for the
+same tier still fail closed. The two-search, one-extraction cap, privacy guard
+and independent external-merchant prohibition are unchanged.
+
+Updated `web/src/components/offer-discovery.tsx` for clearer accepted-method
+list wording and `web/test/offer-discovery.test.ts` for the offline replay,
+payment evidence, named-tier ordering and price ambiguity regressions. The
+tests render the Norway cards to static markup. All 67 discovery, owner chat
+and Judge Sandbox tests passed, as did formatting and targeted warning-free
+lint. Standalone typecheck and the public demo build passed with AI,
+discovery and payments disabled.
+
+No live provider, PayPal, financial or database operations and no publication.
+Brand/domain matching and the complete-sentence checks deliberately leave
+some real evidence unknown. One separately authorized live owner-chat test
+would measure search relevance, without requiring a recommendation. Use a
+fresh marker and update the exact-query expectations in the local transport
+observer for the revised queries before any such run.
+
+### 2026-11-07 — Task07P-L3 live offer evidence verification
+
+Updated ignored `.tools/task07pl-run.mjs` and `.tools/task07pl-trace.mjs` only
+for an isolated `--07pl3` marker/artifact namespace and the revised exact
+Tavily query expectations. Earlier markers were preserved. Both syntax checks,
+ignore/marker checks and two focused offline evidence regressions passed,
+including the WeatherAPI changelog returning `unknown`. Owner authentication
+and CSRF passed on the temporary loopback server before the single submission.
+
+The offer Tavily search returned HTTP 200 in 4,458 ms with five results,
+including WeatherAPI's official pricing page and AccuWeather's plan table.
+The merchant-site payment search targeted WeatherAPI and returned HTTP 200
+in 1,479 ms, with one result passed to the collector. Gemini returned HTTP
+200 in 1,353 ms with `STOP` and one `reportDiscoveredOffers` entry. All three
+envelopes passed the strict guard and sanitized checks. Norway returned HTTP
+200 in 7,754 ms total. There were zero retries or additional evaluations.
+
+The browser rendered AccuWeather Starter with an accessible cited developer
+overview, retrieval time, `INSUFFICIENT_EVIDENCE`, PayPal `unknown` and no
+verified price, currency or billing period. The cited table shows $2/month,
+15,000 monthly calls and forecast features, but the dollar currency is
+unspecified in that evidence. No contradictory price was detected. No budget
+match, review recommendation or checkout eligibility was granted. The payment
+search targeted WeatherAPI before extraction, so it did not establish
+AccuWeather's payment methods. No WeatherAPI card was extracted in this run.
+
+Browser inspection found a remaining defect. Starter displayed `available
+(reported)`, although the captured table's availability wording is `Not
+available` in the Free tier's overage column. The flattened snippet permits a
+substring match across rows. The smallest follow-up is to bind evidence to
+the exact table row or suppress ambiguous availability claims. No app source
+changed in this verification.
+
+The one card rendered without browser runtime errors. The source link matched
+the evidence and opened the intended public document. Payment control stayed
+disabled, Judge live access stayed restricted, and the synthetic option was
+present without another evaluation. The public build ID was preserved and
+the owned browser/server exited. Zero PayPal requests, orders, captures,
+payments, mandates, DB access or writes, Git publication or deployment.
+Ignored artifacts: `.tools/task07pl3-submission.json`,
+`.tools/task07pl3-result.json`, `.tools/task07pl3-trace.jsonl`, and
+`.tools/task07pl3-chat.png`. The authorized evaluation was consumed.
+
+### 2026-11-07 — Task07P-R tier-specific evidence correction (offline)
+
+Request: fix the unsupported `available (reported)` label observed on
+AccuWeather Starter in Task 07P-L3, enforce strict tier-and-field matching when
+tables or snippets flatten or lose row/column context, inspect and correct
+merchant-specific payment-method search sequencing within the existing
+2-Tavily / 1-Gemini budget, and verify offline without live calls.
+
+Modified files:
+- `web/src/server/paypal/offer-discovery.ts`: added `parseTierTable`,
+  `hasLostProseTableContext`, `priceCandidateLines`, `verifyAvailabilityClaim`,
+  `verifyDeliveryClaim`, `verifySlaClaim` and `offerMerchantDomain`; updated
+  `createDiscoveryBoundary` (`allowCollector` -> `allowPaymentSearch` ->
+  `allowPaymentResults`), `selectTargetMerchantDomain`, `classifyPayPalEvidence`
+  and `discoverOffers`.
+  - Root cause & fix: `sanitizeText` collapsed table newlines into spaces and
+    `evidenceLines` split only on `[.!?]`, merging AccuWeather's `Free` (`CPM
+    Overage: Not available`), `Starter` and `Standard` rows into one string
+    where `containsPhrase(line, "available")` matched inside `Not available`.
+    Pipe tables now require an intact header row, tier column and matching
+    per-row cell count; `CPM Overage` and non-availability columns are excluded;
+    broken/headerless/pipe-stripped tables yield `unknown`; and prose claims
+    require an explicit tier-subject availability/delivery/SLA predicate with
+    matching polarity (rejecting bare `"available"` and cross-tier clauses).
+  - Payment-method search sequence: reordered to `Tavily offer search -> Gemini
+    collector -> Tavily targeted merchant payment-method search` (still capped
+    at 2 Tavily requests + 1 Gemini call, byte-for-byte guarded before `fetch`
+    and validated on inbound payment snippets). Payment search now targets the
+    merchant domain actually extracted by Gemini (`accuweather.com` in the
+    07P-L3 replay instead of `weatherapi.com`), and payment URLs/evidence are
+    never cited or reused across different merchants.
+- `web/test/offer-discovery.test.ts`: updated offline transport and boundary
+  ordering for the new 3-step sequence and added focused regressions reproducing
+  the Task 07P-L3 AccuWeather Free/Starter table, `Free` `CPM Overage` cell,
+  cross-tier table/prose claims, lost row/column context, explicit merchant
+  availability rendering, and cross-merchant payment evidence isolation.
+- `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
+
+Offline checks run and results:
+- `npx --workspace @flint/web vitest run offer-discovery paypal-agent-chat judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
+  PASS (`5/5` files, `106/106` tests, including `40/40` in
+  `web/test/offer-discovery.test.ts`).
+- `npx prettier --check` & `npx biome lint ... --error-on-warnings` (`4` files):
+  PASS (`0` warnings/errors).
+- `npm run typecheck`: PASS (`@flint/agent`, `@flint/web`, `api/src/tsconfig.json`).
+- `npm run build --workspace @flint/web` (public demo flags, AI/discovery/payments
+  disabled): PASS (`14/14` static pages and dynamic routes).
+- `node scripts/check-web-boundary.mjs` & `npm run paypal:secrets:check`: PASS
+  (`54` browser chunks, `339` tracked / `420` candidate files, `0` matches).
+
+Limitations & next steps: zero live Tavily/Gemini calls, PayPal operations, DB
+changes or Git/deployment actions. Snippet clipping (600 chars), bare `$`
+symbols without ISO currency codes, and the single targeted payment search when
+multiple merchants are extracted still intentionally fail closed as `unknown`.
+If another live owner-chat discovery trace is separately authorized later,
+update ignored `.tools/task07pl-trace.mjs` for the `offers -> gemini -> payment`
+step order; discovery evidence gates are ready for assisted human-approved
+checkout planning while external merchants remain unbound in Sandbox.
+
+### 2026-11-07 — Task07P-S real-offer assisted checkout (offline)
+
+Request: add a minimal, safe assisted-checkout experience to the authenticated
+Norway chat for real merchant offers so the user can review verified vs unknown
+terms, open a provenance-verified official merchant page in a new tab, and
+choose `"Approve for manual checkout"` or `"Reject"` without autonomous payment,
+merchant approval, credential collection or financial mutations.
+
+Modified files:
+- `web/src/lib/offer-discovery.ts`: added `ManualCheckoutDecision`,
+  `safeExternalOfferUrl` (public HTTPS only; rejects non-HTTPS schemes,
+  credentials, ports, hashes, IP/loopback/internal hosts, sensitive query keys
+  and open-redirect query parameters/embedded URLs) and
+  `selectVerifiedOfferSourceUrl` (selects only `cited: true` merchant sources,
+  preferring verified `pricing.sourceUrl` or the cited plan page over a payment
+  FAQ, never inventing `/checkout` URLs).
+- `web/src/server/paypal/offer-discovery.ts`: delegated `discoverySource` to
+  `safeExternalOfferUrl` plus `node:net` `isIP` so server ingestion and client
+  rendering share one URL/redirect safety check.
+- `web/src/components/offer-discovery.tsx`: added optional `assistedCheckout`
+  (default `false`) and inline per-offer assisted-checkout review in session
+  memory only. Displays merchant, snippet price/currency/billing period,
+  canonical unapproved-merchant restrictions, explicit unresolved/unknown
+  evidence, merchant-site confirmation and no-credential notices, a verified
+  `target="_blank"` `rel="noopener noreferrer"` `referrerPolicy="no-referrer"`
+  merchant link (withheld with approval disabled when no safe cited URL exists),
+  and `"Approve for manual checkout"` / `"Reject"` controls that record local
+  session intent (`not paid · external purchase unverified`, never `PAID` or
+  `COMPLETED`) and direct the user back to the merchant site for manual
+  registration and checkout.
+- `web/src/components/purchasing-chat.tsx`: passed
+  `assistedCheckout={!judgeSandbox && Boolean(csrf)}` to `OfferDiscovery`,
+  preserving synthetic offer flows and all public Judge Sandbox behavior.
+- `web/src/app/norway.css`: added compact responsive Norway styling
+  (`.norway-assisted-bar`, `.norway-assisted-actions`,
+  `.norway-assisted-checkout`, `.norway-assisted-status`).
+- `web/test/offer-discovery.test.ts`: added offline unit and static-markup
+  coverage for redirect/scheme/provenance link checks, Judge Sandbox omission,
+  Approve/Reject states, AccuWeather unknown-evidence preservation, withheld
+  unsafe/uncited links disabling approval, and zero `PayPalPaymentService` /
+  mandate calls.
+- `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
+
+Offline checks run and results:
+- `npx --workspace @flint/web vitest run offer-discovery paypal-agent-chat judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
+  PASS (`5/5` files, `108/108` tests, including `42/42` in
+  `web/test/offer-discovery.test.ts`).
+- `npx prettier --check` & `npx biome lint ... --error-on-warnings` (`6` files):
+  PASS (`0` warnings/errors).
+- `npm run typecheck`: PASS (`@flint/agent`, `@flint/web`, `api/src/tsconfig.json`).
+- `npm run build --workspace @flint/web` (public demo flags, AI/discovery/payments
+  disabled), `node scripts/check-web-boundary.mjs`, & `npm run paypal:secrets:check`:
+  PASS (`14/14` pages, `54` browser chunks, `339` tracked / `420` candidate
+  files, `0` matches).
+- Offline Chromium Playwright checks:
+  - Authenticated Norway owner chat (`NEXT_PUBLIC_DEMO_ONLY=false`, all external
+    traffic aborted, offline discovery fixture): PASS (`3` cards, verified
+    new-tab target `https://example.com/weather/pricing`, Approve & Reject
+    session updates, AccuWeather unknowns preserved, unsafe/uncited link
+    withheld with approval disabled, `0` POST/mutation requests after discovery,
+    `0` overflow at `1440px` & `390px`, `0` page errors).
+  - Built public demo (`next start`, `NEXT_PUBLIC_DEMO_ONLY=true`): PASS
+    (owner chat blocked HTTP `403`, deterministic Judge Sandbox `$4.00`
+    synthetic proposal intact, Judge Sandbox discovery omits assisted-checkout
+    buttons, `0` page errors). Note: `scripts/preview-smoke.mjs` passed lines
+    1–569 (layout, deterministic policy, synthetic Gemini) and stopped at
+    pre-existing line 570 expecting `"Send to Gemini"` where Task 07P renamed
+    the discovery submit button to `"Research offers"`.
+
+Limitations & next steps: manual checkout intent is ephemeral browser-session
+state only; Earmark cannot verify whether an external purchase was completed on
+the merchant's site, and PayPal saved-Wallet unattended binding remains
+unresolved. Zero live Tavily/Gemini/PayPal calls, DB writes, Git commits or
+deployments were performed. Smallest useful subsequent browser test: one
+separately authorized local owner-chat live discovery run (after updating
+ignored `.tools/task07pl-trace.mjs` for `offers -> gemini -> payment` order)
+exercising `"Review for manual checkout"` and opening the cited official
+merchant pricing page in a new tab with payments/backend disabled.
+
+### 2026-11-08 — Task 07P-SMOKE complete public preview verification
+
+Updated `scripts/preview-smoke.mjs` only. Discovery submits with `Research
+offers`. Synthetic chat still uses `Send to Gemini`. After the selector
+correction, the first run reached the discovery render and failed because
+the browser-only mock lacked the current pricing fields. Updated that mock's
+offer identity, pricing, review fit and recommendation. The public Judge card
+check confirms no manual checkout entry button and a disabled payment control.
+
+Node syntax and the complete local Chromium smoke passed (exit 0). Verified
+nine production routes, Norway and Classic Light persistence/migration,
+five layout widths with no overflow, three deterministic Judge requests and
+an SLA rejection, four recorded and four PayPal policy scenarios, mocked
+Gemini/discovery states, sandboxed search suggestions, and hosted discovery,
+Gemini and owner endpoint denials. Zero browser exceptions. No production
+UI edits, live provider requests, payments, database changes or publication.
+
+Refreshed ignored screenshots in `.tools/`: `norway-{mandates,mandates-new,
+payments,activity,agent-checkout,paypal-test}-desktop.png`, `norway-{mandates,
+payments,activity,agent-checkout}-mobile.png`, `paypal-norway-{1440,1280,1024,
+390,375}.png`, `task07i-judge-{desktop,mobile}.png`,
+`task07j-discovery-{desktop,mobile}.png`, `norway-injection-desktop.png`,
+`paypal-preview-{desktop,mobile}.png`, `paypal-norway-conversation.png`,
+`paypal-norway-conversation-mobile.png`, and `paypal-classic-{desktop,mobile}.png`.
+
+### 2026-11-08 — Task 07P-T live assisted-checkout verification
+
+Updated the ignored local `.tools/task07pl-run.mjs` and
+`.tools/task07pl-trace.mjs` for the Task 07P-R provider order, a fresh one-use
+submission marker, hydrated owner-chat readiness and bounded browser checks.
+Four offline preflight starts stopped at local server, Chromium navigation or
+chat readiness. Their sanitized records are in
+`.tools/task07pt-preflight{1,2,3,4}-{result.json,trace.jsonl}`. None submitted
+chat or contacted either provider. Both local scripts passed `node --check`.
+
+The final Chromium run passed owner login (HTTP 200), CSRF, private-chat
+readiness and public Judge live-access checks. It submitted the exact authorized
+weather API prompt once. Tavily offer search returned HTTP 200 in 4,725 ms.
+Gemini extraction returned HTTP 200 in 1,448 ms with finish reason `STOP`, the
+expected `reportDiscoveredOffers` tool and one reported offer. The application
+returned HTTP 409 `INVALID_MODEL_RESPONSE` after 6,856 ms. The trace does not
+identify the exact response validation failure. The second Tavily search was
+never dispatched. No offer card, assisted review, merchant visit, approval or
+rejection was reached, and the evaluation was not retried.
+
+Both outbound envelopes passed verification and the local secret-value scan.
+Chromium reported zero runtime exceptions and zero unexpected mutation
+requests. There were zero PayPal requests, financial operations or financial
+DB writes. Public Judge live access stayed disabled, and the public production
+build was preserved. No production code or deployment changes were made.
+Ignored evidence: `.tools/task07pt-submission.json`,
+`.tools/task07pt-result.json`, `.tools/task07pt-trace.jsonl` and
+`.tools/task07pt-chat.png`. The smallest next step is to surface the existing
+sanitized Gemini response-validation category and verify it with offline
+fixtures before seeking separate authorization for another live evaluation.
+
+### 2026-11-08 — Task 07P-T-FIX offline Gemini validation diagnostics
+
+The 07P-T trace retained the first candidate's `STOP`, first native
+`reportDiscoveredOffers` call and one reported offer. It did not retain the
+Gemini arguments or full envelope. The exact live validation category and field
+are therefore unknown. The failure is localized to the bounded Gemini body
+reader or the native response parser in `agent/src/gemini-body.ts` and
+`agent/src/gemini-response.ts`. `GeminiModel.decide()` validates the declared
+tool against the strict report schema before `discoverOffers()` can start the
+merchant payment-method search. Downstream source provenance, cross-merchant
+evidence checks and policy evaluation do not produce this parser error.
+
+The parser distinguishes oversized or malformed responses, invalid envelopes,
+safety blocks, truncated output, invalid finish reasons, missing, malformed,
+multiple or undeclared calls, invalid tool arguments, and invalid finish JSON
+or schema. Under the reported `STOP` and expected tool, strict argument failure,
+additional calls, and an invalid full envelope remain plausible. The strict
+tool schema checks required and nullable fields, price string format, currency
+and PayPal enums, SLA bounds, URL string bounds, and unknown keys. Evidence
+linkage, billing interpretation and source provenance are separate checks.
+
+- `web/src/server/paypal/agent-checkout-http.ts` emits only `validationStage`
+  and `validationCategory` through the server-side
+  `earmark.discovery.validation` channel after authenticated, CSRF-validated
+  owner discovery fails. It requires the private discovery profile and
+  `EARMARK_DISCOVERY_VALIDATION_TRACE=true`. Parser categories are forwarded
+  from the existing `GeminiResponseError`. A bounded body-read rejection emits
+  `RESPONSE_BODY_REJECTED`. The HTTP error contract remains unchanged.
+- `web/test/offer-discovery.test.ts` verifies that an offline single reported
+  offer with numeric `priceMinor` returns the same HTTP 409 and traces
+  `INVALID_TOOL_ARGUMENTS`. A second native call also returns the same HTTP
+  error and traces `MULTIPLE_TOOL_CALLS`. Neither fixture is the original
+  response. A valid neighboring offer completes, opt-out emits nothing, the
+  event has exactly two fields, and hosted Judge discovery remains denied.
+  The fixture checks that the handler sends no payload to console logs and
+  opens no checkout service.
+- Ignored `.tools/task07pl-run.mjs` opts the assisted runner into the trace.
+  Ignored `.tools/task07pl-trace.mjs` records the two values only, alongside
+  fixed event labels. Original evidence and consumed markers were preserved.
+
+No defect in accepted response handling was proven, so validation was left
+fail-closed and the change is diagnostic only. Nine focused suites passed
+193 tests. Targeted Biome and Prettier checks and both ignored scripts' syntax
+checks passed. Agent and web TypeScript checks and the public-demo production
+build passed. The browser-boundary scan passed for 54 chunks, and the private
+channel name and opt-in flag are absent from those bundles. The configured-secret
+scan found zero matches across 339 tracked files, 420 publication candidates
+and 54 browser chunks. `git diff --check` and whitespace checks for the untracked
+and ignored files passed. No live provider, merchant or PayPal requests,
+financial operations, database writes, commits, pushes or deployments occurred. One
+future live evaluation is technically useful to capture the exact rejection
+category if it recurs. It requires separate authorization and a fresh marker.
+
+### 2026-11-08 — Task 07P-T2 live assisted-checkout retry
+
+Updated only the ignored `.tools/task07pl-run.mjs` and
+`.tools/task07pl-trace.mjs` for a fresh `--07pt2` marker, metadata-only
+retention, the existing private validation trace, and a deterministic Judge
+preflight. Both scripts passed syntax checks. No production code changed.
+The previous consumed marker and the public production build were preserved.
+
+One owner login returned HTTP 200 and owner/CSRF preflight passed. The Judge
+endpoint denied live Gemini with HTTP 403 and returned a successful
+deterministic policy evaluation. The exact existing Norway discovery scenario
+was submitted once. Tavily offer search returned HTTP 200 in 6,181 ms to
+headers, Gemini extraction returned HTTP 200 in 4,437 ms, and targeted Tavily
+payment-method search returned HTTP 200 in 9,851 ms. All three outbound
+envelopes passed the observer checks. The chat returned HTTP 200 in 24,949 ms
+and rendered one policy-evaluated offer card. No validation rejection event
+was emitted, and no provider request was retried.
+
+Chromium verified the merchant and plan in the review panel, unresolved
+details, policy restrictions, and disabled payment execution. It opened
+`https://weatherstack.com/pricing` in a new tab with one read-only HTTPS
+document request, no credentials or referrer, and HTTP 200. The review
+persisted when returning to Norway. Manual approval showed `not paid` and
+issued zero HTTP mutation requests and zero extra provider calls. There were
+zero browser exceptions, PayPal requests, mandates, reservations, orders,
+captures, payments or accounting writes. The test profile had no database
+connection and blocked unrelated outbound requests.
+
+Ignored artifacts are `.tools/task07pt2-submission.json`,
+`.tools/task07pt2-result.json`, and `.tools/task07pt2-trace.jsonl`. An offline
+scan of the three artifacts found zero matches against ten configured secret
+or private identifier values and zero forbidden payload fields. No raw
+responses, prompts or screenshots were retained. No deployment or Git push
+occurred. The live assisted-checkout verification passed, so another live run
+is unnecessary for this task. The earlier 07P-T rejection remains undetermined.
+
+### 2026-11-08 — Task 08A demo readiness and UX polish
+
+- `web/src/components/gemini-console.tsx` now labels the local $10 evaluation
+  ceiling and $6 synthetic purchase cap separately from recorded Sandbox
+  accounting. The public Judge view still shows the disposable synthetic
+  budget, and the completed receipt stays historical. The private privacy
+  panel distinguishes synthetic catalog data from public merchant sources.
+- `web/src/components/purchasing-chat.tsx` names the controlled synthetic
+  and live real-merchant modes, offers editable examples with no automatic
+  submission, shows a 20–30 second research wait message, and translates
+  failures into concise messages. The wait describes the work without
+  assigning unobserved progress stages.
+- `web/src/components/offer-discovery.tsx` and `web/src/app/norway.css` put
+  merchant, plan, evidence-qualified price, billing period and eligibility
+  near the top of each card. Source links use compact host labels in an
+  expandable section. Unknown facts, policy reasons and evidence distinctions
+  remain explicit. The manual review explains the official-site check, return
+  to Norway and session-only approval. The status remains `not paid`.
+- `web/test/offer-discovery.test.ts` checks the revised offer and safety
+  presentation. `scripts/preview-smoke.mjs` extends the public fixture checks
+  for the editable example, pending controls, long citation URL and safe
+  errors. Ignored `.tools/task08a-owner-smoke.mjs` covers the owner UI with
+  an intercepted session, discovery result and merchant page fixture.
+
+Demo paths: in the public Judge Sandbox, use the weather request example,
+compare synthetic offers and show the policy verdict, disposable budget and
+approval requirement. Show recorded Sandbox accounting separately for the
+completed-payment example. In the authorized local Norway profile, select
+Live research, review the real-offer evidence and independent restrictions,
+open the official cited site, return and approve the manual intent. The user
+would complete any genuine checkout directly on the merchant site.
+
+Nine focused suites passed 193 tests. Two first-run assertions expected the
+old merchant/plan and price markup. They were updated to verify the new
+display without changing the underlying evidence expectations. Agent and web
+typecheck, targeted formatting, repository lint with zero warnings, the
+public-demo production build, the 54-chunk browser boundary scan, and the
+secret scan with zero matches passed. `git diff --check` and whitespace checks
+on the untracked UI and fixture files passed.
+
+Public Chromium smoke passed for nine routes, deterministic Judge evaluation,
+live/owner endpoint denials, payment controls, and mocked research loading,
+safe errors and expandable citations. The private Norway fixture passed at
+1440, 1280, 768 and 375 px with no horizontal overflow or runtime exceptions.
+It opened an intercepted merchant page and confirmed session-only approval
+stayed `not paid`, with one fixture discovery submission and zero subsequent
+mutations. Its first run timed out during development hydration. The browser
+runner's readiness wait was corrected and the check passed on rerun.
+Public smoke refreshed the existing ignored `.tools` screenshot groups listed
+in Task 07P-SMOKE, including `task07j-discovery-{desktop,mobile}.png`.
+
+No live provider, merchant or financial
+requests, financial mutations, deployments or pushes were performed. PayPal
+Vault customer binding remains unresolved and autonomous saved-Wallet payment
+stays disabled. No backend, policy, payment or validation code changed.
+
+### 2026-11-10 — Task 08B deployment readiness audit
+
+Vercel can host the Next.js website and same-origin Node.js API routes as one
+app. The root npm workspace compiles `@flint/agent` from the web prebuild.
+No Neon, legacy Render worker or provider account is required for the public
+demo. The existing Render blueprint is an alternate legacy preview and lacks
+the public-demo flags. The local Norway owner-chat profile requires approved
+Gemini/Tavily keys and protected owner/Sandbox binding, but no database URL or
+PayPal secret. The separate durable launcher does require a database preflight
+and is outside this demo. The live owner profile remains unsupported on Vercel.
+
+For both public Preview and Production, set `NEXT_PUBLIC_DEMO_ONLY=true` and
+`EARMARK_PUBLIC_DEMO_ONLY=true`. Explicitly set `AI_ENABLE_NETWORK`,
+`EARMARK_GEMINI_ENABLED`, `EARMARK_OFFER_DISCOVERY_ENABLED`,
+`EARMARK_JUDGE_LOCAL_GEMINI`, `PAYPAL_BACKEND_ENABLED`, `PAYPAL_PAYMENTS_ENABLED`,
+`PAYPAL_AGENT_CHECKOUT_ENABLED`, `PAYPAL_TEST_CHECKOUT_ENABLED`, and
+`EARMARK_ENABLE_TESTNET_EXECUTION` to `false`. Keep diagnostic trace opt-in off,
+all provider/database/owner credentials and one-shot permissions unset, and
+use `mock` for optional legacy model selectors. For the existing private
+profile only, both demo flags are `false` and agent checkout, Gemini, discovery
+and AI network are `true`. Judge live access and all payment/legacy execution
+flags stay off. Keep the exact `http://127.0.0.1:3032` origin. The full matrix,
+consumers, statuses and operator steps are in
+[docs/task-08b-deployment-readiness.md](docs/task-08b-deployment-readiness.md).
+
+The expanded browser scan found a literal private local-auth path in two
+browser chunks. It did not find credentials or the file contents. Replaced
+that wording with a generic reference to the protected local owner-auth file
+in `web/src/components/agent-checkout.tsx` and
+`web/src/components/paypal-test.tsx`. Extended `scripts/check-web-boundary.mjs`
+to reject local artifact paths and verified it fails on the previous build.
+No product behavior, authentication, financial logic or provider guards changed.
+
+Manual release order: (1) Verify the Vercel project's Git link, production
+branch, preview/production triggers and settings before any push. (2) Set the
+public flags and verify Next.js preset, `web` root, Node 22.x, outside-root
+source inclusion, lockfile and workspace-aware install. The root verification
+command is `npm run build --workspace @flint/web`; Vercel runs `npm run build`
+from `web` with Next-managed output. (3) Review the intended source for Git,
+including required untracked application sources and `.vercelignore`. Keep
+`.tools`, local credentials, state and deployment linkage private. Obtain
+separate publication and deployment authorization. (4) Create a Preview from
+the reviewed commit using Vercel, smoke it, then use the approved production
+promotion path. Configure the final HTTPS domain and optional canonical
+`FLINT_WEB_ORIGIN=https://<final-host>`. No public CORS, PayPal callback/webhook,
+or provider registration is needed. (5) Confirm deterministic Judge, labeled
+historical evidence, blocked live/owner/payment routes, absent assisted checkout
+in Judge and disabled payment. (6) For private research failure, stop that
+runner or turn off discovery/network and restart. For a public regression,
+restore a known read-only deployment and repeat the smoke checks.
+
+Verification: 225 focused tests across 12 suites, repository zero-warning
+lint, agent/web TypeScript, targeted formatting, credential-blank public
+production build and nine-route Chromium smoke passed. The existing handoff
+has pre-existing Prettier warnings and was preserved without a global rewrite.
+The separate credential-blank runtime passed 35 route checks. The 54-chunk
+browser boundary and configured-secret scans passed, and the expanded checks
+found no private paths, trace markers or provider endpoints in 56 browser
+assets and no private artifact references in 26 Next route traces.
+`git diff --check` passed. The public smoke refreshed the ignored screenshots
+listed in Task 07P-SMOKE. The Vercel dashboard, remote branch linkage and
+actual public hostname remain unverified.
+
+Autonomous saved-PayPal-Wallet payment remains unresolved and disabled. No
+live provider or merchant calls, database or payment activity, remote dashboard
+changes, Git publication, deployment or push occurred.
+
+### 2026-11-10 — Task 08C Monad deployment isolation
+
+Inventory: the shared layout mounted the workspace provider and injected
+wallet discovery, the navigation exposed wallet/network controls, and Classic
+Light and Policies could render the recorded Monad rail. Mandates, Purchases,
+Activity, escrow resolution and execution details included legacy actions or
+contract copy. `web/src/lib/network.ts`, `local-chain.ts`, `wallet.ts`,
+`payment-resolution.ts`, and `deployments/monad-testnet.json` carry the legacy
+chain/RPC/address configuration. The workspace API and Render proxy lead to
+the optional legacy worker. The web production build does not invoke Foundry.
+
+- `web/src/app/layout.tsx`, `page.tsx`, `activity/page.tsx`,
+  `mandates/page.tsx`, `payments/page.tsx`, `security/page.tsx`, and
+  `web/src/components/public-paypal-pages.tsx` select PayPal navigation,
+  deterministic policy, Judge and historical receipts on the public build.
+  `web/src/components/navigation.tsx` shares the Norway navigation icons with
+  the public shell. `web/src/components/recorded-paypal-card.tsx` and
+  `web/src/app/norway.css` keep public receipts and Judge available in both
+  themes without rendering legacy balances or wallet controls.
+- `web/src/components/paypal-agent-console.tsx` is the existing PayPal console
+  extracted from `web/src/components/gemini-console.tsx`. Its wrapper avoids
+  legacy workspace state in public mode. The legacy wrapper retains its
+  private Gemini preparation view. Policies shows the four existing PayPal
+  scenarios. The delivery explanation still states the actual safeguards and
+  limits without pointing visitors to the retired public escrow demonstration.
+- `web/src/app/mandates/new/page.tsx`, `resolve/page.tsx` and
+  `executions/[id]/page.tsx` gate direct legacy pages. Public guards in
+  `web/src/app/api/workspace/route.ts`, `api/workspace/[action]/route.ts` and
+  `api/security-demos/route.ts` respond before loading legacy services.
+- The first conditional-import build still emitted dormant legacy browser
+  chunks. `web/next.config.ts` now replaces
+  `web/src/components/legacy-web-profile.ts` with
+  `web/src/components/disabled-legacy-web-profile.ts` during public compilation,
+  before Next.js collects the client graph. This preserves the original legacy
+  code for non-public builds. `scripts/check-web-boundary.mjs` checks public
+  chunks for legacy RPC, wallet protocol and UI markers.
+- `scripts/preview-smoke.mjs` exercises the PayPal routes and legacy denials in
+  Norway and Classic Light. It observes browser requests and injected wallet
+  probes while blocking external traffic. The four PayPal scenarios replace
+  the previous public recorded-Monad checks. The deployment inventory and
+  checklist are updated in `docs/task-08b-deployment-readiness.md`.
+
+Vercel Preview and Production use `NEXT_PUBLIC_DEMO_ONLY=true`,
+`EARMARK_PUBLIC_DEMO_ONLY=true`, and `EARMARK_ENABLE_TESTNET_EXECUTION=false`
+along with Task 08B's provider/payment disable settings. Omit every Monad RPC,
+chain ID, vault/token address or code hash, signer key, and hosted worker or
+legacy state setting listed in the matrix. The shared npm agent package and
+server digest utilities remain available. No Monad service, live provider,
+financial operation, Git push or deployment was used. Autonomous saved-Wallet
+PayPal payments remain unresolved and disabled.
+
+Verification: 321 focused tests across 17 suites passed, including 96 legacy
+workspace, recording and payment resolver tests. The final production build
+passed with chain and provider values blanked and external fetch blocked.
+Chromium verified seven public pages and three direct legacy `404` responses,
+both themes, the four PayPal scenarios, Judge, historical receipt and disabled
+payments, plus narrow/mobile and desktop layouts. It observed zero external
+requests, workspace or local-evidence API calls, injected wallet probes or
+runtime exceptions. The 46 browser chunks had zero legacy marker or pinned
+address matches, and none of the 26 client reference manifests referenced the
+legacy client graph. Secret scanning had zero matches across 339 tracked
+files, 425 publication candidates and 46 chunks. Zero-warning lint, agent/web
+typecheck, targeted formatting and `git diff --check` passed. The smoke
+refreshed its existing ignored screenshots under `.tools` for the seven
+public routes and both themes. No remote Vercel settings were changed or
+verified. Preview can be created after the Task 08B manual publication checks
+and separate authorization.
+
+### 2026-11-10 — Task 08D final publication review
+
+Added `docs/task-08d-publication-review.md` with the exact proposed 138-file
+delta against the cached `origin/main` ref. This includes 62 tracked changes
+and 76 untracked files, including the inventory itself. Excluded 11 local
+untracked diagnostics. The three proposed maintained CLI sources support
+existing npm commands and do not ship their local inputs or output artifacts.
+`.gitignore` and `.vercelignore` exclude local env, owner/buyer state, `.tools`
+traces, screenshots, observers, debug output and deployment linkage. Existing
+historical documentation screenshots were outside the delta and preserved.
+No files were staged. Local `main` remains at checkpoint `35133d5`, one commit
+ahead of the cached origin tracking ref.
+
+The local link names `earmark-paypal`, but does not store dashboard settings.
+Browser access and native window inventory timed out. The project REST lookup
+using the existing Vercel CLI session returned HTTP 403. Remote Git binding,
+production branch, framework/root/Node and build settings, automatic Preview
+behavior, and the effective Preview flags and credentials were not verified.
+No remote settings were changed. Do not push on the basis of the local link.
+
+The release-critical local check rebuilt the public demo with provider,
+database and Monad values blanked and external fetch blocked. The build,
+46-chunk browser boundary scan, zero-warning lint, agent and web typechecks,
+and `git diff --check` passed. The configured-secret scan found zero matches.
+An expanded history/working-tree scan resolved dotenv aliases and compared
+10 configured values against 48 changed checkpoint blobs and all 138 proposed
+paths. It found zero matches. The preliminary scan matched a documented
+variable alias in README and the handoff. It was a symbolic reference, with no
+database URL or credential present. The source formatting check flagged
+`web/src/server/paypal/judge-http.ts`. No application source was changed,
+and the 321 Task 08C tests were reused. No remote smoke was possible.
+
+No release commit, branch push, Preview, hostname, deployed SHA or Production
+promotion was created. To resume, verify the project and Preview settings with
+working read access and clear the formatter warning. Use one confirmed
+non-production branch and one Preview, then smoke that deployment before
+considering promotion. The local public build still isolates Monad and keeps
+autonomous saved-Wallet PayPal payments disabled. No live PayPal, Gemini,
+Tavily, Monad or financial requests were made.
+
+### 2026-11-10 — Task 08D-R PayPal release branch
+
+Prettier corrected one indentation line in `web/src/server/paypal/judge-http.ts`.
+The before-and-after comparison showed only whitespace changes. Reused the
+321 passing Task 08C tests because runtime behavior did not change.
+
+The reviewed publication set remains 138 paths relative to `origin/main`,
+with 11 local diagnostics excluded as listed in
+`docs/task-08d-publication-review.md`. Local evidence was preserved. Prettier,
+zero-warning lint, agent and web typechecks, Git whitespace checks, and the
+configured-secret scan passed. The resolved credential scan found no matches
+in the 138 proposed files or the 48 changed blobs in the existing checkpoint.
+The public-demo production build and 46-chunk browser boundary scan passed
+with provider, database and Monad values blanked in the build process.
+
+The GitHub remote reported `main` as its default branch at the cached
+`origin/main` revision. The requested `paypal-hackathon-release` branch did
+not exist locally or remotely during preflight. Task 08D-R authorizes one
+Git-only release commit and push on that branch. Vercel remains a separate
+manual step for the operator. The public profile keeps Monad isolated and
+autonomous saved-Wallet PayPal payments disabled.

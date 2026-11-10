@@ -6,7 +6,13 @@ import type { TestCheckoutConfig } from "./test-config";
 
 const cookieName = "earmark_paypal_test_session";
 export type LocalOwnerAuthConfig = {
-  campaign: "legacy" | "us-v1" | "agent-05a" | "agent-05c-v1" | "agent-05d-v1";
+  campaign:
+    | "legacy"
+    | "us-v1"
+    | "agent-05a"
+    | "agent-05c-v1"
+    | "agent-05d-v1"
+    | "judge-sandbox";
   origin: string;
   ownerId: string;
   loginSecret: string;
@@ -60,6 +66,8 @@ export class TestOwnerAuth<
     return `${this.cookieName}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${this.config.origin.startsWith("https:") ? "; Secure" : ""}`;
   }
   private get cookieName() {
+    if (this.config.campaign === "judge-sandbox")
+      return "earmark_judge_session";
     if (this.config.campaign === "agent-05d-v1")
       return "earmark_paypal_agent_05d_v1_session";
     if (this.config.campaign === "agent-05c-v1")

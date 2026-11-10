@@ -197,9 +197,8 @@ export function PayPalTestCheckout() {
               disabled={busy}
             />
             <p className="micro">
-              Read the generated loginSecret from your ignored local
-              .tools/paypal-test-auth.json file. Never share it or your Sandbox
-              account credentials.
+              Read the generated login secret from the protected local
+              owner-auth file. Keep it and your Sandbox credentials private.
             </p>
             <Button type="submit" disabled={busy || !password}>
               Sign in to controlled checkout

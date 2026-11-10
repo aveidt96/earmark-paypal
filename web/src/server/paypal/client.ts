@@ -14,6 +14,11 @@ import {
 } from "./config";
 import { assertOrderScope } from "./us-order";
 import { assertCaptureScope } from "./us-capture";
+import {
+  type SavedWalletConsent,
+  checkSavedWalletPurchase,
+  checkSavedWalletWindow,
+} from "./saved-wallet";
 
 export class PayPalError extends PaymentError {
   constructor(
@@ -80,11 +85,13 @@ export type PayPalOrder = z.infer<typeof orderSchema>;
 export type PayPalCapture = z.infer<typeof capture>;
 type Dependencies = {
   fetch?: typeof fetch;
+  savedWallet?: SavedWalletConsent;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   jitter?: () => number;
 };
 export class PayPalClient {
+  #savedWallet: SavedWalletConsent | undefined;
   private token:
     | {
         value: string;
@@ -115,6 +122,8 @@ export class PayPalClient {
     )
       throw new PaymentError("INVALID_PAYPAL_CONFIGURATION");
     this.fetcher = dependencies.fetch ?? fetch;
+    this.#savedWallet =
+      dependencies.savedWallet && structuredClone(dependencies.savedWallet);
     if (
       "orderOnlyPermission" in settings &&
       settings.orderOnlyPermission &&
@@ -264,6 +273,8 @@ export class PayPalClient {
     const retries = financial ? 0 : this.settings.maxRetries;
     for (let i = 0; i <= retries; i++) {
       const token = await this.accessToken(); // Token failure precedes financial dispatch.
+      if (financial && this.#savedWallet)
+        checkSavedWalletWindow(this.#savedWallet.expiresAt, this.now());
       try {
         const response = await this.fetcher(SANDBOX_BASE_URL + path, {
           method: body === undefined ? "GET" : "POST",
@@ -336,6 +347,24 @@ export class PayPalClient {
       throw new PayPalError("PAYPAL_RESPONSE_UNCERTAIN", true);
     }
   }
+  private savedWalletSource(a: Attempt) {
+    const consent = this.#savedWallet;
+    checkSavedWalletPurchase(consent, a);
+    if (!consent) return undefined;
+    if (a.ownerId !== consent.ownerId)
+      throw new PayPalError("PAYPAL_SAVED_WALLET_BINDING_MISMATCH");
+    checkSavedWalletWindow(consent.expiresAt, this.now());
+    return {
+      paypal: {
+        vault_id: consent.vaultId,
+        stored_credential: {
+          payment_initiator: "MERCHANT",
+          usage: "SUBSEQUENT",
+          usage_pattern: consent.usagePattern,
+        },
+      },
+    };
+  }
   async createOrder(a: Attempt) {
     if (
       "captureOnlyPermission" in this.settings &&
@@ -353,6 +382,7 @@ export class PayPalClient {
       throw new PayPalError("PAYPAL_PAYMENTS_DISABLED");
     if (a.merchantId !== this.settings.merchantId)
       throw new PayPalError("PAYPAL_MERCHANT_NOT_CONFIGURED");
+    const savedWallet = this.savedWalletSource(a);
     const raw = await this.request(
       "/v2/checkout/orders",
       {
@@ -371,20 +401,22 @@ export class PayPalClient {
             },
           },
         ],
-        ...(this.settings.returnUrl && this.settings.cancelUrl
-          ? {
-              payment_source: {
-                paypal: {
-                  experience_context: {
-                    return_url: this.settings.returnUrl,
-                    cancel_url: this.settings.cancelUrl,
-                    shipping_preference: "NO_SHIPPING",
-                    user_action: "PAY_NOW",
+        ...(savedWallet
+          ? { payment_source: savedWallet }
+          : this.settings.returnUrl && this.settings.cancelUrl
+            ? {
+                payment_source: {
+                  paypal: {
+                    experience_context: {
+                      return_url: this.settings.returnUrl,
+                      cancel_url: this.settings.cancelUrl,
+                      shipping_preference: "NO_SHIPPING",
+                      user_action: "PAY_NOW",
+                    },
                   },
                 },
-              },
-            }
-          : {}),
+              }
+            : {}),
       },
       a.createRequestId,
     );
@@ -421,10 +453,11 @@ export class PayPalClient {
       throw new PayPalError("PAYPAL_PAYMENTS_DISABLED");
     if (!a.orderId || !externalIdSchema.safeParse(a.orderId).success)
       throw new PaymentError("INVALID_PAYPAL_REFERENCE");
+    const savedWallet = this.savedWalletSource(a);
     return this.financialOrder(
       await this.request(
         `/v2/checkout/orders/${a.orderId}/capture`,
-        {},
+        savedWallet ? { payment_source: savedWallet } : {},
         a.captureRequestId,
       ),
       a.orderId,

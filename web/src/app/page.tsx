@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { Dashboard } from "../components/dashboard";
+import { PublicPayPalHome } from "../components/public-paypal-pages";
 export const metadata: Metadata = {
   title: { absolute: "Workspace | Earmark PayPal" },
 };
-export default function Home() {
+export default async function Home() {
+  if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true") return <PublicPayPalHome />;
+  const { Dashboard } = await import("../components/legacy-web-profile");
   return <Dashboard />;
 }
