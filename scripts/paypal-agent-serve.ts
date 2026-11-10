@@ -118,9 +118,22 @@ async function main() {
     PAYPAL_TEST_CHECKOUT_ENABLED: "false",
     PAYPAL_TEST_US_ORDER_ONCE: "",
     PAYPAL_TEST_US_CAPTURE_ONCE: "",
-    PAYPAL_AGENT_CHECKOUT_EXECUTION: "",
-    PAYPAL_AGENT_CHECKOUT_MANDATE_ID: "",
-    PAYPAL_AGENT_BUYER_SEPARATE: "false",
+    PAYPAL_AGENT_CHECKOUT_EXECUTION:
+      process.env.PAYPAL_AGENT_CAMPAIGN === "agent-09-v1"
+        ? (process.env.PAYPAL_AGENT_CHECKOUT_EXECUTION ?? "")
+        : "",
+    PAYPAL_AGENT_CHECKOUT_MANDATE_ID:
+      process.env.PAYPAL_AGENT_CAMPAIGN === "agent-09-v1"
+        ? (process.env.PAYPAL_AGENT_CHECKOUT_MANDATE_ID ?? "")
+        : "",
+    PAYPAL_AGENT_BUYER_SEPARATE:
+      process.env.PAYPAL_AGENT_CAMPAIGN === "agent-09-v1"
+        ? (process.env.PAYPAL_AGENT_BUYER_SEPARATE ?? "false")
+        : "false",
+    PAYPAL_AGENT_CAPTURE_MANDATE_ID:
+      process.env.PAYPAL_AGENT_CAMPAIGN === "agent-09-v1"
+        ? (process.env.PAYPAL_AGENT_CAPTURE_MANDATE_ID ?? "")
+        : "",
     EARMARK_GEMINI_ENABLED: keyPresent ? "true" : "false",
     AI_ENABLE_NETWORK: keyPresent ? "true" : "false",
     EARMARK_ENABLE_TESTNET_EXECUTION: "false",

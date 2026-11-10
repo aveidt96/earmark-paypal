@@ -27,11 +27,13 @@ function required<T>(value: T | null | undefined): T {
 }
 
 /** All Gemini and PayPal transport is mocked; LIVE_GOOGLE_API is simulated stored provenance. No DB. */
-async function integrated() {
+async function integrated(
+  campaign: "agent-05d-v1" | "agent-09-v1" = "agent-05d-v1",
+) {
   const model = agentPreparationFixture();
   const config = agentCheckoutConfig({
     ...model.env,
-    PAYPAL_AGENT_CAMPAIGN: "agent-05d-v1",
+    PAYPAL_AGENT_CAMPAIGN: campaign,
   });
   const base = await checkoutFixture();
   base.memory.now = model.now;
@@ -54,7 +56,10 @@ async function integrated() {
   };
   const env = {
     ...agentModelEnv,
-    PAYPAL_AGENT_CHECKOUT_EXECUTION: "task05d-one-synthetic-checkout",
+    PAYPAL_AGENT_CHECKOUT_EXECUTION:
+      campaign === "agent-09-v1"
+        ? "task09-one-sandbox-checkout"
+        : "task05d-one-synthetic-checkout",
     PAYPAL_AGENT_CHECKOUT_MANDATE_ID: mandate.id,
     PAYPAL_AGENT_BUYER_SEPARATE: "true",
   };
@@ -145,6 +150,39 @@ describe("Task05D owner-authorized agent checkout (offline mocks only)", () => {
     ),
   );
   afterEach(() => vi.unstubAllGlobals());
+  it("allows one fresh owner-approved Sandbox order, but requires a separate capture opt-in", async () => {
+    const t = await integrated("agent-09-v1");
+    expect(t.mandate.id).not.toBe(
+      agentCheckoutMandateId({ ...t.config, campaign: "agent-05d-v1" }),
+    );
+    expect((await t.call("evaluate")).status).toBe(200);
+    const created = await t.call("authorize-order");
+    expect(created.status).toBe(200);
+    expect(await created.json()).toMatchObject({
+      orderCreationEnabled: true,
+      captureEnabled: false,
+      payment: { attempt: { state: "AWAITING_APPROVAL" } },
+    });
+    expect((await t.call("authorize-order")).status).toBe(200);
+    expect(t.gateway().createOrder).toHaveBeenCalledTimes(1);
+    const attempt = required([...t.memory.attempts.values()][0]);
+    t.approve(attempt);
+    expect((await t.call("capture")).ok).toBe(false);
+    expect(t.gateway().captureOrder).not.toHaveBeenCalled();
+    const optedIn = new AgentCheckoutPaymentService(
+      t.config,
+      t.prepared,
+      t.repository,
+      { ...t.env, PAYPAL_AGENT_CAPTURE_MANDATE_ID: t.mandate.id },
+      () => t.memory.now,
+      t.gateway,
+    );
+    await optedIn.action(
+      t.auth.principal(t.auth.authenticate(t.request("capture"))),
+      "capture",
+    );
+    expect(t.gateway().captureOrder).toHaveBeenCalledTimes(1);
+  });
   it("connects six mocked native turns to one owner order, human approval, capture and accounting", async () => {
     const t = await integrated();
     const historical = { ...t.model.mandate, reservedMinor: "600" };

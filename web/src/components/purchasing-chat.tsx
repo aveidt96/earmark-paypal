@@ -37,12 +37,19 @@ const researchExample =
 export function PurchasingChat({
   onEvaluation,
   judgeSandbox = false,
+  publicResearch = false,
 }: {
   onEvaluation?: (result: PurchasingChatResult | null) => void;
   judgeSandbox?: boolean;
+  publicResearch?: boolean;
 }) {
   const id = useId();
   const [instruction, setInstruction] = useState("");
+  const [budget, setBudget] = useState("10.00");
+  const budgetMinor = /^\d{1,2}(?:\.\d{1,2})?$/.test(budget)
+    ? Math.round(Number(budget) * 100)
+    : 0;
+  const validBudget = budgetMinor >= 1 && budgetMinor <= 1000;
   const [submitted, setSubmitted] = useState("");
   const [password, setPassword] = useState("");
   const [csrf, setCsrf] = useState("");
@@ -52,7 +59,7 @@ export function PurchasingChat({
   const [judgeMode, setJudgeMode] = useState<"policy" | "gemini" | "discovery">(
     judgeSandbox ? "policy" : "gemini",
   );
-  const researching = judgeMode === "discovery";
+  const researching = publicResearch || judgeMode === "discovery";
   const [busy, setBusy] = useState(false);
   const [authenticating, setAuthenticating] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +68,7 @@ export function PurchasingChat({
   const pending = useRef(false);
 
   useEffect(() => {
+    if (publicResearch) return;
     const controller = new AbortController();
     void fetch(
       judgeSandbox ? "/api/judge-sandbox" : "/api/paypal/agent-checkout/chat",
@@ -88,10 +96,10 @@ export function PurchasingChat({
         if (!controller.signal.aborted) setError("CHAT_UNAVAILABLE");
       });
     return () => controller.abort();
-  }, [judgeSandbox]);
+  }, [judgeSandbox, publicResearch]);
 
   async function submit(login: boolean) {
-    if (pending.current) return;
+    if (pending.current || (publicResearch && !validBudget)) return;
     pending.current = true;
     setBusy(true);
     setAuthenticating(login);
@@ -100,30 +108,34 @@ export function PurchasingChat({
     setDiscovery(null);
     onEvaluation?.(null);
     if (!login) setSubmitted(instruction);
-    const payload = judgeSandbox
-      ? login
-        ? { action: "login", password }
-        : { action: "evaluate", mode: judgeMode, instruction }
-      : login
-        ? { password }
-        : researching
-          ? { instruction, mode: "discovery" }
-          : { instruction };
+    const payload = publicResearch
+      ? { instruction, budgetMinor }
+      : judgeSandbox
+        ? login
+          ? { action: "login", password }
+          : { action: "evaluate", mode: judgeMode, instruction }
+        : login
+          ? { password }
+          : researching
+            ? { instruction, mode: "discovery" }
+            : { instruction };
     setPassword("");
     try {
       const response = await fetch(
-        judgeSandbox
-          ? "/api/judge-sandbox"
-          : `/api/paypal/agent-checkout/${login ? "login" : "chat"}`,
+        publicResearch
+          ? "/api/paypal/research"
+          : judgeSandbox
+            ? "/api/judge-sandbox"
+            : `/api/paypal/agent-checkout/${login ? "login" : "chat"}`,
         {
           method: "POST",
           credentials:
-            judgeSandbox && !login && judgeMode === "policy"
+            publicResearch || (judgeSandbox && !login && judgeMode === "policy")
               ? "omit"
               : "same-origin",
           headers: {
             "Content-Type": "application/json",
-            "X-Earmark-CSRF": csrf,
+            ...(publicResearch ? {} : { "X-Earmark-CSRF": csrf }),
           },
           body: JSON.stringify(payload),
         },
@@ -175,9 +187,11 @@ export function PurchasingChat({
           </svg>
         </span>
         <h3>
-          {judgeSandbox
-            ? "Judge purchasing sandbox"
-            : "Gemini purchasing assistant"}
+          {publicResearch
+            ? "Real merchant research"
+            : judgeSandbox
+              ? "Judge purchasing sandbox"
+              : "Gemini purchasing assistant"}
         </h3>
         <Badge>
           {judgeSandbox && judgeMode === "policy"
@@ -272,7 +286,7 @@ export function PurchasingChat({
             </Button>
           </form>
         )}
-      {PUBLIC_DEMO_ONLY && !csrf && !judgeSandbox && (
+      {PUBLIC_DEMO_ONLY && !csrf && !judgeSandbox && !publicResearch && (
         <p>
           Live chat is disabled in this read-only public preview. Use the
           authenticated local agent profile for a separately authorized live
@@ -310,18 +324,25 @@ export function PurchasingChat({
       <div className="chat-response" aria-busy={busy} aria-live="polite">
         {error && (
           <p role="alert">
-            {Object.hasOwn(judgeErrors, error)
-              ? judgeErrors[error]
-              : researching
-                ? "Online research couldn’t finish"
-                : "The evaluation couldn’t finish"}
+            {error === "PUBLIC_RESEARCH_LIMIT_REACHED"
+              ? "The daily research limit has been reached. Try again tomorrow (UTC)"
+              : error === "INVALID_RESEARCH_REQUEST"
+                ? "Use a product or service request without personal details or credentials"
+                : Object.hasOwn(judgeErrors, error)
+                  ? judgeErrors[error]
+                  : researching
+                    ? "Online research couldn’t finish"
+                    : "The evaluation couldn’t finish"}
             . No purchase intent or payment was created.
           </p>
         )}
         {discovery && (
           <OfferDiscovery
             result={discovery}
-            assistedCheckout={!judgeSandbox && Boolean(csrf)}
+            assistedCheckout={
+              publicResearch || (!judgeSandbox && Boolean(csrf))
+            }
+            officialSourceOnly={publicResearch}
           />
         )}
         {result && (
@@ -460,10 +481,30 @@ export function PurchasingChat({
               : "Compare approved synthetic weather-data offers within my budget…"
           }
         />
+        {publicResearch && (
+          <>
+            <label htmlFor={`${id}-budget`}>Demo budget (USD)</label>
+            <input
+              id={`${id}-budget`}
+              type="number"
+              min="0.01"
+              max="10"
+              step="0.01"
+              required
+              disabled={busy}
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+            />
+            <small>
+              Up to $10. Used to compare offers. No funds are set aside.
+            </small>
+          </>
+        )}
         <div>
           <small>
-            Leave out personal details and credentials. Chat never authorizes
-            payment.
+            {publicResearch
+              ? "Your request goes to search and AI providers. Leave out personal details and credentials."
+              : "Leave out personal details and credentials. Chat never authorizes payment."}
           </small>
           <Button
             type="button"
@@ -479,7 +520,9 @@ export function PurchasingChat({
             type="submit"
             disabled={
               busy ||
-              (!csrf && !(judgeSandbox && judgeMode === "policy")) ||
+              (publicResearch
+                ? !validBudget
+                : !csrf && !(judgeSandbox && judgeMode === "policy")) ||
               !instruction.trim()
             }
           >

@@ -25,6 +25,7 @@ import {
 } from "./postgres";
 import {
   AgentCheckoutPaymentService,
+  isAgentPaymentCampaign,
   type AgentPaymentAction,
 } from "./agent-checkout-payment";
 
@@ -78,7 +79,7 @@ export function getAgentCheckoutRuntime(): AgentCheckoutRuntime {
                 process.env,
                 undefined,
                 Date.now,
-                config.campaign === "agent-05d-v1"
+                isAgentPaymentCampaign(config)
                   ? new AgentCheckoutPaymentService(
                       config,
                       repository,
@@ -284,7 +285,7 @@ export async function handleAgentCheckout(
     const paymentAction = ["authorize-order", "capture", "reconcile"].includes(
       action,
     );
-    if (paymentAction && services.auth.config.campaign !== "agent-05d-v1")
+    if (paymentAction && !isAgentPaymentCampaign(services.auth.config))
       throw new PaymentError("AGENT_PAYMENT_EXECUTION_DISABLED");
     const service = await services.checkout(),
       actor = services.auth.principal(session);

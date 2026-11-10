@@ -12,6 +12,7 @@ export type LocalOwnerAuthConfig = {
     | "agent-05a"
     | "agent-05c-v1"
     | "agent-05d-v1"
+    | "agent-09-v1"
     | "judge-sandbox";
   origin: string;
   ownerId: string;
@@ -68,6 +69,8 @@ export class TestOwnerAuth<
   private get cookieName() {
     if (this.config.campaign === "judge-sandbox")
       return "earmark_judge_session";
+    if (this.config.campaign === "agent-09-v1")
+      return "earmark_paypal_agent_09_v1_session";
     if (this.config.campaign === "agent-05d-v1")
       return "earmark_paypal_agent_05d_v1_session";
     if (this.config.campaign === "agent-05c-v1")

@@ -27,7 +27,7 @@ import { PostgresPaymentRepository } from "./postgres";
 /** Durable preparation metadata uses the existing append-only audit table, never a financial attempt. */
 export class PostgresAgentCheckoutRepository implements AgentCheckoutRepository {
   private readonly mandateId: string;
-  private readonly prefix: "AGENT05A" | "AGENT05C" | "AGENT05D";
+  private readonly prefix: "AGENT05A" | "AGENT05C" | "AGENT05D" | "AGENT09";
   private readonly namespace: string;
   constructor(
     readonly pool: Pool,
@@ -35,11 +35,13 @@ export class PostgresAgentCheckoutRepository implements AgentCheckoutRepository 
   ) {
     this.mandateId = agentCheckoutMandateId(config);
     this.prefix =
-      config.campaign === "agent-05d-v1"
-        ? "AGENT05D"
-        : config.campaign === "agent-05c-v1"
-          ? "AGENT05C"
-          : "AGENT05A";
+      config.campaign === "agent-09-v1"
+        ? "AGENT09"
+        : config.campaign === "agent-05d-v1"
+          ? "AGENT05D"
+          : config.campaign === "agent-05c-v1"
+            ? "AGENT05C"
+            : "AGENT05A";
     this.namespace = config.campaign.replace("agent-", "agent");
   }
   private owner(actor: Principal) {

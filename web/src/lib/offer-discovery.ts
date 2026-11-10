@@ -80,6 +80,7 @@ export interface DiscoveredOffer {
   paypalEvidence: string | null;
   paypalSourceUrl?: string | null;
   sources: Array<{ url: string; cited: boolean }>;
+  officialMerchantUrl?: string | null;
   factStatus: "claimed" | "unknown";
   pricing: {
     status: "source-matched" | "conflicting" | "unknown";
