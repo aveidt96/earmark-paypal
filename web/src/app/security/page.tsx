@@ -1,29 +1,19 @@
 import type { Metadata } from "next";
-import { PayPalAgentConsole } from "../../components/paypal-agent-console";
-import { PAYPAL_CORE_DEMO_SCENARIOS } from "../../lib/paypal-agent";
+import { PublicPayPalStatusPage } from "../../components/public-paypal-pages";
 export const metadata: Metadata = {
-  title: { absolute: "Security Demos | Earmark PayPal" },
+  title:
+    process.env.NEXT_PUBLIC_DEMO_ONLY === "true"
+      ? "Policies"
+      : "Security Demos",
 };
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{ scenario?: string; scene?: string }>;
 }) {
-  const params = await searchParams;
   if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true")
-    return (
-      <main id="main" className="demo-workspace">
-        <PayPalAgentConsole
-          initialScenarioId={
-            PAYPAL_CORE_DEMO_SCENARIOS.find(
-              (scenario) =>
-                scenario.code === params.scenario ||
-                scenario.label.split(" — ")[0] === params.scenario,
-            )?.id ?? "normal"
-          }
-        />
-      </main>
-    );
+    return <PublicPayPalStatusPage view="policy" />;
+  const params = await searchParams;
   const { SecurityDemos } = await import("../../components/legacy-web-profile");
   return (
     <SecurityDemos

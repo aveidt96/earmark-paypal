@@ -91,6 +91,16 @@ try {
       page.locator('a[href="/resolve"], a[href="/mandates/new"]'),
     ).toHaveCount(0);
   }
+  async function assertResearchOnly() {
+    await expect(page.locator("body")).not.toContainText(
+      /\bSandbox\b|synthetic offers|Policy demo|Live Gemini chat|mock planner/i,
+    );
+    await expect(
+      page.locator(
+        ".norway-sandbox, .norway-recorded-receipt, .norway-recent-card",
+      ),
+    ).toHaveCount(0);
+  }
   // Smoke verification cannot call external services or submit mutations.
   await page.route("**/*", (route) => {
     const request = route.request();
@@ -165,6 +175,11 @@ try {
   await expect(
     page.getByRole("region", { name: "Real merchant research budget" }),
   ).toBeVisible();
+  await assertResearchOnly();
+  await expect(page.getByLabel("Budget (USD)")).toHaveValue("");
+  await expect(
+    page.getByRole("region", { name: "Real merchant research budget" }),
+  ).not.toContainText(/\$\d/);
   await expect(
     page.getByText("Independent policy simulation · synthetic catalog"),
   ).toHaveCount(0);
@@ -180,6 +195,7 @@ try {
     ).toBeVisible();
     await expect(page.getByRole("main")).toBeVisible();
     await assertPayPalOnly();
+    if (path !== "/judge") await assertResearchOnly();
     if (
       [
         "/mandates",
@@ -199,6 +215,7 @@ try {
     await page.goto(origin + path);
     await expect(page.getByRole("main")).toBeVisible();
     await assertPayPalOnly();
+    if (path !== "/judge") await assertResearchOnly();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -221,7 +238,8 @@ try {
     page.getByRole("article", { name: "Embedded purchase proposal" }),
   ).toContainText("Human authorization required");
   mkdirSync(new URL("../.tools/", import.meta.url), { recursive: true });
-  // Check the whole Chat page, not just a crop inside the legacy console.
+  // Check the public Norway layout separately from the Judge console.
+  await page.goto(origin);
   for (const [width, height] of [
     [1440, 900],
     [1280, 800],
@@ -248,8 +266,6 @@ try {
         chat: rect(".purchasing-chat"),
         budget: rect(".norway-budget"),
         policy: rect(".norway-policy-rail"),
-        merchant: rect(".norway-merchant-name"),
-        price: rect(".norway-price"),
         overflow: document.documentElement.scrollWidth > innerWidth,
       };
     });
@@ -260,12 +276,6 @@ try {
       `Norway ${width}px: assistantTop=${Math.round(geometry.chat.top)}, budgetTop=${Math.round(geometry.budget.top)}, overflow=${geometry.overflow}`,
     );
     expect(geometry.overflow).toBe(false);
-    if (
-      geometry.merchant.top < geometry.price.bottom &&
-      geometry.merchant.bottom > geometry.price.top
-    ) {
-      expect(geometry.merchant.right).toBeLessThanOrEqual(geometry.price.left);
-    }
     if (width >= 1024) expect(geometry.primary.top).toBeLessThan(60);
     else expect(geometry.primary.top - geometry.nav.bottom).toBeLessThan(32);
     await expect(page.locator(".workspace-intro")).toBeHidden();
@@ -294,10 +304,13 @@ try {
   }
   await page.goto(`${origin}/mandates`);
   await expect(page.locator(".norway-legacy-label")).toBeHidden();
-  await expect(page.locator(".norway-recorded-receipt")).toBeVisible();
-  // The former legacy intro URL now opens the same PayPal Policies page.
+  await assertResearchOnly();
+  // Public Policies explains the review checks. Recorded evidence is on Judge.
   await page.goto(`${origin}/security?scene=intro`);
   await assertPayPalOnly();
+  await assertResearchOnly();
+  await expect(page.getByRole("heading", { name: "Policies" })).toBeVisible();
+  await page.goto(`${origin}/judge`);
   await expect(page.getByTestId("paypal-completed-receipt")).toContainText(
     "6U113515L79775315",
   );
@@ -313,7 +326,6 @@ try {
       .evaluate((element) => getComputedStyle(element).fontWeight),
   ).toBe("600");
   // Exercise actual judge requests on the dedicated route.
-  await page.goto(`${origin}/judge`);
   await page
     .getByRole("button", { name: "Judge sandbox", exact: true })
     .click();
@@ -410,7 +422,7 @@ try {
   ).toBe(false);
   await chat.screenshot({ path: `${root}.tools/task07i-judge-mobile.png` });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(`${origin}/security`);
+  await page.goto(`${origin}/judge`);
   // Browser-only interception. No chat POST or owner credential reaches the server.
   // Full native tool/guard/policy integration is covered by paypal-agent-chat.test.ts.
   const fixture = await (

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { PublicPayPalHome } from "../components/public-paypal-pages";
 export const metadata: Metadata = {
-  title: { absolute: "Workspace | Earmark PayPal" },
+  title:
+    process.env.NEXT_PUBLIC_DEMO_ONLY === "true"
+      ? "Merchant research"
+      : "Workspace",
 };
 export default async function Home() {
   if (process.env.NEXT_PUBLIC_DEMO_ONLY === "true") return <PublicPayPalHome />;

@@ -5,6 +5,11 @@ import { ThemeProvider } from "../components/theme-provider";
 import { themeBootstrap } from "../lib/theme";
 import "./globals.css";
 import "./norway.css";
+
+const publicMode = process.env.NEXT_PUBLIC_DEMO_ONLY === "true";
+const researchDescription =
+  "Compare real merchant offers, review source evidence, and plan purchases within a research budget.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.FLINT_WEB_ORIGIN ??
@@ -17,14 +22,16 @@ export const metadata: Metadata = {
     template: "%s | Earmark PayPal",
   },
   applicationName: "Earmark PayPal",
-  description:
-    "Purpose-bound authorization for AI agents, with a separate controlled buyer-approved Sandbox checkout and preserved legacy security demonstrations.",
+  description: publicMode
+    ? researchDescription
+    : "Purpose-bound authorization for AI agents, with a separate controlled buyer-approved Sandbox checkout and preserved legacy security demonstrations.",
   openGraph: {
     type: "website",
     siteName: "Earmark PayPal",
     title: "Earmark PayPal — Every payment has a purpose.",
-    description:
-      "Task-scoped spending authority for AI agents. PayPal Sandbox integration in preparation; original Earmark demonstrations preserved.",
+    description: publicMode
+      ? researchDescription
+      : "Task-scoped spending authority for AI agents. PayPal Sandbox integration in preparation; original Earmark demonstrations preserved.",
   },
   twitter: {
     card: "summary_large_image",
@@ -35,10 +42,9 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const legacy =
-    process.env.NEXT_PUBLIC_DEMO_ONLY === "true"
-      ? null
-      : await import("../components/legacy-web-profile");
+  const legacy = publicMode
+    ? null
+    : await import("../components/legacy-web-profile");
   const WorkspaceProvider = legacy?.WorkspaceProvider;
   const Navigation = legacy?.Navigation;
   const Notices = legacy?.Notices;
@@ -51,10 +57,10 @@ export default async function RootLayout({
         {Navigation ? <Navigation /> : <PublicPayPalNavigation />}
         <p
           className="notice workspace-mode-notice"
-          data-public-demo={process.env.NEXT_PUBLIC_DEMO_ONLY === "true"}
+          data-public-demo={publicMode}
           role="status"
         >
-          {process.env.NEXT_PUBLIC_DEMO_ONLY === "true" ? (
+          {publicMode ? (
             <>
               <span className="classic-label">
                 Earmark PayPal · Merchant research and budget review. Payment
@@ -72,13 +78,20 @@ export default async function RootLayout({
         {children}
         <footer className="workspace-footer">
           <Brand />
-          <p>Purpose-bound payments for autonomous agents.</p>
-          <span>PayPal AI Hackathon · Sandbox integration in preparation.</span>
-          <span>
-            The agent chooses. The mandate constrains. Delivery settles.
-          </span>
-          {legacy && (
+          {publicMode ? (
             <>
+              <p>Compare merchant offers and review the evidence.</p>
+              <span>Payment execution is disabled.</span>
+            </>
+          ) : (
+            <>
+              <p>Purpose-bound payments for autonomous agents.</p>
+              <span>
+                PayPal AI Hackathon · Sandbox integration in preparation.
+              </span>
+              <span>
+                The agent chooses. The mandate constrains. Delivery settles.
+              </span>
               <span>
                 Legacy demonstration payments use local or testnet mock assets.
                 Recorded demos use a deterministic mock agent and simulated

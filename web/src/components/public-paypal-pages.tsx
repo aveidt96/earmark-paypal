@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brand } from "./glass";
+import { Brand, Panel } from "./glass";
 import { PayPalResearchConsole } from "./paypal-agent-console";
-import { RecordedPayPalCard } from "./recorded-paypal-card";
 import { ThemeSelector, useTheme } from "./theme-provider";
 
 const links = [
@@ -45,12 +44,6 @@ export function PublicPayPalNavigation() {
       <div className="nav-actions">
         <ThemeSelector />
       </div>
-      {preference === "norway" && (
-        <div className="norway-sandbox">
-          <span>SANDBOX</span>
-          <p>Research merchant offers. Payment execution is disabled.</p>
-        </div>
-      )}
     </header>
   );
 }
@@ -63,30 +56,42 @@ export function PublicPayPalHome() {
   );
 }
 
-const receiptPages = {
-  mandate: ["Mandates", "Recorded Sandbox spending limits and accounting."],
-  payment: ["Purchases", "Historical PayPal Sandbox payment evidence."],
+const statusPages = {
+  mandate: [
+    "Mandates",
+    "Your research budget compares offers. It does not authorize spending.",
+  ],
+  payment: [
+    "Purchases",
+    "Payment execution is disabled. Any purchase takes place on the official merchant site.",
+  ],
   activity: [
     "Activity",
-    "Recorded authorization, approval and capture stages.",
+    "Research and manual checkout selections stay in this session. They do not create payment records.",
+  ],
+  policy: [
+    "Policies",
+    "Each offer is checked against source evidence and your research budget. Discovered merchants cannot be paid through Earmark.",
   ],
 } as const;
 
-export function PublicPayPalReceiptPage({
+export function PublicPayPalStatusPage({
   view,
 }: {
-  view: keyof typeof receiptPages;
+  view: keyof typeof statusPages;
 }) {
-  const [title, description] = receiptPages[view];
+  const [title, description] = statusPages[view];
   return (
     <main id="main" className="page-shell">
       <div className="page-heading">
         <div>
           <h1>{title}</h1>
-          <p>{description}</p>
         </div>
       </div>
-      <RecordedPayPalCard view={view} />
+      <Panel>
+        <p>{description}</p>
+        <Link href="/">Back to merchant research</Link>
+      </Panel>
     </main>
   );
 }

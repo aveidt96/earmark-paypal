@@ -93,18 +93,22 @@ function PurchasingConversation({
                   : "Completed"}
             </Badge>
           </div>
-          {chatMode && !judgeSandbox ? (
+          {publicResearch ? (
+            <div className="norway-budget-main">
+              <strong>Set a budget</strong>
+              <p>
+                Compare offers within your limit. This does not authorize
+                spending.
+              </p>
+            </div>
+          ) : chatMode && !judgeSandbox ? (
             <div className="norway-budget-main">
               <strong>
-                $10.00{" "}
-                <span>
-                  {publicResearch ? "research ceiling" : "evaluation ceiling"}
-                </span>
+                $10.00 <span>evaluation ceiling</span>
               </strong>
               <p>
-                {publicResearch
-                  ? "Set your budget in chat. Offers are for manual review."
-                  : "Synthetic proposals have a $6 purchase cap. Live research is review only."}
+                Synthetic proposals have a $6 purchase cap. Live research is
+                review only.
               </p>
             </div>
           ) : (
@@ -369,23 +373,25 @@ function PurchasingConversation({
             </details>
           )}
         </section>
-        <section className="norway-recent-card">
-          <div className="norway-card-heading">
-            <h2>Recent activity</h2>
-            <a href="/activity">View all</a>
-          </div>
-          <div className="norway-recent-item">
-            <Icon name="shield" />
-            <div>
-              <strong>Gemini + PayPal Sandbox</strong>
-              <p>Completed · 31 Oct 2026</p>
+        {!publicResearch && (
+          <section className="norway-recent-card">
+            <div className="norway-card-heading">
+              <h2>Recent activity</h2>
+              <a href="/activity">View all</a>
             </div>
-            <span>$6.00</span>
-          </div>
-          <p className="micro">
-            Verified Task 05J receipt · recorded, never replayed.
-          </p>
-        </section>
+            <div className="norway-recent-item">
+              <Icon name="shield" />
+              <div>
+                <strong>Gemini + PayPal Sandbox</strong>
+                <p>Completed · 31 Oct 2026</p>
+              </div>
+              <span>$6.00</span>
+            </div>
+            <p className="micro">
+              Verified Task 05J receipt · recorded, never replayed.
+            </p>
+          </section>
+        )}
         <section className="norway-trust">
           <h3>
             <Icon name="shield" /> Private by design

@@ -86,7 +86,7 @@ export function PurchasingChat({
 }) {
   const id = useId();
   const [instruction, setInstruction] = useState("");
-  const [budget, setBudget] = useState("10.00");
+  const [budget, setBudget] = useState("");
   const budgetMinor = /^\d{1,2}(?:\.\d{1,2})?$/.test(budget)
     ? Math.round(Number(budget) * 100)
     : 0;
@@ -287,8 +287,8 @@ export function PurchasingChat({
       )}
       {researching && (
         <p>
-          Include a product, USD limit up to $10, and billing period. Ask for
-          delivery or PayPal evidence if it matters.
+          Describe the product or service and its billing period. Ask for
+          delivery or payment-method evidence if it matters.
         </p>
       )}
       {((judgeSandbox && localGeminiAvailable) || localDiscoveryAvailable) && (
@@ -567,7 +567,7 @@ export function PurchasingChat({
               value={budget}
               onChange={(event) => setBudget(event.target.value)}
             />
-            <small>Up to $10 for offer comparison.</small>
+            <small>Up to $10 for comparison only. No funds are reserved.</small>
           </>
         )}
         <div>

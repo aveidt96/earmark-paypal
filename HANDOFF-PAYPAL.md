@@ -7331,3 +7331,54 @@ Next.js build completed strict TypeScript checking, static generation of 16
 pages and route tracing. The 48-chunk browser boundary scan passed. The
 atomic quota SQL matched main exactly. Validation used offline fixtures.
 GitHub main still matched the release base at the pre-push check.
+
+
+### 2026-11-11 — Norway Production UI integration on current main
+
+Verified `origin` as `https://github.com/aveidt96/earmark-paypal.git` and
+fetched `main` at `1dded523c7caf72417197098185282785a1ce954`. This revision
+contains the research route and the deployed eight-second quota diagnostics.
+The previous local candidate was based on `9bd3343`, the older checkpoint
+that lacked the route. GitHub main has since been synchronized.
+
+Integrated the approved files in `.tools/task09-quota` after matching every
+reviewed before-and-after blob hash against current main and the saved UI
+review. The research route, quota implementation and tests, Norway CSS,
+provider and financial code, and dependency files match current main.
+The manifest is scoped to the UI correction and its browser coverage.
+
+- `web/next.config.ts`, `web/src/app/page.tsx`, `web/src/app/layout.tsx`,
+  and `web/src/lib/paypal-agent.ts` select the public Norway experience
+  for Vercel Production and enforce the compiled public restrictions.
+- `web/src/components/public-paypal-pages.tsx`,
+  `web/src/components/paypal-agent-console.tsx`, and
+  `web/src/components/purchasing-chat.tsx` retain the approved layout and
+  show a blank comparison budget, merchant research, and payment status.
+- `web/src/app/mandates/page.tsx`, `web/src/app/activity/page.tsx`,
+  `web/src/app/payments/page.tsx`, `web/src/app/security/page.tsx`, and
+  `web/src/app/paypal-test/page.tsx` use public status pages.
+  `web/src/app/judge/page.tsx` presents the separate policy scenarios and
+  historical evidence in the existing demo layout.
+- `scripts/preview-smoke.mjs` verifies public research and Judge isolation.
+  `HANDOFF-PAYPAL.md` records the integration and verification.
+
+Combined validation is running with provider traffic blocked. It uses the
+locked workspace dependencies already installed in the isolated checkout.
+The reviewed candidate and paused work remain in their original locations.
+
+Combined validation passed on Node 22.14.0. All 174 focused tests across
+eight suites, workspace and API TypeScript checks, formatting, and
+zero-warning lint passed. The Production Next.js build passed compilation,
+strict TypeScript, static generation of 16 pages, and route tracing.
+Vercel Production compiled public mode true with the deliberately false
+test flag. The research route remains a 60-second Node function and the
+48-chunk browser boundary check passed.
+
+The existing Chromium smoke passed across eight pages, three legacy-route
+denials, both themes, five viewport widths, and four Judge scenarios.
+It checked the research POST and Not paid handoff with offline fixtures.
+Browser exceptions, external requests, legacy API requests, and wallet
+probes were zero. There were no live provider or financial operations.
+The ignored `.tools/production-smoke.mjs` copy in the isolated checkout
+uses a 90-second navigation timeout. Browser screenshots and build outputs
+are local-only.

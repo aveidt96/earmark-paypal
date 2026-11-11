@@ -189,6 +189,7 @@ export function isPublicDemoOnly(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   return (
+    PUBLIC_DEMO_ONLY ||
     env.NEXT_PUBLIC_DEMO_ONLY === "true" ||
     env.EARMARK_PUBLIC_DEMO_ONLY === "true"
   );
