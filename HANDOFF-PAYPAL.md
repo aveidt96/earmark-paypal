@@ -7382,3 +7382,163 @@ probes were zero. There were no live provider or financial operations.
 The ignored `.tools/production-smoke.mjs` copy in the isolated checkout
 uses a 90-second navigation timeout. Browser screenshots and build outputs
 are local-only.
+
+### 2026-11-11 — Merchant research suitability and verified checkout navigation
+
+The local review candidate is based on fetched `origin/main` at
+`9cf3647039cf1c4df1c2fdfb2f87967147ebec01`, in the existing isolated checkout
+under `.tools/task09-quota`. The working release and paused Lambda changes in
+the primary checkout remain separate. Publication requires review of this diff.
+
+- `web/src/components/offer-discovery.tsx` uses research suitability in the
+  Norway cards, shows separately sourced price, billing period, features and
+  PayPal evidence, and states the external payment limitation once per result.
+  Manual review and rejection remain available. Approval remains session-only
+  and explicitly not paid. Checkout and plan links require cited safe HTTPS
+  destinations. Approval is disabled when neither destination is available.
+- `web/src/components/purchasing-chat.tsx` uses the same verified destination
+  rules for public and owner research. `web/src/components/paypal-agent-console.tsx`
+  removes redundant public payment notices from the rail. The Judge UI
+  continues to omit manual checkout controls.
+- `web/src/lib/offer-discovery.ts` adds optional checkout, feature and billing
+  evidence to the research result and validates public plan checkout selectors.
+  `web/src/server/paypal/offer-discovery.ts` asks for checkout evidence in the
+  existing offer search and independently matches the retrieved title, merchant
+  host and exact plan selector. It requires a cited merchant plan or pricing
+  page and uses that page as the fallback. Generic, third-party, session-bound,
+  redirect and ambiguous URLs do not qualify for direct checkout. Explicit
+  named-tier feature and billing evidence can be shown with an unknown price.
+  The two Tavily/one Gemini budget and independent merchant and mandate policy
+  remain in place. No external offer gains payment authorization.
+- `web/test/offer-discovery.test.ts` covers exact-tier checkout and unsafe or
+  unrelated destinations, independent billing and feature evidence, unknown
+  PayPal acceptance, and the no-payment result. `scripts/preview-smoke.mjs`
+  checks both destination types, safe new-tab attributes, local approval and
+  rejection, and the absence of financial mutation requests.
+
+The local checks use offline provider fixtures. Source matching does not
+establish current merchant availability, checkout completion, or PayPal
+acceptance. No live provider, merchant, or payment operations were performed.
+
+Validation on Node 22.14.0 passed: 87 focused tests in discovery (including
+public research quota and route checks), Judge, and PayPal agent payment
+suites. Workspace/API TypeScript and the final Next.js production build passed,
+including TypeScript, 16 static pages, and route tracing. Prettier, zero-warning
+Biome lint, browser boundary (48 chunks), changed-line credential-pattern scan,
+and diff whitespace checks passed. Initial checks caught an optional fixture
+prop, an unused type import and a handoff trailing blank line. All were corrected.
+
+Chromium passed on the production build using offline fixtures and the
+existing ignored runner copy with a 90-second navigation timeout. It verified
+eight PayPal routes, three legacy denials, both themes, five widths and four
+Judge scenarios. It checked exact checkout and pricing destinations at 1440
+and 390 pixels, the Not paid state, rejection, and that the only mutation
+requests were the intercepted research POSTs. Browser exceptions, external
+requests, legacy API requests and wallet probes were zero.
+
+No files were staged or committed. No push or deployment was performed.
+
+### 2026-11-11 — Production research deadlines, budget and Norway spacing
+
+The local review candidate extends the unpublished merchant-checkout changes
+on main's `9cf3647` baseline in `.tools/task09-quota`. The primary checkout's
+paused Lambda work remains separate.
+
+- `web/src/server/paypal/public-research.ts` validates integer research cents
+  before quota admission. It sets a 55-second deadline from handler entry
+  under the existing 60-second Vercel route limit and maps provider-stage
+  failures to safe public errors. The 8-second quota deadline, accounting,
+  origin rules and provider request counts are unchanged.
+- `web/src/server/paypal/offer-discovery.ts` gives the initial Tavily search
+  up to 16 seconds, Gemini up to 32 seconds from the remaining deadline with
+  12 seconds reserved for the final payment-evidence search, and that final
+  search up to 16 seconds. The prior Task 07P-T2 lookup took 9,851 ms to
+  headers. No provider retries or unverified fallback results were added.
+  Failure logs contain only the stage, classification, elapsed
+  time, timer limit and provider HTTP status if available.
+- `web/src/lib/offer-discovery.ts`, `web/src/components/purchasing-chat.tsx`
+  and the research API/boundary accept USD 0.01 through USD 100,000.00 in
+  exact cents. Gemini and offer comparison receive the selected amount. An
+  explicit smaller instruction ceiling can still narrow the comparison.
+  The Judge and owner-local defaults and all financial policies are unchanged.
+- `web/src/components/offer-discovery.tsx` and `web/src/app/norway.css` group
+  card evidence, selected budget, price, billing, sources and review actions
+  with public-research-only spacing. Suitability, verified merchant links,
+  the compact unavailable-payment notice and the Not paid state remain.
+- Public headings, research results, timeout copy and privacy text use
+  Earmark AI. `web/src/components/paypal-agent-console.tsx` and
+  `web/src/components/agent-checkout.tsx` update visible attribution without
+  changing the provider pipeline, evidence citations or Judge behavior.
+- `web/test/offer-discovery.test.ts` exercises exact outbound and comparison
+  budgets, each provider timeout, upstream 504 classification and shared
+  deadline math. `scripts/preview-smoke.mjs` covers larger desktop/mobile
+  budgets and preserves the existing payment and Judge checks.
+
+The old app mapped provider aborts from all three 16-second stages to
+`MODEL_TIMEOUT`. It also used the same UI text for a hosting HTTP 504.
+The linked Vercel Production log read returned no matching runtime or request
+records in the available 45-minute window, and a 24-hour query exceeded
+retention. The original incident cannot be assigned to a provider from that
+evidence. After publication, filter `/api/paypal/research` for
+`public-research: provider stage failed` to see the stage and classification.
+
+Remote main was verified read-only at
+`9cf3647039cf1c4df1c2fdfb2f87967147ebec01`. Node 22.14.0 validation passed:
+99 focused tests across discovery/quota, Judge and agent-payment suites,
+workspace/API TypeScript, final Next.js Production build with strict
+TypeScript and 16 static pages, Prettier, zero-warning Biome lint, the
+48-chunk browser boundary scan, credential-pattern scan and diff whitespace.
+Early checks found a fixture asserting the wrong outbound property, CSS
+selector specificity warnings and a browser assertion matching the Next.js
+route announcer. Each was corrected and the relevant checks rerun.
+
+The full Chromium smoke passed for eight PayPal routes, legacy denials,
+four deterministic Judge scenarios, review-only checkout, public branding
+and responsive behavior. A separate offline capture checked Norway and
+Classic Light at 1440, 820 and 390 pixels, with no horizontal overflow.
+It submitted the $5, $25, $100, $500 and $1,000 budgets, rejected invalid
+inputs, and verified the specific offer-comparison timeout message.
+Twelve matching screenshots are in `.tools/research-layout/` within this
+isolated checkout. The ignored local screenshot runner and production smoke
+copy are local artifacts. No runtime exceptions, external requests, wallet
+probes or financial mutation requests occurred in browser validation.
+
+The Vercel log query was read-only. No live research, payment operations,
+staging, commit, push or deployment occurred. The cumulative local review
+diff is `.tools/research-workflow-review.diff` in the primary checkout.
+
+### 2026-11-11 — Final research deadline and privacy review
+
+GitHub's read-only comparison confirmed that `main` is still
+`9cf3647039cf1c4df1c2fdfb2f87967147ebec01`. The application diff matches the
+reviewed candidate. The compiled research route has a 60-second duration.
+Its 55-second clock starts at handler entry, so the request body read and
+8-second quota check reduce the time remaining for the providers. Up to
+five seconds remain for bounded response processing and hosting overhead.
+No application timing or UI change was necessary.
+
+The quota SQL matches `origin/main`, retaining 3 per visitor per UTC day
+and 24 total per UTC day. The local page served HTTP 200, retained Earmark AI
+and disclosed that requests go to search and AI providers. Norway spacing,
+research budgets and manual checkout controls match the reviewed app diff.
+
+`web/test/offer-discovery.test.ts` adds two offline regressions covering a
+1.9-second request body, a 7.9-second quota admission, both earlier provider
+stages and a delayed final provider response body. The handler returns the
+completed response at 54.8 seconds with the shorter body and cancels the
+longer body at 55 seconds with the stage-specific 504. These are simulated
+times and do not include a hosted Vercel cold start.
+
+Prettier and zero-warning Biome lint passed. The existing Node 22.14.0
+Production build was reused because the reviewed application diff matched
+exactly. Its 48-chunk browser boundary scan passed. Two existing tests
+and a Judge fixture assertion hit five-second test limits during the first
+concurrent run. A serial rerun passed all 101 focused tests, workspace/API
+TypeScript, and the complete eight-page Chromium smoke without changing test
+limits. Smoke covered both themes, Judge isolation, responsive research
+and review-only checkout with no browser exceptions or external requests.
+The local validation log is ignored under
+`.tools/final-research-timing-validation.log` in this checkout.
+
+No live provider requests, payments, staging, commits, pushes or deployments
+occurred. The release remains local and awaits publication authorization.

@@ -1,19 +1,16 @@
 "use client";
 import { useState } from "react";
 import {
+  formatResearchBudget,
   safeExternalOfferUrl,
-  selectVerifiedOfferSourceUrl,
-  type DiscoveredOffer,
+  safePlanCheckoutUrl,
   type ManualCheckoutDecision,
   type OfferDiscoveryResult,
 } from "../lib/offer-discovery";
 import { Badge, Button } from "./glass";
 
 const reasonLabels: Record<string, string> = {
-  EXTERNAL_MERCHANT_NOT_BOUND: "Merchant is outside the approved catalog",
   APPROVED_MERCHANT_REQUIRED: "The request requires an approved merchant",
-  IMMUTABLE_TERMS_UNVERIFIED: "Purchase terms are unverified",
-  HUMAN_AUTHORIZATION_REQUIRED: "Human authorization would be required",
   GROUNDED_SOURCE_NOT_LINKED: "No retrieved offer source matched the citation",
   CONFLICTING_PRICE_EVIDENCE: "Price evidence conflicts or is ambiguous",
   PRICE_OR_CURRENCY_UNKNOWN: "Price or currency lacks matching evidence",
@@ -27,33 +24,22 @@ const reasonLabels: Record<string, string> = {
   PAYPAL_ACCEPTANCE_UNVERIFIED: "PayPal acceptance is unverified",
 };
 
-function unresolvedEvidence(offer: DiscoveredOffer): string[] {
-  const items: string[] = [];
-  if (offer.pricing.status === "conflicting")
-    items.push("conflicting snippet prices");
-  else if (offer.priceMinor === null || !offer.currency)
-    items.push("verified price and currency");
-  if (!offer.pricing.period) items.push("billing period");
-  if (!offer.availability) items.push("plan availability");
-  if (!offer.delivery) items.push("delivery terms");
-  if (offer.slaMinutes === null) items.push("SLA timing");
-  if (offer.paypal === "unknown") items.push("PayPal acceptance");
-  else if (offer.paypal === "not-listed")
-    items.push("PayPal omitted from published payment methods");
-  else items.push("live PayPal checkout verification");
-  return items;
-}
+const suitability = {
+  matches: "Matches requirements",
+  "needs-evidence": "More evidence needed",
+  "does-not-match": "Does not match",
+} as const;
 
 export function OfferDiscovery({
   result,
+  researchBudgetMinor = null,
   assistedCheckout = false,
-  officialSourceOnly = false,
   initialSelectedOfferId = null,
   initialDecisions,
 }: {
   result: OfferDiscoveryResult;
+  researchBudgetMinor?: number | null;
   assistedCheckout?: boolean;
-  officialSourceOnly?: boolean;
   initialSelectedOfferId?: string | null;
   initialDecisions?: Record<string, ManualCheckoutDecision>;
 }) {
@@ -98,23 +84,32 @@ export function OfferDiscovery({
 
   return (
     <section className="offer-research" aria-label="Online offer research">
-      <strong>
-        {result.source === "OFFLINE_SEARCH_FIXTURE"
-          ? "Offline search fixture · no live research"
-          : "Tavily Search + Gemini · online research"}
-      </strong>
-      <p>
-        Compare real merchant offers for review. Earmark payments are
-        unavailable for these offers.
-      </p>
-      <p>
-        Evidence retrieved{" "}
-        <time dateTime={result.retrievedAt}>{result.retrievedAt}</time>. Confirm
-        current terms on the merchant site.
-      </p>
-      {result.offers.length > 0 && result.reviewRecommendation === null && (
-        <p>No comparable offer had enough evidence to recommend for review.</p>
-      )}
+      <header className="offer-research-meta">
+        <strong>
+          {result.source === "OFFLINE_SEARCH_FIXTURE"
+            ? "Offline search fixture · no live research"
+            : "Earmark AI · online research"}
+        </strong>
+        <p className="micro">
+          Earmark cannot currently execute payments for discovered merchants.
+        </p>
+        {researchBudgetMinor !== null && (
+          <p className="offer-research-budget">
+            Research budget{" "}
+            <strong>{formatResearchBudget(researchBudgetMinor)}</strong>
+          </p>
+        )}
+        <p>
+          Evidence retrieved{" "}
+          <time dateTime={result.retrievedAt}>{result.retrievedAt}</time>.
+          Confirm current terms on the merchant site.
+        </p>
+        {result.offers.length > 0 && result.reviewRecommendation === null && (
+          <p>
+            No comparable offer had enough evidence to recommend for review.
+          </p>
+        )}
+      </header>
       <ul
         className="offer-research-list"
         aria-label="Discovered offer comparison"
@@ -135,16 +130,47 @@ export function OfferDiscovery({
             safePaypalUrl && citedUrls.includes(safePaypalUrl)
               ? safePaypalUrl
               : null;
-          const verifiedMerchantUrl = officialSourceOnly
-            ? safeExternalOfferUrl(offer.officialMerchantUrl ?? "")
-            : selectVerifiedOfferSourceUrl(offer);
-          const canReview =
-            assistedCheckout && (!officialSourceOnly || verifiedMerchantUrl);
+          const planUrl = safeExternalOfferUrl(offer.officialMerchantUrl ?? "");
+          const checkoutUrl = safePlanCheckoutUrl(
+            offer.officialCheckoutUrl ?? "",
+            offer.service,
+          );
+          const verifiedCheckoutUrl =
+            checkoutUrl && citedUrls.includes(checkoutUrl) ? checkoutUrl : null;
+          const merchantUrl =
+            verifiedCheckoutUrl ??
+            (planUrl && citedUrls.includes(planUrl) ? planUrl : null);
+          const featureClaims =
+            offer.features?.filter(({ sourceUrl }) =>
+              citedUrls.includes(sourceUrl),
+            ) ?? [];
+          const billingEvidence =
+            offer.billingEvidence &&
+            citedUrls.includes(offer.billingEvidence.sourceUrl)
+              ? offer.billingEvidence
+              : null;
+          const billingPeriod =
+            offer.pricing.period ?? billingEvidence?.period ?? "Unknown";
+          const researchReasons = offer.policy.reasons.flatMap((reason) => {
+            if (reason === "BILLING_TERMS_UNKNOWN" && billingEvidence)
+              return [];
+            if (reason === "PAYPAL_ACCEPTANCE_UNVERIFIED") return [];
+            return Object.hasOwn(reasonLabels, reason)
+              ? [reasonLabels[reason]]
+              : [];
+          });
           const isSelected = assistedCheckout && selectedOfferId === offer.id;
           const decision = assistedCheckout
             ? decisions[`${resultKey}:${offer.id}`]
             : undefined;
-          const unknowns = unresolvedEvidence(offer);
+          const listedPrice =
+            offer.pricing.status === "source-matched" &&
+            safePricingUrl &&
+            citedUrls.includes(safePricingUrl) &&
+            offer.priceMinor !== null &&
+            offer.currency
+              ? `${(Number(offer.priceMinor) / 100).toFixed(2)} ${offer.currency}`
+              : null;
 
           return (
             <li key={offer.id} className="chat-proposal offer-research-card">
@@ -153,37 +179,46 @@ export function OfferDiscovery({
                   <h4>{offer.provider}</h4>
                   <p>{offer.service}</p>
                 </div>
-                <Badge tone="warning">Ineligible for Earmark payment</Badge>
+                <Badge
+                  tone={
+                    offer.reviewFit === "does-not-match" ? "warning" : "info"
+                  }
+                >
+                  {suitability[offer.reviewFit]}
+                </Badge>
               </div>
-              <p>
-                {result.reviewRecommendation === index ? (
-                  <Badge tone="info">Recommended for review</Badge>
-                ) : offer.reviewFit === "matches" ? (
-                  "Matches the supported research criteria"
-                ) : offer.reviewFit === "does-not-match" ? (
-                  "Outside the requested criteria"
-                ) : (
-                  "More evidence needed"
-                )}
-              </p>
-              <p className="offer-research-price">
-                Listed price:{" "}
-                {offer.priceMinor !== null && offer.currency ? (
-                  <>
-                    <strong className="offer-research-amount">
-                      {(Number(offer.priceMinor) / 100).toFixed(2)}{" "}
-                      {offer.currency}
-                    </strong>
-                    {" · "}Source-matched claim
-                  </>
-                ) : offer.pricing.status === "conflicting" ? (
-                  "Unknown · conflicting evidence"
-                ) : (
-                  "Unknown"
-                )}
-              </p>
-              <p>Billing period: {offer.pricing.period ?? "Unknown"}</p>
-              <p>
+              {result.reviewRecommendation === index && (
+                <p className="offer-research-recommendation">
+                  Recommended for review
+                </p>
+              )}
+              <div className="offer-research-terms">
+                <p className="offer-research-price">
+                  Listed price:{" "}
+                  {listedPrice ? (
+                    <>
+                      <strong className="offer-research-amount">
+                        {listedPrice}
+                      </strong>
+                      {" · "}Source-matched
+                    </>
+                  ) : offer.pricing.status === "conflicting" ? (
+                    "Unknown · conflicting evidence"
+                  ) : (
+                    "Unknown"
+                  )}
+                </p>
+                <p>Billing period: {billingPeriod}</p>
+              </div>
+              <div className="offer-research-facts">
+                <p>
+                  Features:{" "}
+                  {featureClaims.length
+                    ? featureClaims.map(({ text }) => text).join(" · ")
+                    : "Unknown"}
+                </p>
+              </div>
+              <p className="offer-research-payment">
                 Availability:{" "}
                 {offer.availability
                   ? `${offer.availability} (reported)`
@@ -202,7 +237,7 @@ export function OfferDiscovery({
                   : offer.paypal === "not-listed"
                     ? "omitted from the merchant’s accepted-method list"
                     : "insufficient evidence"}
-                ) · {offer.paypalEvidence ?? "No supporting evidence"}
+                ){offer.paypalEvidence ? ` · ${offer.paypalEvidence}` : ""}
                 {verifiedPaypalUrl ? (
                   <>
                     {" "}
@@ -217,7 +252,8 @@ export function OfferDiscovery({
                     </a>
                   </>
                 ) : null}
-                . Checkout support has not been independently verified.
+                {offer.paypal === "claimed" &&
+                  ". Checkout support has not been independently verified."}
               </p>
               {citedUrls.length > 0 ? (
                 <details className="offer-research-sources">
@@ -237,7 +273,14 @@ export function OfferDiscovery({
                             ? "Pricing evidence"
                             : sourceUrl === verifiedPaypalUrl
                               ? "Payment evidence"
-                              : `Source ${sourceIndex + 1}`}{" "}
+                              : sourceUrl === verifiedCheckoutUrl
+                                ? "Checkout page evidence"
+                                : sourceUrl === billingEvidence?.sourceUrl ||
+                                    featureClaims.some(
+                                      (claim) => claim.sourceUrl === sourceUrl,
+                                    )
+                                  ? "Plan details evidence"
+                                  : `Source ${sourceIndex + 1}`}{" "}
                           · {new URL(sourceUrl).hostname}
                         </a>
                       </li>
@@ -247,13 +290,12 @@ export function OfferDiscovery({
               ) : (
                 <p>No matching source citation.</p>
               )}
-              <p>
-                Independent policy: {offer.policy.canonicalVerdict}.{" "}
-                {offer.policy.reasons
-                  .map((reason) => reasonLabels[reason] ?? reason)
-                  .join(" · ")}
-              </p>
-              {canReview && (
+              {researchReasons.length > 0 && (
+                <p className="offer-research-reasons">
+                  {researchReasons.join(" · ")}
+                </p>
+              )}
+              {assistedCheckout && (
                 <>
                   <div className="norway-assisted-bar">
                     {decision === "approved-manual" ? (
@@ -284,55 +326,40 @@ export function OfferDiscovery({
                         <strong>
                           Assisted manual checkout · {offer.provider}
                         </strong>
-                        <Badge tone="warning">
-                          Unapproved merchant · manual only
-                        </Badge>
                       </div>
                       <p>
-                        Merchant: {offer.provider} ({offer.service}) · External
-                        merchant outside Earmark’s approved PayPal catalog.
+                        {offer.service} · Listed price:{" "}
+                        {listedPrice ?? "Unknown"} · Billing period:{" "}
+                        {billingPeriod}.
                       </p>
                       <p>
-                        Snippet price:{" "}
-                        {offer.priceMinor !== null && offer.currency
-                          ? `${(Number(offer.priceMinor) / 100).toFixed(2)} ${offer.currency} · source-matched claim`
-                          : offer.pricing.status === "conflicting"
-                            ? "Conflicting evidence (unknown)"
-                            : "Unknown"}{" "}
-                        · Currency: {offer.currency ?? "Unknown"} · Billing
-                        period: {offer.pricing.period ?? "Unknown"}.
-                      </p>
-                      <p>
-                        Restrictions: {offer.policy.canonicalVerdict}.{" "}
-                        {offer.policy.reasons
-                          .map((reason) => reasonLabels[reason] ?? reason)
-                          .join(" · ")}
-                      </p>
-                      <p>
-                        Unresolved or unverified details: {unknowns.join(", ")}.
+                        {suitability[offer.reviewFit]}
+                        {researchReasons.length
+                          ? ` · ${researchReasons.join(" · ")}`
+                          : ""}
+                        .
                       </p>
                       <p>
                         Verify the price, taxes, availability and payment
                         methods on the merchant site. Never enter merchant
                         passwords or payment details in Earmark.
                       </p>
-                      {verifiedMerchantUrl ? (
+                      {merchantUrl ? (
                         <p>
-                          Official merchant page:{" "}
                           <a
-                            href={verifiedMerchantUrl}
+                            href={merchantUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             referrerPolicy="no-referrer"
                           >
-                            Open official {offer.provider} page in new tab
+                            {verifiedCheckoutUrl
+                              ? "Continue to merchant checkout"
+                              : "View plan on merchant site"}
                           </a>
                         </p>
                       ) : (
                         <p role="alert">
-                          Official merchant link withheld: no cited, safe HTTPS
-                          source URL passed provenance checks. Manual checkout
-                          approval is unavailable for this offer.
+                          No verified merchant plan or checkout link was found.
                         </p>
                       )}
                       <p>
@@ -343,7 +370,7 @@ export function OfferDiscovery({
                       <div className="norway-assisted-actions">
                         <Button
                           variant="primary"
-                          disabled={!verifiedMerchantUrl}
+                          disabled={!merchantUrl}
                           aria-pressed={decision === "approved-manual"}
                           onClick={() =>
                             recordDecision(offer.id, "approved-manual")
@@ -359,37 +386,17 @@ export function OfferDiscovery({
                           Reject
                         </Button>
                       </div>
-                      {decision === "approved-manual" &&
-                        verifiedMerchantUrl && (
-                          <div className="norway-assisted-status" role="status">
-                            <p>
-                              Intention recorded (status: not paid · external
-                              purchase unverified). No order, mandate, payment
-                              intent, reservation, capture or accounting entry
-                              was created, and {offer.provider} remains an
-                              unapproved external merchant.
-                            </p>
-                            <p>
-                              Next step: return to{" "}
-                              <a
-                                href={verifiedMerchantUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                referrerPolicy="no-referrer"
-                              >
-                                the official {offer.provider} website
-                              </a>{" "}
-                              in a new tab to complete registration and genuine
-                              checkout manually on the merchant’s site.
-                            </p>
-                          </div>
-                        )}
-                      {decision === "rejected" && (
+                      {decision === "approved-manual" && merchantUrl && (
                         <div className="norway-assisted-status" role="status">
                           <p>
-                            Rejected for manual checkout. No intention, order,
-                            reservation or financial record was created.
+                            Manual checkout intent recorded for this session.
+                            Any purchase must be completed on the merchant site.
                           </p>
+                        </div>
+                      )}
+                      {decision === "rejected" && (
+                        <div className="norway-assisted-status" role="status">
+                          <p>Rejected for manual checkout.</p>
                         </div>
                       )}
                     </section>
@@ -405,14 +412,13 @@ export function OfferDiscovery({
       )}
       {result.searchSuggestions && (
         <iframe
-          title="Google Search suggestions"
+          title="Earmark AI search suggestions"
           sandbox="allow-popups"
           referrerPolicy="no-referrer"
           style={{ width: "100%", border: 0 }}
           srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: https://www.gstatic.com; base-uri 'none'; form-action 'none'">${result.searchSuggestions}`}
         />
       )}
-      <Button disabled>Payment execution disabled</Button>
     </section>
   );
 }

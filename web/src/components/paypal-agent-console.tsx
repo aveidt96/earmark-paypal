@@ -311,7 +311,7 @@ function PurchasingConversation({
           </div>
           <p className="chat-source">
             {publicResearch
-              ? "Each offer shows its evidence and budget checks. Discovered merchants cannot be paid through Earmark."
+              ? "Each offer shows its evidence and budget checks."
               : chatMode
                 ? current
                   ? chatResult?.source === "DETERMINISTIC_POLICY_ENGINE"
@@ -396,7 +396,11 @@ function PurchasingConversation({
           <h3>
             <Icon name="shield" /> Private by design
           </h3>
-          <p>Gemini never receives PayPal credentials.</p>
+          <p>
+            {publicResearch
+              ? "Earmark AI keeps PayPal credentials out of research requests."
+              : "Gemini never receives PayPal credentials."}
+          </p>
           <p>
             {publicResearch
               ? "Online research uses public merchant sources."
@@ -404,11 +408,11 @@ function PurchasingConversation({
                 ? "Controlled evaluations use a bounded synthetic catalog. Online research uses public merchant sources."
                 : "Only permitted synthetic catalog and policy data may leave the server."}
           </p>
-          <p>
-            {publicResearch
-              ? "Research cannot authorize or execute a payment."
-              : "Owner authorization and PayPal buyer approval remain mandatory."}
-          </p>
+          {!publicResearch && (
+            <p>
+              Owner authorization and PayPal buyer approval remain mandatory.
+            </p>
+          )}
         </section>
       </aside>
     </div>

@@ -3,7 +3,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { PurchasingChatResult } from "../lib/paypal-agent";
 import { PUBLIC_DEMO_ONLY } from "../lib/paypal-agent";
 import { Badge, Button, Icon } from "./glass";
-import type { OfferDiscoveryResult } from "../lib/offer-discovery";
+import {
+  formatResearchBudget,
+  MAX_RESEARCH_BUDGET_MINOR,
+  parseResearchBudget,
+  type OfferDiscoveryResult,
+} from "../lib/offer-discovery";
 import { OfferDiscovery } from "./offer-discovery";
 
 const judgeErrors: Record<string, string> = {
@@ -64,7 +69,17 @@ const publicResearchErrors: Record<string, string> = {
     "Earmark couldn’t verify the offer evidence. Try a more specific request.",
   PUBLIC_RESEARCH_NO_SOURCES:
     "No usable merchant sources were found. Try a more specific product or service.",
-  PUBLIC_RESEARCH_TIMEOUT: "Live research timed out. Try a narrower request.",
+  PUBLIC_RESEARCH_TIMEOUT:
+    "Live research did not finish in time. Try again in a moment.",
+  PUBLIC_RESEARCH_SEARCH_TIMEOUT:
+    "Merchant search timed out. Try again in a moment.",
+  PUBLIC_RESEARCH_ANALYSIS_TIMEOUT:
+    "Earmark AI offer comparison timed out. Try again in a moment.",
+  PUBLIC_RESEARCH_PAYMENT_EVIDENCE_TIMEOUT:
+    "Checking merchant payment evidence timed out. Try again in a moment.",
+  PUBLIC_RESEARCH_PAYMENT_EVIDENCE_UNAVAILABLE:
+    "The merchant payment evidence check is unavailable. Try again later.",
+  INVALID_RESEARCH_BUDGET: `Enter a USD research budget from $0.01 to ${formatResearchBudget(MAX_RESEARCH_BUDGET_MINOR)} with up to two decimal places.`,
   INVALID_RESEARCH_REQUEST:
     "Describe what you want to buy without private details, credentials, or links.",
   PUBLIC_RESEARCH_ACCESS_REQUIRED:
@@ -74,6 +89,8 @@ const publicResearchErrors: Record<string, string> = {
 const syntheticExample = "Find weather data under $5 with a 15 minute SLA.";
 const researchExample =
   "Find weather API plans costing less than $10 USD per month. Compare their prices, billing periods and features, and identify evidence of PayPal acceptance where available.";
+const publicResearchExample =
+  "Compare weather API plans within my research budget. Check prices, billing periods, and PayPal acceptance.";
 
 export function PurchasingChat({
   onEvaluation,
@@ -87,10 +104,9 @@ export function PurchasingChat({
   const id = useId();
   const [instruction, setInstruction] = useState("");
   const [budget, setBudget] = useState("");
-  const budgetMinor = /^\d{1,2}(?:\.\d{1,2})?$/.test(budget)
-    ? Math.round(Number(budget) * 100)
-    : 0;
-  const validBudget = budgetMinor >= 1 && budgetMinor <= 1000;
+  const budgetMinor = parseResearchBudget(budget);
+  const validBudget = budgetMinor !== null;
+  const [submittedBudget, setSubmittedBudget] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState("");
   const [password, setPassword] = useState("");
   const [csrf, setCsrf] = useState("");
@@ -148,7 +164,10 @@ export function PurchasingChat({
     setResult(null);
     setDiscovery(null);
     onEvaluation?.(null);
-    if (!login) setSubmitted(instruction);
+    if (!login) {
+      setSubmitted(instruction);
+      setSubmittedBudget(publicResearch ? budgetMinor : null);
+    }
     const payload = publicResearch
       ? { instruction, budgetMinor }
       : judgeSandbox
@@ -231,8 +250,12 @@ export function PurchasingChat({
 
   return (
     <section
-      className="purchasing-chat interactive-purchasing-chat"
-      aria-label="Gemini purchasing conversation"
+      className={`purchasing-chat interactive-purchasing-chat${publicResearch ? " public-research-chat" : ""}`}
+      aria-label={
+        publicResearch
+          ? "Earmark AI purchasing conversation"
+          : "Gemini purchasing conversation"
+      }
     >
       <header className="norway-card-heading">
         <span className="norway-agent-avatar" aria-hidden="true">
@@ -248,7 +271,7 @@ export function PurchasingChat({
         </span>
         <h3>
           {publicResearch
-            ? "Real merchant research"
+            ? "Earmark AI"
             : judgeSandbox
               ? "Judge purchasing sandbox"
               : "Gemini purchasing assistant"}
@@ -378,7 +401,9 @@ export function PurchasingChat({
           {researching && !authenticating && (
             <p className="chat-pending-detail">
               We search merchants, compare offers, and check payment evidence.
-              This often takes 20–30 seconds.
+              {publicResearch
+                ? " Allow up to a minute."
+                : " This often takes 20–30 seconds."}
             </p>
           )}
         </div>
@@ -411,10 +436,10 @@ export function PurchasingChat({
         {discovery && (
           <OfferDiscovery
             result={discovery}
+            researchBudgetMinor={submittedBudget}
             assistedCheckout={
               publicResearch || (!judgeSandbox && Boolean(csrf))
             }
-            officialSourceOnly={publicResearch}
           />
         )}
         {result && (
@@ -548,27 +573,35 @@ export function PurchasingChat({
           disabled={busy}
           onChange={(event) => setInstruction(event.target.value)}
           placeholder={
-            researching
-              ? "Find weather API plans under $10 per month and check PayPal support…"
-              : "Compare approved synthetic weather-data offers within my budget…"
+            publicResearch
+              ? "Compare weather API plans and check PayPal support…"
+              : researching
+                ? "Find weather API plans under $10 per month and check PayPal support…"
+                : "Compare approved synthetic weather-data offers within my budget…"
           }
         />
         {publicResearch && (
-          <>
+          <div className="research-budget-field">
             <label htmlFor={`${id}-budget`}>Budget (USD)</label>
             <input
               id={`${id}-budget`}
-              type="number"
-              min="0.01"
-              max="10"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              placeholder="e.g. 100 or 1,000"
+              maxLength={12}
+              aria-describedby={`${id}-budget-help`}
+              aria-invalid={budget.trim().length > 0 && !validBudget}
               required
               disabled={busy}
               value={budget}
               onChange={(event) => setBudget(event.target.value)}
             />
-            <small>Up to $10 for comparison only. No funds are reserved.</small>
-          </>
+            <small id={`${id}-budget-help`}>
+              {budget.trim().length > 0 && !validBudget
+                ? publicResearchErrors.INVALID_RESEARCH_BUDGET
+                : "For offer comparison only. No funds are reserved."}
+            </small>
+          </div>
         )}
         <div>
           <small>
@@ -581,7 +614,13 @@ export function PurchasingChat({
             variant="soft"
             disabled={busy}
             onClick={() =>
-              setInstruction(researching ? researchExample : syntheticExample)
+              setInstruction(
+                publicResearch
+                  ? publicResearchExample
+                  : researching
+                    ? researchExample
+                    : syntheticExample,
+              )
             }
           >
             Use example

@@ -213,9 +213,9 @@ export function AgentCheckoutPreparation() {
               Live Gemini verification with synthetic offers
             </PanelTitle>
             <p>
-              Run real Google inference against a separate in-memory $10 test
-              policy and synthetic $6 offer. This check does not resume the
-              saved campaign or create a durable checkout intent.
+              Run live Earmark AI against a separate in-memory $10 test policy
+              and synthetic $6 offer. This check does not resume the saved
+              campaign or create a durable checkout intent.
             </p>
             <Button
               disabled={busy || !state.liveGeminiConfigured}

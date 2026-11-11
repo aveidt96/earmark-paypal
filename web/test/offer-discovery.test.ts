@@ -4,6 +4,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OfferDiscovery } from "../src/components/offer-discovery";
 import {
+  MAX_RESEARCH_BUDGET_MINOR,
+  parseResearchBudget,
   safeExternalOfferUrl,
   selectVerifiedOfferSourceUrl,
 } from "../src/lib/offer-discovery";
@@ -179,11 +181,117 @@ it("applies the selected public budget independently and only exposes a merchant
       createElement(OfferDiscovery, {
         result: unrelated,
         assistedCheckout: true,
-        officialSourceOnly: true,
       }),
     ),
-  ).not.toContain("Review for manual checkout");
+  ).toContain("Review for manual checkout");
 });
+
+it("does not borrow another tier's billing period when the price is ambiguous", async () => {
+  const result = await discoverOffers(
+    "Find a weather API under $10 per month",
+    env,
+    transport([{ ...offer, service: "Starter" }], {
+      snippet: "Starter costs $5, and Pro is billed monthly.",
+      paymentResults: [],
+    }),
+  );
+  expect(result.offers[0]).toMatchObject({
+    priceMinor: null,
+    billingEvidence: null,
+    reviewFit: "needs-evidence",
+  });
+});
+
+it.each([
+  ["https://example.com/checkout/starter", "Starter checkout", true],
+  [
+    "https://checkout.example.com/checkout?plan=starter",
+    "Checkout for Starter",
+    true,
+  ],
+  ["https://example.com/checkout/pro", "Starter checkout", false],
+  ["https://example.com/checkout/starter", "Pro checkout", false],
+  ["https://example.com/checkout", "Starter checkout", false],
+  ["https://example.net/checkout/starter", "Starter checkout", false],
+  [
+    "https://example.com/checkout/starter?session=opaque",
+    "Starter checkout",
+    false,
+  ],
+  [
+    "https://example.com/checkout?plan=starter&next=%2Flogin",
+    "Starter checkout",
+    false,
+  ],
+])(
+  "uses only a retrieved, exact-tier merchant checkout page (%s, %s)",
+  async (checkout, title, accepted) => {
+    const f = transport(
+      [
+        {
+          ...offer,
+          service: "Starter",
+          sourceUrls: [url, "https://example.com/checkout/invented"],
+        },
+      ],
+      {
+        tavilyResults: [
+          {
+            url,
+            title: "API pricing",
+            content:
+              "Starter costs USD 5 per month. Starter includes current weather and hourly forecasts. Pro includes historical data.",
+          },
+          {
+            url: checkout,
+            title,
+            content: "Public subscription checkout page.",
+          },
+        ],
+        paymentResults: [],
+      },
+    );
+    const result = await discoverOffers(
+      "Find a weather API under $10 per month",
+      env,
+      f,
+    );
+    const item = result.offers[0];
+    expect(f).toHaveBeenCalledTimes(3);
+    expect(item).toMatchObject({
+      officialMerchantUrl: url,
+      officialCheckoutUrl: accepted ? checkout : null,
+      features: [
+        { text: "current weather and hourly forecasts", sourceUrl: url },
+      ],
+      paypal: "unknown",
+      reviewFit: "matches",
+      policy: { eligible: false, canonicalVerdict: "UNAPPROVED_MERCHANT" },
+    });
+    expect(result).toMatchObject({
+      proposal: null,
+      ownerAuthorized: false,
+      persisted: false,
+      fundsReserved: false,
+    });
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, {
+        result,
+        assistedCheckout: true,
+        initialSelectedOfferId: item?.id ?? null,
+      }),
+    );
+    expect(html).toContain(
+      accepted ? "Continue to merchant checkout" : "View plan on merchant site",
+    );
+    expect(html).toContain(
+      `href="${(accepted ? checkout : url).replaceAll("&", "&amp;")}" target="_blank" rel="noopener noreferrer"`,
+    );
+    expect(html).not.toContain('href="https://example.com/checkout/invented"');
+    expect(html).not.toContain("historical data");
+    expect(html).toContain("PayPal acceptance: unknown");
+  },
+);
 
 describe("anonymous Norway research", () => {
   const origin = "https://preview.example.com";
@@ -220,14 +328,20 @@ describe("anonymous Norway research", () => {
   it("reuses the real pipeline with capped calls and no financial authority", async () => {
     const reserve = vi.fn(async () => true);
     const fetcher = transport();
-    const evaluate: typeof discoverOffers = (instruction, env, _, budget) => {
-      expect(env.AI_TIMEOUT_MS).toBe("16000");
+    const evaluate: typeof discoverOffers = (
+      instruction,
+      env,
+      _,
+      budget,
+      timing,
+    ) => {
+      expect(timing?.deadlineAt).toBeGreaterThan(performance.now());
       expect(env).toMatchObject({
         EARMARK_OFFER_DISCOVERY_ENABLED: "true",
         EARMARK_GEMINI_ENABLED: "true",
         AI_ENABLE_NETWORK: "true",
       });
-      return discoverOffers(instruction, env, fetcher, budget);
+      return discoverOffers(instruction, env, fetcher, budget, timing);
     };
     const res = await handlePublicResearch(
       request(payload),
@@ -273,7 +387,11 @@ describe("anonymous Norway research", () => {
         {},
         400,
       ],
-      [request({ ...payload, budgetMinor: 1001 }), {}, 400],
+      [
+        request({ ...payload, budgetMinor: MAX_RESEARCH_BUDGET_MINOR + 1 }),
+        {},
+        400,
+      ],
       [request({ ...payload, ownerId: "unexpected" }), {}, 400],
       [
         request({ ...payload, instruction: "weather API ".repeat(400) }),
@@ -292,6 +410,308 @@ describe("anonymous Norway research", () => {
     expect(reserve).not.toHaveBeenCalled();
     expect(discover).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["5", 500],
+    ["25", 2500],
+    ["100", 10000],
+    ["500", 50000],
+    ["1,000", 100000],
+    ["100,000.00", MAX_RESEARCH_BUDGET_MINOR],
+  ])(
+    "carries the exact $%s research budget from the input to Gemini and comparison",
+    async (amount, budgetMinor) => {
+      expect(parseResearchBudget(amount)).toBe(budgetMinor);
+      const fetcher = transport(
+        [{ ...offer, service: "Starter", priceMinor: "20000" }],
+        { snippet: "Starter costs USD 200 per month." },
+      );
+      const reply = await handlePublicResearch(
+        request({
+          instruction: "Compare weather API plans per month",
+          budgetMinor,
+        }),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      expect(reply.status).toBe(200);
+      const collector = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body));
+      const collectorInput = JSON.parse(collector.contents[0].parts[0].text);
+      expect(collectorInput.trustedTask).toMatchObject({
+        budgetMinor: String(budgetMinor),
+        purpose: "RESEARCH_ONLY",
+      });
+      expect(await reply.json()).toMatchObject({
+        discovery: {
+          ownerAuthorized: false,
+          persisted: false,
+          fundsReserved: false,
+          offers: [
+            {
+              priceMinor: "20000",
+              reviewFit: budgetMinor >= 20000 ? "matches" : "does-not-match",
+              policy: { eligible: false },
+            },
+          ],
+        },
+      });
+      expect(fetcher).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it("rejects invalid budgets before admission or provider calls", async () => {
+    for (const amount of ["0", "1e3", "3.001", "100,000.01", "-10", "10,00"])
+      expect(parseResearchBudget(amount)).toBeNull();
+    expect(parseResearchBudget("0.01")).toBe(1);
+    expect(parseResearchBudget("1,000.01")).toBe(100001);
+    const reserve = vi.fn(async () => true);
+    const discover = vi.fn<typeof discoverOffers>();
+    for (const budgetMinor of [
+      0,
+      3.5,
+      "100000",
+      MAX_RESEARCH_BUDGET_MINOR + 1,
+    ]) {
+      const reply = await handlePublicResearch(
+        request({ ...payload, budgetMinor }),
+        publicEnv,
+        reserve,
+        discover,
+      );
+      expect(reply.status).toBe(400);
+      expect(await reply.json()).toEqual({ error: "INVALID_RESEARCH_BUDGET" });
+    }
+    expect(reserve).not.toHaveBeenCalled();
+    expect(discover).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["offer_search", 1, 16000, "PUBLIC_RESEARCH_SEARCH_TIMEOUT"],
+    ["offer_analysis", 2, 32000, "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT"],
+    ["payment_evidence", 3, 16000, "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_TIMEOUT"],
+  ])(
+    "aborts %s at its stage deadline and returns only sanitized details",
+    async (stage, stopAt, timeoutMs, error) => {
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "performance"],
+      });
+      const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const fixture = transport();
+      let calls = 0;
+      const fetcher: typeof fetch = (url, init) =>
+        ++calls === stopAt
+          ? new Promise((_resolve, reject) =>
+              init?.signal?.addEventListener(
+                "abort",
+                () => reject(new Error("PRIVATE_TRANSPORT_DETAIL")),
+                { once: true },
+              ),
+            )
+          : fixture(url, init);
+      try {
+        const pending = handlePublicResearch(
+          request(payload),
+          publicEnv,
+          async () => true,
+          (instruction, env, _, budget, timing) =>
+            discoverOffers(instruction, env, fetcher, budget, timing),
+        );
+        await vi.advanceTimersByTimeAsync(timeoutMs);
+        const reply = await pending;
+        expect(reply.status).toBe(504);
+        expect(await reply.json()).toEqual({ error });
+        expect(log).toHaveBeenCalledExactlyOnceWith(
+          "public-research: provider stage failed",
+          {
+            stage,
+            elapsedMs: timeoutMs,
+            timeoutMs,
+            classification: "local_timeout",
+            httpStatus: null,
+          },
+        );
+        expect(calls).toBe(stopAt);
+      } finally {
+        log.mockRestore();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("distinguishes an upstream Gemini 504 from its own abort timer", async () => {
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const fetcher = transport([offer], { geminiStatus: 504 });
+      const reply = await handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      expect(reply.status).toBe(504);
+      expect(await reply.json()).toEqual({
+        error: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
+      });
+      expect(log).toHaveBeenCalledExactlyOnceWith(
+        "public-research: provider stage failed",
+        {
+          stage: "offer_analysis",
+          classification: "upstream_timeout",
+          timeoutMs: 32000,
+          elapsedMs: expect.any(Number),
+          httpStatus: 504,
+        },
+      );
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("subtracts quota and search time from the shared deadline while reserving the final search window", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = transport();
+    const pause = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+    let calls = 0;
+    const fetcher: typeof fetch = async (url, init) => {
+      if (++calls === 1) {
+        await pause(8900);
+        return fixture(url, init);
+      }
+      return new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          { once: true },
+        ),
+      );
+    };
+    try {
+      const pending = handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => {
+          await pause(7900);
+          return true;
+        },
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      await vi.advanceTimersByTimeAsync(43000);
+      expect((await pending).status).toBe(504);
+      expect(log).toHaveBeenCalledExactlyOnceWith(
+        "public-research: provider stage failed",
+        {
+          stage: "offer_analysis",
+          classification: "local_timeout",
+          timeoutMs: 26200,
+          elapsedMs: 26200,
+          httpStatus: null,
+        },
+      );
+      expect(calls).toBe(2);
+    } finally {
+      log.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    [11900, 200, 54800],
+    [13000, 504, 55000],
+  ])(
+    "shares one handler deadline through quota and a %dms final response body",
+    async (paymentBodyDelay, status, expectedElapsed) => {
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "performance"],
+      });
+      const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const pause = (ms: number) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
+      const fixture = transport();
+      const encoder = new TextEncoder();
+      let calls = 0;
+      let paymentTimer: ReturnType<typeof setTimeout>;
+      const cancelPaymentBody = vi.fn(() => clearTimeout(paymentTimer));
+      const fetcher: typeof fetch = async (url, init) => {
+        const stage = ++calls;
+        if (stage === 1) await pause(15800);
+        if (stage === 2) await pause(17300);
+        const response = await fixture(url, init);
+        if (stage !== 3) return response;
+        const bytes = encoder.encode(await response.text());
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              paymentTimer = setTimeout(() => {
+                controller.enqueue(bytes);
+                controller.close();
+              }, paymentBodyDelay);
+            },
+            cancel: cancelPaymentBody,
+          }),
+          { status: response.status, headers: response.headers },
+        );
+      };
+      try {
+        const slowInput = {
+          duplex: "half",
+          body: new ReadableStream({
+            async start(controller) {
+              await pause(1900);
+              controller.enqueue(encoder.encode(JSON.stringify(payload)));
+              controller.close();
+            },
+          }),
+        };
+        const pending = handlePublicResearch(
+          new Request(request(payload), slowInput),
+          publicEnv,
+          async () => {
+            await pause(7900);
+            return true;
+          },
+          (instruction, env, _, budget, timing) =>
+            discoverOffers(instruction, env, fetcher, budget, timing),
+        ).then((reply) => ({ reply, elapsedMs: performance.now() }));
+        await vi.advanceTimersByTimeAsync(60000);
+        const { reply, elapsedMs } = await pending;
+        expect(calls).toBe(3);
+        expect(reply.status).toBe(status);
+        expect(elapsedMs).toBe(expectedElapsed);
+        if (status === 200) {
+          expect(await reply.json()).toMatchObject({
+            discovery: { fundsReserved: false },
+          });
+          expect(cancelPaymentBody).not.toHaveBeenCalled();
+          expect(log).not.toHaveBeenCalled();
+        } else {
+          expect(await reply.json()).toEqual({
+            error: "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_TIMEOUT",
+          });
+          expect(cancelPaymentBody).toHaveBeenCalledTimes(1);
+          expect(log).toHaveBeenCalledExactlyOnceWith(
+            "public-research: provider stage failed",
+            {
+              stage: "payment_evidence",
+              classification: "local_timeout",
+              elapsedMs: 12100,
+              timeoutMs: 12100,
+              httpStatus: 200,
+            },
+          );
+        }
+      } finally {
+        log.mockRestore();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("fails closed on quota exhaustion or failure without leaking diagnostics", async () => {
     const discover = vi.fn<typeof discoverOffers>();
@@ -661,7 +1081,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       );
       const searchRaw = String(searchInit?.body);
       expect(JSON.parse(searchRaw)).toEqual({
-        query: `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods.`,
+        query: `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods. Include public checkout pages for exact plans when available.`,
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
@@ -1007,7 +1427,8 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
     expect(html).toContain("unknown (insufficient evidence)");
     expect(html).toContain("Listed price: Unknown");
-    expect(html).toContain("Ineligible for Earmark payment");
+    expect(html).toContain("More evidence needed");
+    expect(html).not.toContain("Ineligible for Earmark payment");
   });
 
   it("reproduces the Task 07P-L3 AccuWeather Free/Starter table defect, withholds unsupported availability, and targets AccuWeather for payment-method search", async () => {
@@ -1370,7 +1791,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const html = renderToStaticMarkup(
       createElement(OfferDiscovery, { result }),
     );
-    expect(html).toContain("5.00 USD</strong> · Source-matched claim");
+    expect(html).toContain("5.00 USD</strong> · Source-matched");
     expect(html).toContain("Billing period: month");
   });
 
@@ -2239,7 +2660,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
     expect(judgeHtml).not.toContain("Review for manual checkout");
     expect(judgeHtml).not.toContain("Approve for manual checkout");
-    expect(judgeHtml).toContain("Payment execution disabled");
+    expect(judgeHtml).toContain(
+      "Earmark cannot currently execute payments for discovered merchants.",
+    );
 
     // 2. Authenticated Norway assisted-checkout review + Approve for manual checkout
     const approvedHtml = renderToStaticMarkup(
@@ -2251,11 +2674,11 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       }),
     );
     expect(approvedHtml).toContain("Assisted manual checkout · Example");
-    expect(approvedHtml).toContain("Unapproved merchant · manual only");
     expect(approvedHtml).toContain(
-      "Snippet price: 5.00 USD · source-matched claim · Currency: USD · Billing period: month.",
+      "Starter · Listed price: 5.00 USD · Billing period: month.",
     );
-    expect(approvedHtml).toContain("Restrictions: UNAPPROVED_MERCHANT.");
+    expect(approvedHtml).toContain("Matches requirements");
+    expect(approvedHtml).toContain("View plan on merchant site");
     expect(approvedHtml).toContain(
       "Verify the price, taxes, availability and payment methods on the merchant site.",
     );
@@ -2267,10 +2690,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
     expect(approvedHtml).toContain("Manual checkout intent · not paid");
     expect(approvedHtml).toContain(
-      "Intention recorded (status: not paid · external purchase unverified). No order, mandate, payment intent, reservation, capture or accounting entry was created",
-    );
-    expect(approvedHtml).toContain(
-      "complete registration and genuine checkout manually on the merchant’s site",
+      "Manual checkout intent recorded for this session. Any purchase must be completed on the merchant site.",
     );
     expect(approvedHtml).not.toMatch(/\b(?:PAID|COMPLETED)\b/);
     expect(approvedHtml).not.toContain("<input");
@@ -2285,9 +2705,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       }),
     );
     expect(rejectedHtml).toContain("Rejected · no action");
-    expect(rejectedHtml).toContain(
-      "Rejected for manual checkout. No intention, order, reservation or financial record was created.",
-    );
+    expect(rejectedHtml).toContain("Rejected for manual checkout.");
 
     // 4. Unknown pricing and incomplete evidence remain explicitly unknown
     const accuUrl = "https://developer.accuweather.com/packages";
@@ -2333,11 +2751,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       }),
     );
     expect(unknownHtml).toContain(
-      "Snippet price: Unknown · Currency: Unknown · Billing period: Unknown.",
+      "Starter · Listed price: Unknown · Billing period: month.",
     );
-    expect(unknownHtml).toContain(
-      "Unresolved or unverified details: verified price and currency, billing period, plan availability, delivery terms, SLA timing, PayPal acceptance.",
-    );
+    expect(unknownHtml).toContain("Price or currency lacks matching evidence");
     expect(unknownHtml).toContain(`href="${accuUrl}"`);
 
     // 5. Invalid, unsafe or uncited links withhold external link and disable manual approval
@@ -2372,7 +2788,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(unsafeHtml).not.toContain("evil.example");
     expect(unsafeHtml).not.toContain(`href="${url}"`);
     expect(unsafeHtml).toContain(
-      "Official merchant link withheld: no cited, safe HTTPS source URL passed provenance checks.",
+      "No verified merchant plan or checkout link was found.",
     );
     expect(unsafeHtml).toMatch(
       /<button[^>]*disabled=""[^>]*>Approve for manual checkout<\/button>/,

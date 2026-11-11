@@ -2,6 +2,36 @@
 export type OfferBillingPeriod = "month" | "year" | "one-time";
 export type ManualCheckoutDecision = "approved-manual" | "rejected";
 
+// A comparison limit only. Financial mandates use their own policy and amounts.
+export const MAX_RESEARCH_BUDGET_MINOR = 10_000_000;
+
+export function isResearchBudgetMinor(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 1 &&
+    value <= MAX_RESEARCH_BUDGET_MINOR
+  );
+}
+
+export function parseResearchBudget(input: string): number | null {
+  const amount = /^(\d{1,6}|\d{1,3}(?:,\d{3}){1,2})(?:\.(\d{1,2}))?$/.exec(
+    input.trim(),
+  );
+  if (!amount?.[1]) return null;
+  const minor =
+    Number(amount[1].replaceAll(",", "")) * 100 +
+    Number((amount[2] ?? "").padEnd(2, "0"));
+  return isResearchBudgetMinor(minor) ? minor : null;
+}
+
+export function formatResearchBudget(minor: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(minor / 100);
+}
+
 const SENSITIVE_QUERY_RE =
   /\b(?:token|key|secret|password|auth|session|order|capture|account)\b/i;
 const REDIRECT_PARAM_RE =
@@ -44,6 +74,38 @@ export function safeExternalOfferUrl(value: string): string | null {
   }
 }
 
+/** A public checkout page must carry a plain, exact plan selector. */
+export function safePlanCheckoutUrl(
+  value: string,
+  service: string,
+): string | null {
+  const safe = safeExternalOfferUrl(value);
+  if (!safe) return null;
+  const url = new URL(safe);
+  const match = /^\/checkout(?:\/([a-z0-9-]+))?\/?$/i.exec(url.pathname);
+  if (!match) return null;
+  const params = [...url.searchParams];
+  const selector = match[1] ?? params[0]?.[1];
+  const plan = service
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .replace(/-(?:plan|tier|subscription)$/, "");
+  if (
+    !selector ||
+    !plan ||
+    selector.toLowerCase() !== plan ||
+    /^(?:login|signup|session|confirm|complete|cancel|pay|capture|order)$/.test(
+      plan,
+    ) ||
+    (match[1]
+      ? params.length !== 0
+      : params.length !== 1 || params[0]?.[0] !== "plan")
+  )
+    return null;
+  return safe;
+}
+
 /** Select an existing cited, provenance-verified HTTPS merchant source URL; never invents checkout links. */
 export function selectVerifiedOfferSourceUrl(
   offer: Pick<DiscoveredOffer, "sources" | "pricing" | "paypalSourceUrl">,
@@ -81,6 +143,9 @@ export interface DiscoveredOffer {
   paypalSourceUrl?: string | null;
   sources: Array<{ url: string; cited: boolean }>;
   officialMerchantUrl?: string | null;
+  officialCheckoutUrl?: string | null;
+  features?: Array<{ text: string; sourceUrl: string }>;
+  billingEvidence?: { period: OfferBillingPeriod; sourceUrl: string } | null;
   factStatus: "claimed" | "unknown";
   pricing: {
     status: "source-matched" | "conflicting" | "unknown";

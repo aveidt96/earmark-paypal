@@ -318,7 +318,7 @@ try {
     "0V581522H50035631",
   );
   const chat = page.getByRole("region", {
-    name: "Gemini purchasing conversation",
+    name: /(?:Gemini|Earmark AI) purchasing conversation/,
   });
   expect(
     await chat
@@ -657,10 +657,9 @@ try {
   await expect(research).toContainText(
     "Offline search fixture · no live research",
   );
-  await expect(research).toContainText("UNAPPROVED_MERCHANT");
   await expect(research).toContainText("PayPal acceptance: unknown");
   await expect(research).toContainText("Recommended for review");
-  await expect(research).toContainText("Ineligible for Earmark payment");
+  await expect(research).toContainText("Matches requirements");
   await research.getByText("Sources (1)", { exact: true }).click();
   const source = research.getByRole("link", {
     name: "Pricing evidence · example.com",
@@ -671,9 +670,6 @@ try {
     research.getByRole("button", { name: "Review for manual checkout" }),
   ).toHaveCount(0);
   await expect(chat.locator(".chat-user")).toHaveText(researchInstruction);
-  await expect(
-    research.getByRole("button", { name: "Payment execution disabled" }),
-  ).toBeDisabled();
   await expect(research.locator("iframe")).toHaveAttribute(
     "sandbox",
     "allow-popups",
@@ -792,11 +788,20 @@ try {
   await page.reload();
   await expect(appearance).toHaveValue("norway");
   const publicPosts = [];
+  const publicMutationRequests = [];
+  page.on("request", (request) => {
+    if (!["GET", "HEAD"].includes(request.method())) {
+      publicMutationRequests.push(
+        `${request.method()} ${new URL(request.url()).pathname}`,
+      );
+    }
+  });
   await page
     .context()
     .addCookies([
       { name: "preview-smoke-session", value: "fixture", url: origin },
     ]);
+  const checkoutSource = "https://example.com/checkout/weather-api";
   await page.route("**/api/paypal/research", async (route) => {
     if (route.request().method() === "GET")
       return route.fulfill({ json: { available: true } });
@@ -812,15 +817,21 @@ try {
         ? "OFFLINE_SEARCH_FIXTURE"
         : "LIVE_TAVILY_SEARCH";
     discovery.offers[0].officialMerchantUrl = researchSource;
+    if (publicPosts.length === 2) {
+      discovery.offers[0].officialCheckoutUrl = checkoutSource;
+      discovery.offers[0].sources.push({ url: checkoutSource, cited: true });
+    }
     return route.fulfill({ json: { discovery } });
   });
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page.reload();
-    await chat.getByLabel("Budget (USD)").fill("5.00");
+    await chat
+      .getByLabel("Budget (USD)")
+      .fill(width === 1440 ? "25.00" : "1,000");
     await chat
       .getByLabel("Your purchasing instruction")
-      .fill("Find weather API plans under $5 per month");
+      .fill("Compare weather API plans within my research budget");
     await chat.getByRole("button", { name: "Research offers" }).click();
     if (width === 1440) {
       await expect(chat.getByRole("alert")).toContainText(
@@ -829,31 +840,55 @@ try {
       await expect(chat).not.toContainText("Offline search fixture");
       await chat.getByRole("button", { name: "Research offers" }).click();
     }
-    await expect(chat).toContainText("Ineligible for Earmark payment");
+    await expect(chat).toContainText("Matches requirements");
+    await expect(chat).toContainText("Earmark AI · online research");
+    await expect(chat).not.toContainText(/\b(?:Google|Tavily|Gemini)\b/i);
+    await expect(
+      chat.getByRole("region", { name: "Online offer research" }),
+    ).toContainText(width === 1440 ? "$25.00" : "$1,000.00");
+    await expect(chat).not.toContainText("Ineligible for Earmark payment");
+    await expect(
+      chat.getByText(
+        "Earmark cannot currently execute payments for discovered merchants.",
+        { exact: true },
+      ),
+    ).toHaveCount(1);
     await chat
       .getByRole("button", { name: "Review for manual checkout" })
       .click();
-    await expect(
-      chat.getByRole("link", { name: /Open official.*page in new tab/ }),
-    ).toHaveAttribute("href", researchSource);
+    const merchantLink = chat.getByRole("link", {
+      name:
+        width === 1440
+          ? "Continue to merchant checkout"
+          : "View plan on merchant site",
+    });
+    await expect(merchantLink).toHaveAttribute(
+      "href",
+      width === 1440 ? checkoutSource : researchSource,
+    );
+    await expect(merchantLink).toHaveAttribute("target", "_blank");
+    await expect(merchantLink).toHaveAttribute("rel", "noopener noreferrer");
     await chat
       .getByRole("button", { name: "Approve for manual checkout" })
       .click();
     await expect(chat).toContainText("Manual checkout intent · not paid");
-    await expect(
-      chat.getByRole("button", { name: "Payment execution disabled" }),
-    ).toBeDisabled();
+    await chat.getByRole("button", { name: "Reject", exact: true }).click();
+    await expect(chat).toContainText("Rejected · no action");
+    await expect(chat).not.toContainText("Manual checkout intent · not paid");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
       ),
     ).toBe(false);
   }
+  expect(publicMutationRequests).toEqual(
+    Array(3).fill("POST /api/paypal/research"),
+  );
   expect(publicPosts).toEqual(
-    Array(3).fill({
-      instruction: "Find weather API plans under $5 per month",
-      budgetMinor: 500,
-    }),
+    [2500, 2500, 100000].map((budgetMinor) => ({
+      instruction: "Compare weather API plans within my research budget",
+      budgetMinor,
+    })),
   );
   expect(errors).toEqual([]);
   expect(externalRequests).toEqual([]);

@@ -3,17 +3,28 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { AgentError, createDatabase, type Pool } from "@flint/agent/server";
 import { z } from "zod";
-import { discoveryInstruction, discoverOffers } from "./offer-discovery";
+import { isResearchBudgetMinor } from "../../lib/offer-discovery";
+import {
+  discoveryInstruction,
+  discoverOffers,
+  type ResearchStageFailure,
+} from "./offer-discovery";
 import { PaymentError } from "./domain";
 
 type Env = Record<string, string | undefined>;
 const input = z.strictObject({
   instruction: z.string().trim().min(1).max(1000),
-  budgetMinor: z.number().int().min(1).max(1000),
+  budgetMinor: z.number().refine(isResearchBudgetMinor),
 });
 const MAX_BODY_BYTES = 4096;
-// Body read (2s) + quota (8s) + up to three provider calls (48s).
 const QUOTA_TIMEOUT_MS = 8000;
+// Leave 5 seconds of the 60-second route for local evaluation and the response.
+const PUBLIC_RESEARCH_DEADLINE_MS = 55000;
+const stageTimeouts = {
+  offer_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
+  offer_analysis: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
+  payment_evidence: "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_TIMEOUT",
+} as const;
 
 type QuotaAttempt = {
   phase: "connection" | "query";
@@ -291,6 +302,7 @@ export async function handlePublicResearch(
   reserve = reserveQuota,
   discover = discoverOffers,
 ) {
+  const deadlineAt = performance.now() + PUBLIC_RESEARCH_DEADLINE_MS;
   const config = profile(env);
   if ("error" in config) {
     if (request.method === "GET") return json({ available: false });
@@ -321,7 +333,12 @@ export async function handlePublicResearch(
         .filter(([name]) => /SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL/.test(name))
         .map(([, value]) => value ?? ""),
     );
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof z.ZodError &&
+      error.issues.every((issue) => issue.path[0] === "budgetMinor")
+    )
+      return json({ error: "INVALID_RESEARCH_BUDGET" }, 400);
     return json({ error: "INVALID_RESEARCH_REQUEST" }, 400);
   }
 
@@ -359,6 +376,7 @@ export async function handlePublicResearch(
     clearTimeout(timer);
   }
 
+  const provider = { failure: null as ResearchStageFailure | null };
   try {
     const discovery = await discover(
       payload.instruction,
@@ -367,29 +385,50 @@ export async function handlePublicResearch(
         EARMARK_OFFER_DISCOVERY_ENABLED: "true",
         EARMARK_GEMINI_ENABLED: "true",
         AI_ENABLE_NETWORK: "true",
-        // Two searches and one extraction, 16 seconds each, within 60 seconds.
-        AI_TIMEOUT_MS: "16000",
       },
       undefined,
       payload.budgetMinor,
+      {
+        deadlineAt,
+        onFailure(failure) {
+          provider.failure = failure;
+          console.warn("public-research: provider stage failed", failure);
+        },
+      },
     );
     return json({ discovery });
   } catch (error) {
     if (error instanceof PaymentError && safeInstructionErrors.has(error.code))
       return json({ error: "INVALID_RESEARCH_REQUEST" }, 400);
+    const failure = provider.failure;
+    if (
+      failure &&
+      (failure.classification === "deadline_exhausted" ||
+        failure.classification === "local_timeout" ||
+        failure.classification === "upstream_timeout")
+    )
+      return json({ error: stageTimeouts[failure.stage] }, 504);
+    if (
+      failure?.stage === "payment_evidence" &&
+      failure.classification !== "rejected_or_internal"
+    )
+      return json(
+        { error: "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_UNAVAILABLE" },
+        502,
+      );
     const code =
       error instanceof PaymentError || error instanceof AgentError
         ? error.code
         : "";
     if (Object.hasOwn(providerFailures, code)) {
       const reason = providerFailures[code as keyof typeof providerFailures];
-      console.warn("public-research:", code);
+      if (!failure) console.warn("public-research:", code);
       return json(
         { error: reason },
         reason === "PUBLIC_RESEARCH_TIMEOUT" ? 504 : 502,
       );
     }
-    console.warn("public-research: backend unavailable");
+    if (!failure) console.warn("public-research: backend unavailable");
     return json({ error: "PUBLIC_RESEARCH_UNAVAILABLE" }, 502);
   }
 }

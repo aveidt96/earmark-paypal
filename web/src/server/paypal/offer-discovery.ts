@@ -3,7 +3,10 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { GeminiModel, readGeminiBody, AgentError } from "@flint/agent/server";
 import {
+  isResearchBudgetMinor,
   safeExternalOfferUrl,
+  safePlanCheckoutUrl,
+  selectVerifiedOfferSourceUrl,
   type OfferDiscoveryResult,
   type DiscoveredOffer,
   type OfferBillingPeriod,
@@ -37,6 +40,62 @@ const offerSchema = z.strictObject({
 export const TAVILY_SEARCH_URL = "https://api.tavily.com/search" as const;
 export const TAVILY_MAX_RESULTS = 5 as const;
 export const TAVILY_PAYMENT_MAX_RESULTS = 3 as const;
+
+// Retain the existing comparison default for local owner and Judge callers.
+const LOCAL_DISCOVERY_BUDGET_MINOR = 1000;
+const publicStageLimits = {
+  offer_search: 16000,
+  offer_analysis: 32000,
+  payment_evidence: 16000,
+} as const;
+// An earlier verified lookup took nearly 10 seconds before response headers.
+const PAYMENT_EVIDENCE_RESERVE_MS = 12000;
+
+export type ResearchStageFailure = {
+  stage: keyof typeof publicStageLimits;
+  classification:
+    | "deadline_exhausted"
+    | "local_timeout"
+    | "upstream_timeout"
+    | "authentication"
+    | "rate_limit"
+    | "transport"
+    | "invalid_response"
+    | "upstream_http"
+    | "rejected_or_internal";
+  elapsedMs: number;
+  timeoutMs: number;
+  httpStatus: number | null;
+};
+
+type PublicResearchTiming = {
+  deadlineAt: number;
+  onFailure: (failure: ResearchStageFailure) => void;
+};
+
+function researchFailureClass(
+  error: unknown,
+  status: number | null,
+): ResearchStageFailure["classification"] {
+  const code =
+    error instanceof PaymentError || error instanceof AgentError
+      ? error.code
+      : null;
+  if (status === 408 || status === 504) return "upstream_timeout";
+  if (code === "MODEL_TIMEOUT") return "local_timeout";
+  if (status === 401 || status === 403) return "authentication";
+  if (status === 429) return "rate_limit";
+  if (status !== null && status >= 400) return "upstream_http";
+  if (code === "MODEL_TRANSPORT_ERROR") return "transport";
+  if (
+    code === "INVALID_MODEL_RESPONSE" ||
+    code === "TAVILY_INVALID_RESPONSE" ||
+    code === "DISCOVERY_REPORT_REQUIRED" ||
+    error instanceof z.ZodError
+  )
+    return "invalid_response";
+  return "rejected_or_internal";
+}
 const reportSchema = z.strictObject({ offers: z.array(offerSchema).max(5) });
 const collector = {
   name: "reportDiscoveredOffers",
@@ -121,7 +180,7 @@ export function buildTargetedPayPalQuery(merchantDomain: string) {
 }
 
 function buildOfferSearchQuery(instruction: string) {
-  const query = `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods.`;
+  const query = `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods. Include public checkout pages for exact plans when available.`;
   return query.length <= 1000 ? query : instruction;
 }
 
@@ -282,7 +341,10 @@ export function createDiscoveryBoundary(
   tavilyKey: string,
   collectorModel = "gemini-3.8-flash",
   forbidden: readonly string[] = [],
+  budgetMinor = LOCAL_DISCOVERY_BUDGET_MINOR,
 ) {
+  if (!isResearchBudgetMinor(budgetMinor))
+    throw new PaymentError("DISCOVERY_BUDGET_INVALID");
   const allSecrets = [geminiKey, tavilyKey, ...forbidden];
   discoveryInstruction(instruction, allSecrets);
   if (!geminiKey.trim() || !tavilyKey.trim())
@@ -293,7 +355,7 @@ export function createDiscoveryBoundary(
   delete schema.$schema;
   const task = {
     instruction,
-    budgetMinor: "1000",
+    budgetMinor: String(budgetMinor),
     currency: "USD",
     purpose: "RESEARCH_ONLY",
   };
@@ -572,6 +634,7 @@ const evidenceLines = ({
 
 type TierTableRow = {
   priceCells: string[];
+  featureCells: string[];
   availabilityCells: string[];
   deliveryCells: string[];
   slaCells: string[];
@@ -640,6 +703,7 @@ function parseTierTable(
 
     const row: TierTableRow = {
       priceCells: [],
+      featureCells: [],
       availabilityCells: [],
       deliveryCells: [],
       slaCells: [],
@@ -653,6 +717,8 @@ function parseTierTable(
         /^(?:price|pricing|cost|monthly price|annual price|rate)$/i.test(header)
       ) {
         row.priceCells.push(cell);
+      } else if (/^(?:(?:key\s+)?features|includes)$/i.test(header)) {
+        row.featureCells.push(cell);
       } else if (
         /^(?:(?:plan|tier|purchase|signup|sign[- ]?up|subscription)\s+)?availability$/i.test(
           header,
@@ -895,6 +961,66 @@ function billingPeriod(value: string): OfferBillingPeriod | null {
   return present.length === 1 ? (present[0] ?? null) : null;
 }
 
+function merchantPlanEvidence(
+  service: string,
+  sources: ValidatedResearchResults["results"],
+) {
+  const tier = normalized(service).replaceAll(" ", "\\W+");
+  const features = new Map<string, { text: string; sourceUrl: string }>();
+  const periods = new Map<OfferBillingPeriod, string>();
+  let ambiguousPeriod = false;
+  if (!tier) return { features: [], billingEvidence: null };
+  const featureLine = new RegExp(
+    `^(?:the\\s+)?${tier}\\s+includes\\s+([^.!?]+)[.!]$`,
+    "i",
+  );
+  const billingLine = new RegExp(
+    `^(?:the\\s+)?${tier}\\s+(?:is|costs?)\\s+(.+)$`,
+    "i",
+  );
+  const periodTerm =
+    "(?:monthly|annual(?:ly)?|yearly|(?:per|each)\\s+(?:month|year)|one[- ]time|single payment|/\\s*(?:mo(?:nth)?|y(?:r|ear)))";
+  const exactBilling = new RegExp(
+    `^(?:(?:billed\\s+|(?:US\\$|[$€£]|(?:USD|EUR|GBP)\\s*\\$?)\\s*\\d+(?:\\.\\d{1,2})?(?:\\s*(?:USD|EUR|GBP))?\\s*)?${periodTerm})[.!]?$`,
+    "i",
+  );
+  for (const source of sources) {
+    const table = parseTierTable(source.snippet, service);
+    if (table.contextLost) continue;
+    const listed = source.snippet.includes("|")
+      ? table.matchedRows.flatMap((row) => row.featureCells)
+      : evidenceLines(source).flatMap(
+          (line) => featureLine.exec(line)?.[1] ?? [],
+        );
+    for (const feature of listed) {
+      if (feature.length <= 180 && !/\[\.{3}\]|https?:|<|>/i.test(feature)) {
+        features.set(normalized(feature), {
+          text: feature,
+          sourceUrl: source.url,
+        });
+      }
+    }
+    for (const line of priceCandidateLines(source, service).lines) {
+      const clause = billingLine.exec(line)?.[1];
+      if (!clause) continue;
+      const period = billingPeriod(clause);
+      if (period && exactBilling.test(clause)) periods.set(period, source.url);
+      else if (
+        /\b(?:billed|month(?:ly)?|year(?:ly)?|annual(?:ly)?)\b/i.test(clause)
+      )
+        ambiguousPeriod = true;
+    }
+  }
+  const period =
+    periods.size === 1 && !ambiguousPeriod ? [...periods][0] : undefined;
+  return {
+    features: [...features.values()].slice(0, 3),
+    billingEvidence: period
+      ? { period: period[0], sourceUrl: period[1] }
+      : null,
+  };
+}
+
 function priceEvidence(
   offer: z.infer<typeof offerSchema>,
   competing: z.infer<typeof offerSchema>[],
@@ -1041,13 +1167,10 @@ export async function discoverOffers(
   instruction: string,
   env: Record<string, string | undefined>,
   fetcher?: typeof fetch,
-  budgetMinor = 1000,
+  budgetMinor = LOCAL_DISCOVERY_BUDGET_MINOR,
+  timing?: PublicResearchTiming,
 ): Promise<OfferDiscoveryResult> {
-  if (
-    !Number.isSafeInteger(budgetMinor) ||
-    budgetMinor < 1 ||
-    budgetMinor > 1000
-  )
+  if (!isResearchBudgetMinor(budgetMinor))
     throw new PaymentError("DISCOVERY_BUDGET_INVALID");
   const forbidden = Object.entries(env)
     .filter(([k]) => /SECRET|TOKEN|PASSWORD|KEY|DATABASE_URL/.test(k))
@@ -1068,7 +1191,10 @@ export async function discoverOffers(
   if (!/^gemini-3(?:\.[0-9]+)?-[a-z0-9-]+$/.test(collectorModel))
     throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
   const timeout = Number(env.AI_TIMEOUT_MS ?? "60000");
-  if (!Number.isInteger(timeout) || timeout < 10000 || timeout > 60000)
+  if (
+    !timing &&
+    (!Number.isInteger(timeout) || timeout < 10000 || timeout > 60000)
+  )
     throw new PaymentError("INVALID_MODEL_TIMEOUT");
   const boundary = createDiscoveryBoundary(
     instruction,
@@ -1076,6 +1202,7 @@ export async function discoverOffers(
     tavilyKey,
     collectorModel,
     forbidden,
+    budgetMinor,
   );
   let httpStatus = 0,
     initialSearchAccepted = false,
@@ -1083,22 +1210,62 @@ export async function discoverOffers(
     paymentSearchAccepted = false;
   const started = Date.now();
 
+  async function runStage<T>(
+    stage: ResearchStageFailure["stage"],
+    work: (timeoutMs: number, transport: typeof fetch) => Promise<T>,
+  ): Promise<T> {
+    const transport = fetcher ?? fetch;
+    if (!timing) return work(timeout, transport);
+    const start = performance.now();
+    const reserve =
+      stage === "offer_analysis" ? PAYMENT_EVIDENCE_RESERVE_MS : 0;
+    const timeoutMs = Math.max(
+      0,
+      Math.min(
+        publicStageLimits[stage],
+        Math.floor(timing.deadlineAt - start - reserve),
+      ),
+    );
+    let httpStatus: number | null = null;
+    try {
+      if (!timeoutMs) throw new AgentError("MODEL_TIMEOUT");
+      return await work(timeoutMs, async (...args) => {
+        const response = await transport(...args);
+        httpStatus = response.status;
+        return response;
+      });
+    } catch (error) {
+      timing.onFailure({
+        stage,
+        classification: timeoutMs
+          ? researchFailureClass(error, httpStatus)
+          : "deadline_exhausted",
+        elapsedMs: Math.round(performance.now() - start),
+        timeoutMs,
+        httpStatus,
+      });
+      throw error;
+    }
+  }
+
   if (initialSearchAccepted)
     throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
   initialSearchAccepted = true;
-  const initialSearch = await runTavilySearch(
-    JSON.stringify({
-      query: buildOfferSearchQuery(instruction),
-      search_depth: "basic",
-      max_results: TAVILY_MAX_RESULTS,
-      include_answer: false,
-      include_raw_content: false,
-      include_images: false,
-    }),
-    tavilyKey,
-    timeout,
-    boundary.guard,
-    fetcher,
+  const initialSearch = await runStage("offer_search", (timeout, transport) =>
+    runTavilySearch(
+      JSON.stringify({
+        query: buildOfferSearchQuery(instruction),
+        search_depth: "basic",
+        max_results: TAVILY_MAX_RESULTS,
+        include_answer: false,
+        include_raw_content: false,
+        include_images: false,
+      }),
+      tavilyKey,
+      timeout,
+      boundary.guard,
+      transport,
+    ),
   );
   httpStatus = initialSearch.status;
 
@@ -1129,41 +1296,50 @@ export async function discoverOffers(
     results: sanitizedResults,
   });
 
-  const collectorTransport: typeof fetch = async (url, init) => {
-    if (!initialSearchAccepted || collectorAccepted || paymentSearchAccepted)
-      throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
-    boundary.guard(String(url), init ?? {});
-    collectorAccepted = true;
-    const response = await (fetcher ?? fetch)(url, init);
-    httpStatus = response.status;
-    return response;
-  };
-  const collectorClient = new GeminiModel(
-    {
-      apiKey: geminiKey,
-      model: collectorModel,
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-      networkEnabled: true,
-      timeoutMs: timeout,
-      maxAttempts: 1,
-      maxOutputTokens: 3000,
-      systemInstruction: system,
-      customTools: [collector],
-      outboundPolicy: boundary.guard,
+  const report = await runStage(
+    "offer_analysis",
+    async (timeout, transport) => {
+      const collectorTransport: typeof fetch = async (url, init) => {
+        if (
+          !initialSearchAccepted ||
+          collectorAccepted ||
+          paymentSearchAccepted
+        )
+          throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
+        boundary.guard(String(url), init ?? {});
+        collectorAccepted = true;
+        const response = await transport(url, init);
+        httpStatus = response.status;
+        return response;
+      };
+      const collectorClient = new GeminiModel(
+        {
+          apiKey: geminiKey,
+          model: collectorModel,
+          baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+          networkEnabled: true,
+          timeoutMs: timeout,
+          maxAttempts: 1,
+          maxOutputTokens: 3000,
+          systemInstruction: system,
+          customTools: [collector],
+          outboundPolicy: boundary.guard,
+        },
+        collectorTransport,
+      );
+      const decision = await collectorClient.decide({
+        task: boundary.task,
+        observations: researchResults,
+      });
+      if (
+        decision.kind !== "tool" ||
+        decision.name !== collector.name ||
+        !collectorAccepted
+      )
+        throw new AgentError("DISCOVERY_REPORT_REQUIRED");
+      return reportSchema.parse(decision.args);
     },
-    collectorTransport,
   );
-  const decision = await collectorClient.decide({
-    task: boundary.task,
-    observations: researchResults,
-  });
-  if (
-    decision.kind !== "tool" ||
-    decision.name !== collector.name ||
-    !collectorAccepted
-  )
-    throw new AgentError("DISCOVERY_REPORT_REQUIRED");
-  const report = reportSchema.parse(decision.args);
   const grouped = new Map<string, (typeof report.offers)[number][]>();
   for (const offer of report.offers) {
     // Web text is displayed as escaped text only, never reused as model instructions.
@@ -1189,10 +1365,12 @@ export async function discoverOffers(
   }
   const ceiling = [
     ...instruction.matchAll(
-      /\$\s*(\d{1,4}(?:\.\d{1,2})?)(?!\d|[.,]\d)|\b(\d{1,4}(?:\.\d{1,2})?)\s*USD\b|\bUSD\s+(\d{1,4}(?:\.\d{1,2})?)(?!\d|[.,]\d)/gi,
+      /(?:\$\s*|\bUSD\s+)(\d+(?:,\d{3})*(?:\.\d{1,2})?)(?!\d|[.,]\d)|(?<![\d.,])(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s*USD\b/gi,
     ),
   ]
-    .map((match) => minorUnits(match[1] ?? match[2] ?? match[3] ?? "0"))
+    .map((match) =>
+      minorUnits((match[1] ?? match[2] ?? "0").replaceAll(",", "")),
+    )
     .reduce((a, b) => (a < b ? a : b), BigInt(budgetMinor));
   const requestedPeriod = billingPeriod(instruction);
   const maxMinutes = Math.min(
@@ -1277,19 +1455,23 @@ export async function discoverOffers(
   if (paymentSearchAccepted)
     throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
   paymentSearchAccepted = true;
-  const paymentSearch = await runTavilySearch(
-    JSON.stringify({
-      query: buildTargetedPayPalQuery(targetMerchantDomain),
-      search_depth: "basic",
-      max_results: TAVILY_PAYMENT_MAX_RESULTS,
-      include_answer: false,
-      include_raw_content: false,
-      include_images: false,
-    }),
-    tavilyKey,
-    timeout,
-    boundary.guard,
-    fetcher,
+  const paymentSearch = await runStage(
+    "payment_evidence",
+    (timeout, transport) =>
+      runTavilySearch(
+        JSON.stringify({
+          query: buildTargetedPayPalQuery(targetMerchantDomain),
+          search_depth: "basic",
+          max_results: TAVILY_PAYMENT_MAX_RESULTS,
+          include_answer: false,
+          include_raw_content: false,
+          include_images: false,
+        }),
+        tavilyKey,
+        timeout,
+        boundary.guard,
+        transport,
+      ),
   );
   httpStatus = paymentSearch.status;
 
@@ -1391,24 +1573,64 @@ export async function discoverOffers(
       !missing.includes("PAYPAL_ACCEPTANCE_UNVERIFIED")
     )
       policy.reasons.push("PAYPAL_ACCEPTANCE_UNVERIFIED");
+    const merchantPlanSources = domain
+      ? planSources.filter((source) => {
+          const { hostname, pathname, search } = new URL(source.url);
+          return (
+            (hostname === domain || hostname.endsWith(`.${domain}`)) &&
+            !search &&
+            /(?:^|\/)(?:pricing|plans?|packages|subscriptions)(?:[/.\-]|$)/i.test(
+              pathname,
+            ) &&
+            !/(?:^|\/)(?:checkout|cart|account|login|sign-?up|register|pay|order|capture|confirm|complete)(?:[/.\-]|$)/i.test(
+              pathname,
+            ) &&
+            (!source.snippet.includes("|") ||
+              parseTierTable(source.snippet, offer.service).matchedRows.length >
+                0) &&
+            offerSourcePriority(source) < 2
+          );
+        })
+      : [];
+    const officialMerchantUrl = selectVerifiedOfferSourceUrl({
+      sources: merchantPlanSources.map(({ url }) => ({ url, cited: true })),
+      pricing,
+      paypalSourceUrl: null,
+    });
+    // Use a retrieved page URL, never a model-generated link or a URL built from a plan name.
+    const tier = normalized(offer.service);
+    const checkoutPage =
+      domain && officialMerchantUrl
+        ? sanitizedResults.find((source) => {
+            const hostname = new URL(source.url).hostname;
+            const title = normalized(source.title);
+            const merchant = normalized(offer.provider);
+            const checkoutTitles = [`${tier} checkout`, `checkout for ${tier}`];
+            return (
+              [domain, `www.${domain}`, `checkout.${domain}`].includes(
+                hostname,
+              ) &&
+              checkoutTitles.some(
+                (expected) =>
+                  title === expected ||
+                  title === `${expected} ${merchant}` ||
+                  title === `${merchant} ${expected}`,
+              ) &&
+              safePlanCheckoutUrl(source.url, offer.service) !== null
+            );
+          })
+        : undefined;
+    if (checkoutPage && !sources.some(({ url }) => url === checkoutPage.url)) {
+      sources.push({ url: checkoutPage.url, cited: true });
+    }
     offers.push({
       id,
       ...claims,
       ...classifiedPayPal,
       sources,
-      officialMerchantUrl:
-        domain === null
-          ? null
-          : ([
-              pricing.sourceUrl,
-              ...planSources.map((source) => source.url),
-            ].find(
-              (url): url is string =>
-                url !== null &&
-                sources.some((source) => source.cited && source.url === url) &&
-                (new URL(url).hostname === domain ||
-                  new URL(url).hostname.endsWith(`.${domain}`)),
-            ) ?? null),
+      officialMerchantUrl,
+      officialCheckoutUrl: checkoutPage?.url ?? null,
+      ...merchantPlanEvidence(offer.service, merchantPlanSources),
       pricing,
       reviewFit: outside.length
         ? "does-not-match"
