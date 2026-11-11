@@ -12,6 +12,78 @@ const input = z.strictObject({
   budgetMinor: z.number().int().min(1).max(1000),
 });
 const MAX_BODY_BYTES = 4096;
+// Body read (2s) + quota (8s) + up to three provider calls (48s).
+const QUOTA_TIMEOUT_MS = 8000;
+
+type QuotaAttempt = {
+  phase: "connection" | "query";
+  signal: AbortSignal;
+};
+
+const quotaPostgresErrors = {
+  "08000": "connection_failed",
+  "08001": "connection_failed",
+  "08003": "connection_failed",
+  "08004": "connection_failed",
+  "08006": "connection_failed",
+  "08P01": "connection_failed",
+  "28000": "authentication_failed",
+  "28P01": "authentication_failed",
+  "3D000": "database_missing",
+  "3F000": "schema_or_table_missing",
+  "42501": "permission_denied",
+  "42P01": "schema_or_table_missing",
+  "53300": "connection_failed",
+  "57014": "query_timeout_or_cancelled",
+  "57P01": "connection_failed",
+  "57P03": "connection_failed",
+  "22P02": "query_failed",
+  "23514": "query_failed",
+  "40001": "query_failed",
+  "40P01": "query_failed",
+  "42601": "query_failed",
+  "42703": "query_failed",
+  "55P03": "query_failed",
+} as const;
+
+function quotaFailure(error: unknown, attempt: QuotaAttempt) {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? error.code
+      : undefined;
+  const message = error instanceof Error ? error.message : "";
+  if (attempt.signal.aborted || code === "ETIMEDOUT")
+    return { classification: `${attempt.phase}_timeout` };
+  if (typeof code === "string" && Object.hasOwn(quotaPostgresErrors, code))
+    return {
+      classification:
+        quotaPostgresErrors[code as keyof typeof quotaPostgresErrors],
+      pgCode: code,
+    };
+  switch (message) {
+    case "INVALID_DATABASE_CONFIGURATION":
+      return { classification: "invalid_database_url" };
+    case "DIRECT_NEON_DATABASE_REQUIRED":
+      return { classification: "direct_neon_url_required" };
+    case "UNSUPPORTED_DATABASE_OPTION":
+      return { classification: "unsupported_database_url_option" };
+    case "timeout exceeded when trying to connect":
+    case "Connection terminated due to connection timeout":
+      return { classification: "connection_timeout" };
+    case "Query read timeout":
+      return { classification: "query_timeout" };
+    case "Connection terminated":
+    case "Connection terminated unexpectedly":
+      return { classification: "connection_failed" };
+    default:
+      return {
+        classification:
+          code === "ECONNRESET" || code === "EPIPE"
+            ? "connection_failed"
+            : `${attempt.phase}_failed`,
+      };
+  }
+}
 
 const providerFailures = {
   TAVILY_AUTH_ERROR: "PUBLIC_RESEARCH_SEARCH_UNAVAILABLE",
@@ -116,16 +188,35 @@ let quotaPool: Pool | undefined;
 async function reserveQuota(
   visitor: string,
   databaseUrl: string,
+  attempt: QuotaAttempt,
 ): Promise<boolean> {
   quotaPool ??= createDatabase(databaseUrl);
-  return reservePublicResearchQuota(quotaPool, visitor);
+  return reservePublicResearchQuota(quotaPool, visitor, attempt);
 }
 
-export async function reservePublicResearchQuota(pool: Pool, visitor: string) {
-  // PostgreSQL locks the UTC day's row and rechecks the WHERE condition
-  // against the current row on conflict, including across function instances.
-  const result = await pool.query(
-    `INSERT INTO earmark_research.daily_quota AS q (day, used, visitors)
+export async function reservePublicResearchQuota(
+  pool: Pick<Pool, "connect">,
+  visitor: string,
+  attempt: QuotaAttempt,
+) {
+  const client = await pool.connect();
+  const { signal } = attempt;
+  if (signal.aborted) {
+    client.release();
+    throw signal.reason;
+  }
+  attempt.phase = "query";
+  const discardClient = () => client.release(true);
+  // pg rejects the active query and emits a client error on socket loss.
+  const handleClientError = () => {};
+  client.on("error", handleClientError);
+  signal.addEventListener("abort", discardClient, { once: true });
+  let queryFailed = true;
+  try {
+    // PostgreSQL locks the UTC day's row and rechecks the WHERE condition
+    // against the current row on conflict, including across function instances.
+    const result = await client.query(
+      `INSERT INTO earmark_research.daily_quota AS q (day, used, visitors)
        VALUES ((statement_timestamp() AT TIME ZONE 'UTC')::date, 1,
                jsonb_build_object($1::text, 1))
      ON CONFLICT (day) DO UPDATE SET
@@ -134,9 +225,15 @@ export async function reservePublicResearchQuota(pool: Pool, visitor: string) {
          to_jsonb(COALESCE((q.visitors->>$1::text)::integer, 0) + 1))
      WHERE q.used < 24 AND COALESCE((q.visitors->>$1::text)::integer, 0) < 3
      RETURNING 1`,
-    [visitor],
-  );
-  return result.rowCount === 1;
+      [visitor],
+    );
+    queryFailed = false;
+    return result.rowCount === 1;
+  } finally {
+    signal.removeEventListener("abort", discardClient);
+    if (!signal.aborted) client.release(queryFailed);
+    client.off("error", handleClientError);
+  }
 }
 
 function json(body: object, status = 200) {
@@ -234,16 +331,29 @@ export async function handlePublicResearch(
     .update(address)
     .digest("hex");
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const quotaStartedAt = performance.now();
+  const quotaDeadline = new AbortController();
+  const quotaAttempt: QuotaAttempt = {
+    phase: "connection",
+    signal: quotaDeadline.signal,
+  };
   try {
     const admitted = await Promise.race([
-      reserve(visitor, env.EARMARK_RESEARCH_DATABASE_URL ?? ""),
+      reserve(visitor, env.EARMARK_RESEARCH_DATABASE_URL ?? "", quotaAttempt),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("QUOTA_TIMEOUT")), 3000);
+        timer = setTimeout(() => {
+          const error = new Error("QUOTA_TIMEOUT");
+          reject(error);
+          quotaDeadline.abort(error);
+        }, QUOTA_TIMEOUT_MS);
       }),
     ]);
     if (!admitted) return json({ error: "PUBLIC_RESEARCH_LIMIT_REACHED" }, 429);
-  } catch {
-    console.warn("public-research: quota storage unavailable");
+  } catch (error) {
+    console.warn("public-research: quota storage unavailable", {
+      ...quotaFailure(error, quotaAttempt),
+      elapsedMs: Math.round(performance.now() - quotaStartedAt),
+    });
     return json({ error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE" }, 503);
   } finally {
     clearTimeout(timer);

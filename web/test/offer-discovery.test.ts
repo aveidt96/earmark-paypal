@@ -18,8 +18,11 @@ import {
   discoverySource,
 } from "../src/server/paypal/offer-discovery";
 import { createJudgeHandler } from "../src/server/paypal/judge-http";
-import { handlePublicResearch } from "../src/server/paypal/public-research";
-import { AgentError } from "@flint/agent/server";
+import {
+  handlePublicResearch,
+  reservePublicResearchQuota,
+} from "../src/server/paypal/public-research";
+import { AgentError, type PoolClient } from "@flint/agent/server";
 import { handleAgentCheckout } from "../src/server/paypal/agent-checkout-http";
 import { TestOwnerAuth } from "../src/server/paypal/test-auth";
 import { agentPreparationFixture } from "./fixtures/agent-checkout";
@@ -247,6 +250,10 @@ describe("anonymous Norway research", () => {
     expect(reserve).toHaveBeenCalledExactlyOnceWith(
       expect.stringMatching(/^[a-f0-9]{64}$/),
       publicEnv.EARMARK_RESEARCH_DATABASE_URL,
+      expect.objectContaining({
+        phase: "connection",
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -367,6 +374,151 @@ describe("anonymous Norway research", () => {
     }
     expect(reserve).not.toHaveBeenCalled();
     expect(discover).not.toHaveBeenCalled();
+  });
+
+  it("classifies quota failures without logging raw PostgreSQL or driver details", async () => {
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const discover = vi.fn<typeof discoverOffers>();
+    try {
+      for (const [phase, code, message, classification, pgCode] of [
+        ["connection", "ECONNREFUSED", "sensitive host", "connection_failed"],
+        [
+          "connection",
+          "28P01",
+          "sensitive login",
+          "authentication_failed",
+          "28P01",
+        ],
+        ["query", "42501", "sensitive role", "permission_denied", "42501"],
+        [
+          "query",
+          "42P01",
+          "sensitive relation",
+          "schema_or_table_missing",
+          "42P01",
+        ],
+        ["query", "40P01", "sensitive SQL", "query_failed", "40P01"],
+        [
+          "query",
+          "57014",
+          "sensitive detail",
+          "query_timeout_or_cancelled",
+          "57014",
+        ],
+        [
+          "query",
+          "private-unrecognized-value",
+          "sensitive query",
+          "query_failed",
+        ],
+        [
+          "connection",
+          undefined,
+          "DIRECT_NEON_DATABASE_REQUIRED",
+          "direct_neon_url_required",
+        ],
+        [
+          "connection",
+          undefined,
+          "timeout exceeded when trying to connect",
+          "connection_timeout",
+        ],
+        ["query", undefined, "Query read timeout", "query_timeout"],
+      ] as const) {
+        log.mockClear();
+        const failure = Object.assign(new Error(message), {
+          code,
+          detail: "sensitive quota parameter",
+        });
+        const reply = await handlePublicResearch(
+          request(payload),
+          publicEnv,
+          async (_visitor, _url, attempt) => {
+            attempt.phase = phase;
+            throw failure;
+          },
+          discover,
+        );
+        expect(reply.status).toBe(503);
+        expect(await reply.json()).toEqual({
+          error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE",
+        });
+        expect(log).toHaveBeenCalledExactlyOnceWith(
+          "public-research: quota storage unavailable",
+          {
+            classification,
+            ...(pgCode ? { pgCode } : {}),
+            elapsedMs: expect.any(Number),
+          },
+        );
+      }
+      expect(discover).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("bounds quota connection and query work at eight seconds", async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const discover = vi.fn<typeof discoverOffers>();
+    try {
+      for (const phase of ["connection", "query"] as const) {
+        log.mockClear();
+        const started = Promise.withResolvers<void>();
+        const connecting = Promise.withResolvers<PoolClient>();
+        const querying = Promise.withResolvers<{ rowCount: number }>();
+        const client = {
+          query: vi.fn(() => querying.promise),
+          release: vi.fn(),
+          on: vi.fn(),
+          off: vi.fn(),
+        };
+        const pool = {
+          connect: () => {
+            started.resolve();
+            return connecting.promise;
+          },
+        };
+        let reservation: Promise<boolean> | undefined;
+        const response = handlePublicResearch(
+          request(payload),
+          publicEnv,
+          (visitor, _url, attempt) => {
+            reservation = reservePublicResearchQuota(pool, visitor, attempt);
+            return reservation;
+          },
+          discover,
+        );
+        await started.promise;
+        if (phase === "query")
+          connecting.resolve(client as unknown as PoolClient);
+        await vi.advanceTimersByTimeAsync(7999);
+        expect(log).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect((await response).status).toBe(503);
+        expect(log).toHaveBeenCalledExactlyOnceWith(
+          "public-research: quota storage unavailable",
+          { classification: `${phase}_timeout`, elapsedMs: expect.any(Number) },
+        );
+        if (phase === "connection") {
+          connecting.resolve(client as unknown as PoolClient);
+          await expect(reservation).rejects.toThrow("QUOTA_TIMEOUT");
+          expect(client.release).toHaveBeenCalledExactlyOnceWith();
+          expect(client.query).not.toHaveBeenCalled();
+        } else {
+          expect(client.query).toHaveBeenCalledTimes(1);
+          expect(client.release).toHaveBeenCalledExactlyOnceWith(true);
+          querying.reject(new Error("Connection terminated"));
+          await expect(reservation).rejects.toThrow("Connection terminated");
+          expect(client.release).toHaveBeenCalledTimes(1);
+        }
+      }
+      expect(discover).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("routes ordinary product requests to live research and distinguishes upstream failures", async () => {

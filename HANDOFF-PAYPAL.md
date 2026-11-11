@@ -7283,3 +7283,51 @@ A normal push of main is authorized by the user and follows a final fetch and
 remote-head check. No deployment command, provider request, database mutation
 or financial operation was performed. An existing Git integration may react
 to the push; deployment success is not established by this operation.
+
+
+### 2026-11-11 — Production research quota diagnostics
+
+The reported Production warning came from the quota reservation in
+`web/src/server/paypal/public-research.ts`. The shared `agent/src/postgres.ts`
+helper permits a ten-second connection attempt and validates a direct Neon
+URL. Previously a three-second route deadline and a single generic warning
+hid the difference between URL validation, connection, authentication,
+permissions, missing relations, and SQL failures. The table was reported
+created. The connected Neon tool is scoped to testnet, so the failing
+Production connection and runtime role have not been verified.
+
+- `web/src/server/paypal/public-research.ts` uses an eight-second quota
+  deadline inside the existing 60-second route. The two-second body read,
+  eight-second quota, and three 16-second provider allowances total 58
+  seconds. The single atomic statement, UTC accounting, three-per-visitor
+  and 24-per-day limits, 429/503 responses, and provider admission stay in place.
+  A late connection is released before starting SQL. A timed-out query's
+  client is discarded. The shared connection helper remains unchanged.
+- `web/test/offer-discovery.test.ts` checks safe diagnostic fields, 503 on
+  quota failure, and connection/query deadline cleanup with fake timers and
+  clients. The offline tests make no live provider evaluation.
+
+In the original earmark-paypal Production runtime logs, filter for the
+`/api/paypal/research` path and `public-research: quota storage unavailable`.
+Read `classification`, `elapsedMs`, and an allowlisted `pgCode` when present.
+`direct_neon_url_required` or `unsupported_database_url_option` means the
+shared URL validator rejected the connection configuration. `28P01` or
+`28000` points to authentication. `42501` points to the quota role's schema
+and table grants. `42P01`, `3F000`, or `3D000` points to the selected Neon
+branch, database, schema, or table. The connection and query timeout labels
+show where the deadline was reached. `57014` is a PostgreSQL query
+cancellation and can indicate its statement deadline. For `query_failed`,
+use the reported SQLSTATE to inspect the server failure.
+
+The focused change is prepared in `.tools/task09-quota` from current main
+`fc3b3e4`. Local locked workspace dependencies and generated build files are
+excluded from publication. The unrelated local UI candidate and paused
+Lambda work remain outside this change. Validation and push results follow.
+
+Validation passed on Node 22.14.0 with the locked offline workspace install.
+The 56 focused discovery and PostgreSQL helper tests, workspace and API
+TypeScript checks, formatting and warning-free lint passed. The production
+Next.js build completed strict TypeScript checking, static generation of 16
+pages and route tracing. The 48-chunk browser boundary scan passed. The
+atomic quota SQL matched main exactly. Validation used offline fixtures.
+GitHub main still matched the release base at the pre-push check.
