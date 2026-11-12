@@ -21,6 +21,8 @@ const input = z.strictObject({
 });
 const MAX_BODY_BYTES = 4096;
 const QUOTA_TIMEOUT_MS = 8000;
+// Keep this in sync with the CHECK constraint in docs/public-research-quota.sql.
+const MAX_DAILY_RESEARCH_REQUESTS = 120;
 // Leave 5 seconds of the 60-second route for local evaluation and the response.
 const PUBLIC_RESEARCH_DEADLINE_MS = 55000;
 const stageTimeouts = {
@@ -32,6 +34,8 @@ const stageTimeouts = {
 type QuotaAttempt = {
   phase: "connection" | "query";
   signal: AbortSignal;
+  day: string;
+  limits: { perVisitor: number; global: number };
 };
 
 const quotaPostgresErrors = {
@@ -119,6 +123,17 @@ function configurationFailure(error: string, ...prerequisites: string[]) {
   return { error, prerequisites } as const;
 }
 
+function dailyQuotaLimit(value: string | undefined, fallback: number) {
+  if (value === undefined) return fallback;
+  const count = Number(value);
+  return Number.isInteger(count) &&
+    count >= 1 &&
+    count <= MAX_DAILY_RESEARCH_REQUESTS &&
+    String(count) === value
+    ? count
+    : null;
+}
+
 function profile(env: Env) {
   if (env.EARMARK_PUBLIC_RESEARCH_ENABLED !== "true")
     return configurationFailure(
@@ -151,7 +166,16 @@ function profile(env: Env) {
     quotaSettings.push("EARMARK_RESEARCH_DATABASE_URL");
   if (!/^[a-f0-9]{64}$/i.test(env.EARMARK_RESEARCH_QUOTA_SECRET ?? ""))
     quotaSettings.push("EARMARK_RESEARCH_QUOTA_SECRET");
-  if (quotaSettings.length)
+  const perVisitor = dailyQuotaLimit(
+    env.EARMARK_RESEARCH_VISITOR_DAILY_LIMIT,
+    3,
+  );
+  const global = dailyQuotaLimit(env.EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT, 24);
+  if (perVisitor === null)
+    quotaSettings.push("EARMARK_RESEARCH_VISITOR_DAILY_LIMIT");
+  if (global === null)
+    quotaSettings.push("EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT");
+  if (perVisitor === null || global === null || quotaSettings.length)
     return configurationFailure(
       "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
       ...quotaSettings,
@@ -189,7 +213,7 @@ function profile(env: Env) {
         "PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED",
         "EARMARK_PUBLIC_RESEARCH_ORIGIN",
       );
-    return { origin, hosted };
+    return { origin, hosted, limits: { perVisitor, global } };
   } catch {
     return configurationFailure(
       "PUBLIC_RESEARCH_ORIGIN_NOT_CONFIGURED",
@@ -213,6 +237,53 @@ export async function reservePublicResearchQuota(
   visitor: string,
   attempt: QuotaAttempt,
 ) {
+  // PostgreSQL locks the day's row and rechecks both limits on conflict.
+  return queryQuota(
+    pool,
+    attempt,
+    `INSERT INTO earmark_research.daily_quota AS q (day, used, visitors)
+     VALUES ($4::date, 1, jsonb_build_object($1::text, 1))
+     ON CONFLICT (day) DO UPDATE SET
+       used = q.used + 1,
+       visitors = jsonb_set(q.visitors, ARRAY[$1::text],
+         to_jsonb(COALESCE((q.visitors->>$1::text)::integer, 0) + 1))
+     WHERE q.used < $2::integer
+       AND COALESCE((q.visitors->>$1::text)::integer, 0) < $3::integer
+     RETURNING 1`,
+    [visitor, attempt.limits.global, attempt.limits.perVisitor, attempt.day],
+  );
+}
+
+async function refundQuota(visitor: string, attempt: QuotaAttempt) {
+  if (!quotaPool) throw new Error("QUOTA_POOL_UNAVAILABLE");
+  return refundPublicResearchVisitorQuota(quotaPool, visitor, attempt);
+}
+
+export async function refundPublicResearchVisitorQuota(
+  pool: Pick<Pool, "connect">,
+  visitor: string,
+  attempt: QuotaAttempt,
+) {
+  // Keep the site-wide admission count as the hard cap on provider work.
+  return queryQuota(
+    pool,
+    attempt,
+    `UPDATE earmark_research.daily_quota AS q
+     SET visitors = jsonb_set(q.visitors, ARRAY[$1::text],
+         to_jsonb((q.visitors->>$1::text)::integer - 1))
+     WHERE q.day = $2::date
+       AND COALESCE((q.visitors->>$1::text)::integer, 0) > 0
+     RETURNING 1`,
+    [visitor, attempt.day],
+  );
+}
+
+async function queryQuota(
+  pool: Pick<Pool, "connect">,
+  attempt: QuotaAttempt,
+  statement: string,
+  parameters: Array<string | number>,
+) {
   const client = await pool.connect();
   const { signal } = attempt;
   if (signal.aborted) {
@@ -227,26 +298,49 @@ export async function reservePublicResearchQuota(
   signal.addEventListener("abort", discardClient, { once: true });
   let queryFailed = true;
   try {
-    // PostgreSQL locks the UTC day's row and rechecks the WHERE condition
-    // against the current row on conflict, including across function instances.
-    const result = await client.query(
-      `INSERT INTO earmark_research.daily_quota AS q (day, used, visitors)
-       VALUES ((statement_timestamp() AT TIME ZONE 'UTC')::date, 1,
-               jsonb_build_object($1::text, 1))
-     ON CONFLICT (day) DO UPDATE SET
-       used = q.used + 1,
-       visitors = jsonb_set(q.visitors, ARRAY[$1::text],
-         to_jsonb(COALESCE((q.visitors->>$1::text)::integer, 0) + 1))
-     WHERE q.used < 24 AND COALESCE((q.visitors->>$1::text)::integer, 0) < 3
-     RETURNING 1`,
-      [visitor],
-    );
+    const result = await client.query(statement, parameters);
     queryFailed = false;
     return result.rowCount === 1;
   } finally {
     signal.removeEventListener("abort", discardClient);
     if (!signal.aborted) client.release(queryFailed);
     client.off("error", handleClientError);
+  }
+}
+
+async function runQuotaOperation(
+  window: Pick<QuotaAttempt, "day" | "limits">,
+  work: (attempt: QuotaAttempt) => Promise<boolean>,
+  logMessage: string,
+  timeoutMs = QUOTA_TIMEOUT_MS,
+) {
+  const started = performance.now();
+  const deadline = new AbortController();
+  const attempt: QuotaAttempt = {
+    ...window,
+    phase: "connection",
+    signal: deadline.signal,
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work(attempt),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error("QUOTA_TIMEOUT");
+          reject(error);
+          deadline.abort(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    console.warn(logMessage, {
+      ...quotaFailure(error, attempt),
+      elapsedMs: Math.round(performance.now() - started),
+    });
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -304,6 +398,7 @@ export async function handlePublicResearch(
   env: Env = process.env,
   reserve = reserveQuota,
   discover = discoverOffers,
+  refund = refundQuota,
 ) {
   const deadlineAt = performance.now() + PUBLIC_RESEARCH_DEADLINE_MS;
   const config = profile(env);
@@ -346,38 +441,23 @@ export async function handlePublicResearch(
   }
 
   const address = version === 6 ? new URL(`http://[${ip}]`).hostname : ip;
+  const window = {
+    day: new Date().toISOString().slice(0, 10),
+    limits: config.limits,
+  };
   const visitor = createHmac("sha256", env.EARMARK_RESEARCH_QUOTA_SECRET ?? "")
-    .update(new Date().toISOString().slice(0, 10))
+    .update(window.day)
     .update(address)
     .digest("hex");
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const quotaStartedAt = performance.now();
-  const quotaDeadline = new AbortController();
-  const quotaAttempt: QuotaAttempt = {
-    phase: "connection",
-    signal: quotaDeadline.signal,
-  };
-  try {
-    const admitted = await Promise.race([
-      reserve(visitor, env.EARMARK_RESEARCH_DATABASE_URL ?? "", quotaAttempt),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          const error = new Error("QUOTA_TIMEOUT");
-          reject(error);
-          quotaDeadline.abort(error);
-        }, QUOTA_TIMEOUT_MS);
-      }),
-    ]);
-    if (!admitted) return json({ error: "PUBLIC_RESEARCH_LIMIT_REACHED" }, 429);
-  } catch (error) {
-    console.warn("public-research: quota storage unavailable", {
-      ...quotaFailure(error, quotaAttempt),
-      elapsedMs: Math.round(performance.now() - quotaStartedAt),
-    });
+  const admitted = await runQuotaOperation(
+    window,
+    (attempt) =>
+      reserve(visitor, env.EARMARK_RESEARCH_DATABASE_URL ?? "", attempt),
+    "public-research: quota storage unavailable",
+  );
+  if (admitted === null)
     return json({ error: "PUBLIC_RESEARCH_QUOTA_UNAVAILABLE" }, 503);
-  } finally {
-    clearTimeout(timer);
-  }
+  if (!admitted) return json({ error: "PUBLIC_RESEARCH_LIMIT_REACHED" }, 429);
 
   const provider: {
     failure?: ResearchStageFailure;
@@ -418,10 +498,22 @@ export async function handlePublicResearch(
       failure?.classification === "deadline_exhausted" ||
       failure?.classification === "local_timeout" ||
       failure?.classification === "upstream_timeout";
+    const comparisonUnavailable =
+      failure?.stage === "offer_analysis" && failure.httpStatus === 503;
+    if (comparisonUnavailable) {
+      const timeLeft = Math.floor(deadlineAt - performance.now());
+      if (timeLeft > 0)
+        await runQuotaOperation(
+          window,
+          (attempt) => refund(visitor, attempt),
+          "public-research: quota refund unavailable",
+          Math.min(QUOTA_TIMEOUT_MS, timeLeft),
+        );
+    }
     if (
       failure?.stage === "offer_analysis" &&
       provider.comparisonSources?.length &&
-      (timedOut || failure.httpStatus === 503)
+      (timedOut || comparisonUnavailable)
     ) {
       const incompleteComparison: IncompleteComparison = {
         reason: timedOut ? "timeout" : "unavailable",

@@ -1,10 +1,10 @@
--- Apply as the owner of a dedicated non-financial database. Provision a
+-- For a fresh dedicated non-financial database, apply as its owner. Provision a
 -- separate login for the function; replace earmark_research_app if needed.
 CREATE SCHEMA earmark_research;
 
 CREATE TABLE earmark_research.daily_quota (
   day date PRIMARY KEY,
-  used integer NOT NULL CHECK (used BETWEEN 1 AND 24),
+  used integer NOT NULL CHECK (used BETWEEN 1 AND 120),
   visitors jsonb NOT NULL CHECK (jsonb_typeof(visitors) = 'object')
 );
 

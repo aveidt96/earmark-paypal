@@ -367,8 +367,48 @@ describe("anonymous Norway research", () => {
       expect.objectContaining({
         phase: "connection",
         signal: expect.any(AbortSignal),
+        limits: { perVisitor: 3, global: 24 },
       }),
     );
+  });
+
+  it("passes judging limits to the atomic quota statement before any provider work", async () => {
+    const client = {
+      query: vi.fn(async () => ({ rowCount: 0 })),
+      release: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+    };
+    const pool = { connect: async () => client as unknown as PoolClient };
+    const discover = vi.fn<typeof discoverOffers>();
+    const reply = await handlePublicResearch(
+      request(payload),
+      {
+        ...publicEnv,
+        EARMARK_RESEARCH_VISITOR_DAILY_LIMIT: "12",
+        EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT: "120",
+      },
+      (visitor, _url, attempt) =>
+        reservePublicResearchQuota(pool, visitor, attempt),
+      discover,
+    );
+    expect(client.query).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining(
+        "WHERE q.used < $2::integer\n       AND COALESCE((q.visitors->>$1::text)::integer, 0) < $3::integer",
+      ),
+      [
+        expect.stringMatching(/^[a-f0-9]{64}$/),
+        120,
+        12,
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      ],
+    );
+    expect(client.release).toHaveBeenCalledExactlyOnceWith(false);
+    expect(reply.status).toBe(429);
+    expect(await reply.json()).toEqual({
+      error: "PUBLIC_RESEARCH_LIMIT_REACHED",
+    });
+    expect(discover).not.toHaveBeenCalled();
   });
 
   it("rejects disabled, cross-origin, private, oversized and malformed requests before quota or provider work", async () => {
@@ -578,7 +618,10 @@ describe("anonymous Norway research", () => {
   it.each([200, 503, 429])(
     "retries an early Gemini 503 once and handles a subsequent HTTP %i",
     async (retryStatus) => {
-      const reserve = vi.fn(async () => true);
+      const reserve = vi.fn<
+        NonNullable<Parameters<typeof handlePublicResearch>[2]>
+      >(async () => true);
+      const refund = vi.fn(async () => true);
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       const info = vi.spyOn(console, "info").mockImplementation(() => {});
       const fixture = transport([offer], {
@@ -609,8 +652,15 @@ describe("anonymous Norway research", () => {
           reserve,
           (instruction, env, _, budget, timing) =>
             discoverOffers(instruction, env, fetcher, budget, timing),
+          refund,
         );
         expect(reserve).toHaveBeenCalledTimes(1);
+        if (retryStatus === 503) {
+          expect(refund).toHaveBeenCalledExactlyOnceWith(
+            reserve.mock.calls[0]?.[0],
+            expect.objectContaining({ day: reserve.mock.calls[0]?.[2].day }),
+          );
+        } else expect(refund).not.toHaveBeenCalled();
         expect(calls).toHaveLength(2);
         expect(calls[1]?.body).toBe(calls[0]?.body);
         expect(calls[1]?.signal).toBe(calls[0]?.signal);
@@ -664,6 +714,7 @@ describe("anonymous Norway research", () => {
   it("returns sources after a late Gemini 503 without restarting its deadline", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const refund = vi.fn(async () => true);
     const fixture = transport();
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       if (!String(input).includes(":generateContent"))
@@ -678,6 +729,7 @@ describe("anonymous Norway research", () => {
         async () => true,
         (instruction, env, _, budget, timing) =>
           discoverOffers(instruction, env, fetcher, budget, timing),
+        refund,
       );
       await vi.advanceTimersByTimeAsync(26500);
       const reply = await pending;
@@ -686,6 +738,43 @@ describe("anonymous Norway research", () => {
         incompleteComparison: { reason: "unavailable", sources: [url] },
       });
       expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(refund).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the source fallback within the shared deadline if a visitor quota refund stalls", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = transport();
+    const refund = vi.fn(() => new Promise<boolean>(() => {}));
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (!String(input).includes(":generateContent"))
+        return fixture(input, init);
+      await new Promise((resolve) => setTimeout(resolve, 26500));
+      return new Response("{}", { status: 503 });
+    });
+    try {
+      const pending = handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+        refund,
+      );
+      await vi.advanceTimersByTimeAsync(34500);
+      const reply = await pending;
+      expect(await reply.json()).toEqual({
+        incompleteComparison: { reason: "unavailable", sources: [url] },
+      });
+      expect(refund).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenLastCalledWith(
+        "public-research: quota refund unavailable",
+        { classification: "connection_timeout", elapsedMs: 8000 },
+      );
     } finally {
       warn.mockRestore();
       vi.useRealTimers();
@@ -887,6 +976,16 @@ describe("anonymous Norway research", () => {
           { EARMARK_RESEARCH_QUOTA_SECRET: "not-a-valid-fixture" },
           "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
           "EARMARK_RESEARCH_QUOTA_SECRET",
+        ],
+        [
+          { EARMARK_RESEARCH_VISITOR_DAILY_LIMIT: "12.5" },
+          "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
+          "EARMARK_RESEARCH_VISITOR_DAILY_LIMIT",
+        ],
+        [
+          { EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT: "121" },
+          "PUBLIC_RESEARCH_QUOTA_NOT_CONFIGURED",
+          "EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT",
         ],
         [
           { GEMINI_API_KEY: "" },
