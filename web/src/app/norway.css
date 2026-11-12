@@ -1095,6 +1095,11 @@ html[data-theme="norway"] .purchasing-chat > .button:hover:not(:disabled) {
 .public-research-chat .offer-research-source-toggle {
   padding-block: 4px;
 }
+.public-research-chat
+  .offer-research-sources
+  ul[aria-label="Unverified search results"] {
+  overflow-wrap: anywhere;
+}
 .public-research-chat .norway-assisted-checkout {
   display: grid;
   gap: 10px;

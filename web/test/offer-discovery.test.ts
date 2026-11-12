@@ -520,8 +520,12 @@ describe("anonymous Norway research", () => {
         );
         await vi.advanceTimersByTimeAsync(timeoutMs);
         const reply = await pending;
-        expect(reply.status).toBe(504);
-        expect(await reply.json()).toEqual({ error });
+        expect(reply.status).toBe(stage === "offer_analysis" ? 200 : 504);
+        expect(await reply.json()).toEqual(
+          stage === "offer_analysis"
+            ? { incompleteComparison: { reason: "timeout", sources: [url] } }
+            : { error },
+        );
         expect(log).toHaveBeenCalledExactlyOnceWith(
           "public-research: provider stage failed",
           {
@@ -551,9 +555,9 @@ describe("anonymous Norway research", () => {
         (instruction, env, _, budget, timing) =>
           discoverOffers(instruction, env, fetcher, budget, timing),
       );
-      expect(reply.status).toBe(504);
+      expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
-        error: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
+        incompleteComparison: { reason: "timeout", sources: [url] },
       });
       expect(log).toHaveBeenCalledExactlyOnceWith(
         "public-research: provider stage failed",
@@ -568,6 +572,123 @@ describe("anonymous Norway research", () => {
       expect(fetcher).toHaveBeenCalledTimes(2);
     } finally {
       log.mockRestore();
+    }
+  });
+
+  it.each([200, 503, 429])(
+    "retries an early Gemini 503 once and handles a subsequent HTTP %i",
+    async (retryStatus) => {
+      const reserve = vi.fn(async () => true);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const info = vi.spyOn(console, "info").mockImplementation(() => {});
+      const fixture = transport([offer], {
+        tavilyResults: [
+          { title: "Pricing", url, content: "A weather API plan." },
+          {
+            title: "Unsafe",
+            url: "https://example.com/?next=https://elsewhere.example.com/",
+            content: "Unsafe redirect.",
+          },
+        ],
+      });
+      const calls: RequestInit[] = [];
+      const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+        if (String(input).includes(":generateContent")) {
+          calls.push(init ?? {});
+          if (calls.length === 1 || retryStatus !== 200)
+            return new Response("private upstream detail", {
+              status: calls.length === 1 ? 503 : retryStatus,
+            });
+        }
+        return fixture(input, init);
+      });
+      try {
+        const reply = await handlePublicResearch(
+          request(payload),
+          publicEnv,
+          reserve,
+          (instruction, env, _, budget, timing) =>
+            discoverOffers(instruction, env, fetcher, budget, timing),
+        );
+        expect(reserve).toHaveBeenCalledTimes(1);
+        expect(calls).toHaveLength(2);
+        expect(calls[1]?.body).toBe(calls[0]?.body);
+        expect(calls[1]?.signal).toBe(calls[0]?.signal);
+        expect(fetcher).toHaveBeenCalledTimes(retryStatus === 200 ? 4 : 3);
+        expect(info).toHaveBeenCalledExactlyOnceWith(
+          "public-research: retrying offer comparison",
+          { httpStatus: 503, remainingMs: expect.any(Number) },
+        );
+        const body = await reply.json();
+        if (retryStatus === 200) {
+          expect(reply.status).toBe(200);
+          expect(body).toMatchObject({
+            discovery: {
+              offers: [{ policy: { eligible: false } }],
+              proposal: null,
+              fundsReserved: false,
+            },
+          });
+          expect(warn).not.toHaveBeenCalled();
+        } else {
+          expect(reply.status).toBe(retryStatus === 503 ? 200 : 502);
+          expect(body).toEqual(
+            retryStatus === 503
+              ? {
+                  incompleteComparison: {
+                    reason: "unavailable",
+                    sources: [url],
+                  },
+                }
+              : { error: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE" },
+          );
+          expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "public-research: provider stage failed",
+            {
+              stage: "offer_analysis",
+              classification:
+                retryStatus === 503 ? "upstream_http" : "rate_limit",
+              elapsedMs: expect.any(Number),
+              timeoutMs: 32000,
+              httpStatus: retryStatus,
+            },
+          );
+        }
+      } finally {
+        warn.mockRestore();
+        info.mockRestore();
+      }
+    },
+  );
+
+  it("returns sources after a late Gemini 503 without restarting its deadline", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = transport();
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (!String(input).includes(":generateContent"))
+        return fixture(input, init);
+      await new Promise((resolve) => setTimeout(resolve, 26500));
+      return new Response("{}", { status: 503 });
+    });
+    try {
+      const pending = handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      await vi.advanceTimersByTimeAsync(26500);
+      const reply = await pending;
+      expect(reply.status).toBe(200);
+      expect(await reply.json()).toEqual({
+        incompleteComparison: { reason: "unavailable", sources: [url] },
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
     }
   });
 
@@ -603,7 +724,11 @@ describe("anonymous Norway research", () => {
           discoverOffers(instruction, env, fetcher, budget, timing),
       );
       await vi.advanceTimersByTimeAsync(43000);
-      expect((await pending).status).toBe(504);
+      const reply = await pending;
+      expect(reply.status).toBe(200);
+      expect(await reply.json()).toEqual({
+        incompleteComparison: { reason: "timeout", sources: [url] },
+      });
       expect(log).toHaveBeenCalledExactlyOnceWith(
         "public-research: provider stage failed",
         {

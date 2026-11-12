@@ -2,6 +2,11 @@
 export type OfferBillingPeriod = "month" | "year" | "one-time";
 export type ManualCheckoutDecision = "approved-manual" | "rejected";
 
+export type IncompleteComparison = {
+  reason: "timeout" | "unavailable";
+  sources: string[];
+};
+
 // A comparison limit only. Financial mandates use their own policy and amounts.
 export const MAX_RESEARCH_BUDGET_MINOR = 10_000_000;
 

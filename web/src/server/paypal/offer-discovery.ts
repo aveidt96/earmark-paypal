@@ -1,5 +1,6 @@
 import "server-only";
 import { isIP } from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { GeminiModel, readGeminiBody, AgentError } from "@flint/agent/server";
 import {
@@ -50,6 +51,8 @@ const publicStageLimits = {
 } as const;
 // An earlier verified lookup took nearly 10 seconds before response headers.
 const PAYMENT_EVIDENCE_RESERVE_MS = 12000;
+const COMPARISON_RETRY_DELAY_MS = 750;
+const MIN_COMPARISON_RETRY_MS = 12000;
 
 export type ResearchStageFailure = {
   stage: keyof typeof publicStageLimits;
@@ -70,7 +73,11 @@ export type ResearchStageFailure = {
 
 type PublicResearchTiming = {
   deadlineAt: number;
-  onFailure: (failure: ResearchStageFailure) => void;
+  onFailure: (
+    failure: ResearchStageFailure,
+    comparisonSources?: string[],
+  ) => void;
+  onComparisonRetry?: (remainingMs: number) => void;
 };
 
 function researchFailureClass(
@@ -1212,11 +1219,16 @@ export async function discoverOffers(
 
   async function runStage<T>(
     stage: ResearchStageFailure["stage"],
-    work: (timeoutMs: number, transport: typeof fetch) => Promise<T>,
+    work: (
+      timeoutMs: number,
+      transport: typeof fetch,
+      deadlineAt: number,
+    ) => Promise<T>,
+    comparisonSources?: string[],
   ): Promise<T> {
     const transport = fetcher ?? fetch;
-    if (!timing) return work(timeout, transport);
     const start = performance.now();
+    if (!timing) return work(timeout, transport, start + timeout);
     const reserve =
       stage === "offer_analysis" ? PAYMENT_EVIDENCE_RESERVE_MS : 0;
     const timeoutMs = Math.max(
@@ -1229,21 +1241,29 @@ export async function discoverOffers(
     let httpStatus: number | null = null;
     try {
       if (!timeoutMs) throw new AgentError("MODEL_TIMEOUT");
-      return await work(timeoutMs, async (...args) => {
-        const response = await transport(...args);
-        httpStatus = response.status;
-        return response;
-      });
-    } catch (error) {
-      timing.onFailure({
-        stage,
-        classification: timeoutMs
-          ? researchFailureClass(error, httpStatus)
-          : "deadline_exhausted",
-        elapsedMs: Math.round(performance.now() - start),
+      return await work(
         timeoutMs,
-        httpStatus,
-      });
+        async (...args) => {
+          httpStatus = null;
+          const response = await transport(...args);
+          httpStatus = response.status;
+          return response;
+        },
+        start + timeoutMs,
+      );
+    } catch (error) {
+      timing.onFailure(
+        {
+          stage,
+          classification: timeoutMs
+            ? researchFailureClass(error, httpStatus)
+            : "deadline_exhausted",
+          elapsedMs: Math.round(performance.now() - start),
+          timeoutMs,
+          httpStatus,
+        },
+        comparisonSources,
+      );
       throw error;
     }
   }
@@ -1298,7 +1318,7 @@ export async function discoverOffers(
 
   const report = await runStage(
     "offer_analysis",
-    async (timeout, transport) => {
+    async (timeout, transport, deadlineAt) => {
       const collectorTransport: typeof fetch = async (url, init) => {
         if (
           !initialSearchAccepted ||
@@ -1308,7 +1328,26 @@ export async function discoverOffers(
           throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
         boundary.guard(String(url), init ?? {});
         collectorAccepted = true;
-        const response = await transport(url, init);
+        let response = await transport(url, init);
+        const remainingMs = Math.floor(deadlineAt - performance.now());
+        const signal = init?.signal;
+        if (
+          timing &&
+          response.status === 503 &&
+          signal &&
+          !signal.aborted &&
+          remainingMs >= COMPARISON_RETRY_DELAY_MS + MIN_COMPARISON_RETRY_MS
+        ) {
+          void response.body?.cancel().catch(() => {});
+          await delay(COMPARISON_RETRY_DELAY_MS, undefined, { signal });
+          const retryTimeMs = Math.floor(deadlineAt - performance.now());
+          if (!signal.aborted && retryTimeMs >= MIN_COMPARISON_RETRY_MS) {
+            // Both attempts use the same vetted envelope and original signal.
+            boundary.guard(String(url), init ?? {});
+            timing.onComparisonRetry?.(retryTimeMs);
+            response = await transport(url, init);
+          }
+        }
         httpStatus = response.status;
         return response;
       };
@@ -1339,6 +1378,7 @@ export async function discoverOffers(
         throw new AgentError("DISCOVERY_REPORT_REQUIRED");
       return reportSchema.parse(decision.args);
     },
+    researchResults.results.map(({ url }) => url),
   );
   const grouped = new Map<string, (typeof report.offers)[number][]>();
   for (const offer of report.offers) {

@@ -4,6 +4,7 @@ import {
   formatResearchBudget,
   safeExternalOfferUrl,
   safePlanCheckoutUrl,
+  type IncompleteComparison,
   type ManualCheckoutDecision,
   type OfferDiscoveryResult,
 } from "../lib/offer-discovery";
@@ -29,6 +30,43 @@ const suitability = {
   "needs-evidence": "More evidence needed",
   "does-not-match": "Does not match",
 } as const;
+
+export function IncompleteOfferComparison({
+  result,
+}: {
+  result: IncompleteComparison;
+}) {
+  return (
+    <section className="offer-research" aria-label="Comparison incomplete">
+      <header className="offer-research-meta">
+        <strong>Comparison incomplete</strong>
+        <p>
+          {result.reason === "timeout"
+            ? "Earmark AI ran out of time to compare offers."
+            : "Earmark AI couldn’t compare offers right now."}{" "}
+          Browse the search results below or try again in a moment. Prices,
+          budget fit, and payment options still need verification.
+        </p>
+      </header>
+      <div className="offer-research-sources">
+        <ul aria-label="Unverified search results">
+          {result.sources.map((url) => (
+            <li key={url}>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+              >
+                {url.replace(/^https:\/\//, "")}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 export function OfferDiscovery({
   result,

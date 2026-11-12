@@ -810,6 +810,19 @@ try {
       "preview-smoke-session=fixture",
     );
     publicPosts.push(payload);
+    if (publicPosts.length === 4) {
+      return route.fulfill({
+        json: {
+          incompleteComparison: {
+            reason: "timeout",
+            sources: [
+              `https://example.com/${"long-source-path-".repeat(18)}`,
+              "javascript:alert(1)",
+            ],
+          },
+        },
+      });
+    }
     const discovery = structuredClone(discoveryFixture.discovery);
     discovery.instruction = payload.instruction;
     discovery.source =
@@ -881,11 +894,32 @@ try {
       ),
     ).toBe(false);
   }
+  await chat.getByRole("button", { name: "Research offers" }).click();
+  const incomplete = chat.getByRole("region", {
+    name: "Comparison incomplete",
+  });
+  await expect(incomplete).toContainText("ran out of time to compare offers");
+  await expect(incomplete.getByRole("link")).toHaveCount(1);
+  await expect(incomplete.getByRole("link")).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
+  await expect(
+    chat.getByRole("button", { name: "Review for manual checkout" }),
+  ).toHaveCount(0);
+  await expect(
+    chat.getByRole("region", { name: "Online offer research" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+  ).toBe(false);
   expect(publicMutationRequests).toEqual(
-    Array(3).fill("POST /api/paypal/research"),
+    Array(4).fill("POST /api/paypal/research"),
   );
   expect(publicPosts).toEqual(
-    [2500, 2500, 100000].map((budgetMinor) => ({
+    [2500, 2500, 100000, 100000].map((budgetMinor) => ({
       instruction: "Compare weather API plans within my research budget",
       budgetMinor,
     })),

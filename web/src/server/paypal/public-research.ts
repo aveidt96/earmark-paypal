@@ -3,7 +3,10 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 import { AgentError, createDatabase, type Pool } from "@flint/agent/server";
 import { z } from "zod";
-import { isResearchBudgetMinor } from "../../lib/offer-discovery";
+import {
+  isResearchBudgetMinor,
+  type IncompleteComparison,
+} from "../../lib/offer-discovery";
 import {
   discoveryInstruction,
   discoverOffers,
@@ -376,7 +379,10 @@ export async function handlePublicResearch(
     clearTimeout(timer);
   }
 
-  const provider = { failure: null as ResearchStageFailure | null };
+  const provider: {
+    failure?: ResearchStageFailure;
+    comparisonSources: string[] | undefined;
+  } = { comparisonSources: undefined };
   try {
     const discovery = await discover(
       payload.instruction,
@@ -390,9 +396,16 @@ export async function handlePublicResearch(
       payload.budgetMinor,
       {
         deadlineAt,
-        onFailure(failure) {
+        onFailure(failure, comparisonSources) {
           provider.failure = failure;
+          provider.comparisonSources = comparisonSources;
           console.warn("public-research: provider stage failed", failure);
+        },
+        onComparisonRetry(remainingMs) {
+          console.info("public-research: retrying offer comparison", {
+            httpStatus: 503,
+            remainingMs,
+          });
         },
       },
     );
@@ -401,12 +414,22 @@ export async function handlePublicResearch(
     if (error instanceof PaymentError && safeInstructionErrors.has(error.code))
       return json({ error: "INVALID_RESEARCH_REQUEST" }, 400);
     const failure = provider.failure;
+    const timedOut =
+      failure?.classification === "deadline_exhausted" ||
+      failure?.classification === "local_timeout" ||
+      failure?.classification === "upstream_timeout";
     if (
-      failure &&
-      (failure.classification === "deadline_exhausted" ||
-        failure.classification === "local_timeout" ||
-        failure.classification === "upstream_timeout")
-    )
+      failure?.stage === "offer_analysis" &&
+      provider.comparisonSources?.length &&
+      (timedOut || failure.httpStatus === 503)
+    ) {
+      const incompleteComparison: IncompleteComparison = {
+        reason: timedOut ? "timeout" : "unavailable",
+        sources: provider.comparisonSources,
+      };
+      return json({ incompleteComparison });
+    }
+    if (failure && timedOut)
       return json({ error: stageTimeouts[failure.stage] }, 504);
     if (
       failure?.stage === "payment_evidence" &&

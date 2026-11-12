@@ -7,9 +7,11 @@ import {
   formatResearchBudget,
   MAX_RESEARCH_BUDGET_MINOR,
   parseResearchBudget,
+  safeExternalOfferUrl,
+  type IncompleteComparison,
   type OfferDiscoveryResult,
 } from "../lib/offer-discovery";
-import { OfferDiscovery } from "./offer-discovery";
+import { IncompleteOfferComparison, OfferDiscovery } from "./offer-discovery";
 
 const judgeErrors: Record<string, string> = {
   JUDGE_UNSUPPORTED_REQUIREMENTS:
@@ -122,6 +124,8 @@ export function PurchasingChat({
   const [error, setError] = useState("");
   const [result, setResult] = useState<PurchasingChatResult | null>(null);
   const [discovery, setDiscovery] = useState<OfferDiscoveryResult | null>(null);
+  const [incompleteComparison, setIncompleteComparison] =
+    useState<IncompleteComparison | null>(null);
   const pending = useRef(false);
 
   useEffect(() => {
@@ -163,6 +167,7 @@ export function PurchasingChat({
     setError("");
     setResult(null);
     setDiscovery(null);
+    setIncompleteComparison(null);
     onEvaluation?.(null);
     if (!login) {
       setSubmitted(instruction);
@@ -219,6 +224,27 @@ export function PurchasingChat({
         throw new Error(
           typeof body?.error === "string" ? body.error : fallback,
         );
+      }
+      const incomplete = publicResearch ? body?.incompleteComparison : null;
+      if (
+        (incomplete?.reason === "timeout" ||
+          incomplete?.reason === "unavailable") &&
+        Array.isArray(incomplete.sources)
+      ) {
+        const sources = incomplete.sources
+          .slice(0, 5)
+          .flatMap((url: unknown) => {
+            const safe =
+              typeof url === "string" ? safeExternalOfferUrl(url) : null;
+            return safe ? [safe] : [];
+          });
+        if (sources.length) {
+          setIncompleteComparison({
+            reason: incomplete.reason,
+            sources: [...new Set<string>(sources)],
+          });
+          return;
+        }
       }
       if (
         !body ||
@@ -432,6 +458,9 @@ export function PurchasingChat({
               </>
             )}
           </p>
+        )}
+        {incompleteComparison && (
+          <IncompleteOfferComparison result={incompleteComparison} />
         )}
         {discovery && (
           <OfferDiscovery
