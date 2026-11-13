@@ -8,7 +8,17 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
-- **Task: Live public AI research reliability fix verified on `origin/main` (`b310a33`) in `.tools/task09-quota`, 2026-11-13; ready for commit/push when authorized.**
+- **Task: Official merchant pricing discovery fix verified locally in `.tools/task09-quota` (stacked on local commit `086209b`), 2026-11-13; ready for review/commit when authorized.**
+  Adds first-party hyphenated pricing path prioritization (`isOfficialPricingPath`),
+  multi-token merchant-domain matching (`matchesMerchantDomain`, e.g.
+  `Alibaba Model Studio` → `alibabacloud.com`), deadline-bounded targeted
+  official-domain pricing search (`pricing_search` / `allowPricingSearch` /
+  `buildTargetedPricingQuery`), server-side verification for usage-based per-token
+  and prepaid-credit pricing (`verifyUsageOrCreditPricing` + `pricingDetails`)
+  separated cleanly from fixed monthly/yearly subscriptions, and research-only
+  official pricing documentation display without checkout or PayPal fabrication.
+
+- **Task: Live public AI research reliability fix verified on `origin/main` (`b310a33`) in `.tools/task09-quota`, 2026-11-13; committed locally at `086209b`.**
   Adds bounded exponential backoff + equal jitter on primary comparison `503`s,
   recoverable failover to `GEMINI_COLLECTOR_FALLBACK_MODEL` (defaulting public
   research to `gemini-3.5-flash-lite` under the existing `55s` deadline and
@@ -20,7 +30,6 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 - **Task 09D, 2026-11-11: offline recovery verified; publication authorized.**
   The direct-Vercel release preserves approved Norway composition. Hosted
   configuration/account verification and a genuine provider smoke remain.
-
 
 - **Task 09C, 2026-11-10: approved Norway layout restored locally.**
   The ordinary checkout uses the original navigation, budget card, research
@@ -116,7 +125,7 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
   header-aligned tier-row matching, excluding overage/feature cells, withholding
   claims when row/column context is lost, and requiring explicit tier-bound
   availability evidence. Reordered discovery to `offer search -> Gemini
-  extraction -> targeted merchant payment-method search` within the existing
+extraction -> targeted merchant payment-method search` within the existing
   2-Tavily / 1-Gemini budget while isolating payment evidence per merchant.
   106 focused tests, lint, typecheck, public demo build and boundary checks pass
   offline; zero live API, PayPal or DB activity.
@@ -268,7 +277,7 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
   `4469ms` body, `5` public `https://` results). Sanitized results passed
   `boundary.allowCollector` into Gemini `models/gemini-3.5-flash-lite:generateContent`
   (`6836` bytes, HTTP `200`, `37301ms` headers / `37321ms` body, `finishReason:
-  "STOP"`, `reportDiscoveredOffers` called once, `strictSchemaValid: true`).
+"STOP"`, `reportDiscoveredOffers` called once, `strictSchemaValid: true`).
   Collected `Weatherstack · Standard API Plan (up to 50,000 requests)` at
   `999` minor units (`$9.99 USD`, `Monthly` claim) with cited URL
   `https://weatherstack.com/pricing` (`cited: true`), `slaMinutes: null`
@@ -287,7 +296,7 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 - **Task07L Tavily Search integration (offline),2026-11-05:** replaced Gemini
   Google Search grounding in `web/src/server/paypal/offer-discovery.ts` with
   Tavily's Search API (`POST https://api.tavily.com/search`, `search_depth:
-  "basic"`, `max_results: 5`, `Authorization: Bearer <TAVILY_API_KEY>`).
+"basic"`, `max_results: 5`, `Authorization: Bearer <TAVILY_API_KEY>`).
   Sanitized Tavily results (`title`, validated `https://` `url`, `snippet`,
   `retrievedAt`) pass through `boundary.allowCollector` (enforcing schema,
   sensitive-material and prompt-injection checks) into the existing Gemini
@@ -311,8 +320,8 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
   `models/gemini-2.5-flash:generateContent` with `tools: [{ googleSearch: {} }]`
   only; Google returned HTTP `404` (`NOT_FOUND`, `775ms` headers / `817ms` body,
   `1044ms` application roundtrip) stating `"This model models/gemini-2.5-flash is
-  no longer available to new users. Please update your code to use
-  models/gemini-3.8-flash for the latest features and improvements."` Turn 2
+no longer available to new users. Please update your code to use
+models/gemini-3.8-flash for the latest features and improvements."` Turn 2
   (`gemini-3.5-flash-lite` collector) was not called (`1` Google API request
   total, zero retries). Application returned HTTP `400` (`MODEL_API_ERROR`);
   Norway UI showed the alert with zero browser runtime errors and no fabricated
@@ -4407,6 +4416,7 @@ Stopped only verified Earmark preview PID10800 before rebuilding; production
 compilation/typecheck passed, final generation/browser checks remain pending.
 
 Completion evidence:
+
 - Exact typed text is preserved in the existing agent objective, with no fixed
   replacement instruction. Strict POST body accepts only `instruction` (nonblank,
   at most1000 characters, within existing2048-byte request limit). Existing
@@ -5007,7 +5017,6 @@ updated. Ignored local artifacts added: `.tools/task07g-git-baseline.json`,
 `.tools/task07g-mobile.png`. Existing preview metadata/stdout/stderr and smoke
 screenshots refreshed by the unchanged existing runner. No other source changes.
 
-
 ## 2026-11-04 — Task07H publication-readiness audit (in progress)
 
 Reviewed Task07G and instructions. All46 scoped warnings are in the new,
@@ -5068,6 +5077,7 @@ docs/task-07h-publication-readiness.md with exact118-file publication inventory,
 local-only exclusions, objective lint baseline correction, actual validation,
 remote-setting uncertainties and next publication steps; this handoff updated.
 Ignored audit/helper artifacts (no sensitive request bodies):
+
 - .tools/task07h-final.mjs
 - .tools/task07h-git-verification.json
 - .tools/task07h-inventory-classified.json
@@ -5081,7 +5091,7 @@ Ignored audit/helper artifacts (no sensitive request bodies):
 - .tools/task07h-style-compare.mjs
 - .tools/task07h-style-comparison.json
 - .tools/task07h-validation.json
-Existing ignored browser evidence refreshed by the unchanged smoke runner:
+  Existing ignored browser evidence refreshed by the unchanged smoke runner:
 - .tools/norway-mandates-desktop.png
 - .tools/norway-mandates-new-desktop.png
 - .tools/norway-payments-desktop.png
@@ -5104,7 +5114,6 @@ Existing ignored browser evidence refreshed by the unchanged smoke runner:
 - .tools/paypal-preview-mobile.png
 - .tools/paypal-classic-desktop.png
 - .tools/paypal-classic-mobile.png
-
 
 ## 2026-11-04 — Task07I interactive judge sandbox (in progress)
 
@@ -5135,7 +5144,6 @@ legacy budget verdict (72pass/1fail); corrected to actual BUDGET_EXHAUSTED.
 Latest six-file suite101/101 passes. Initial scoped lint found6 new non-null
 assertion warnings; fixed them rather than suppressing rules. Further build,
 browser, formatting, source/credential checks and final evidence remain pending.
-
 
 ### Task07I — final implementation and verification
 
@@ -5376,6 +5384,7 @@ cards, running focused offline tests/build checks only, with no live Gemini,
 PayPal, database, git or deployment operations.
 
 Modified files:
+
 - `agent/src/gemini-response.ts`: added optional `googleSearch = false` parameter
   to `parseGeminiResponse`. When `googleSearch` is true, any `functionCall` part
   is rejected (`MALFORMED_FUNCTION_CALL`), and non-thought grounded text
@@ -5419,6 +5428,7 @@ Modified files:
   project state summary.
 
 Checks run and results (all offline):
+
 - `npx --workspace @flint/agent vitest run gemini.test.ts gemini-response.test.ts gemini-body.test.ts`:
   PASS (`3/3` files, `78/78` tests).
 - `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
@@ -5447,6 +5457,7 @@ fallbacks or application changes if an error occurs, then restore public
 restrictions and record the result.
 
 Added ignored local helpers and artifacts:
+
 - `.tools/task07kr-run.mjs` and `.tools/task07kr-trace.mjs` (syntax-checked via
   `node --check`; enforces the 2-request hard limit, blocks Turn 2 unless Turn 1
   succeeds with grounded output, and blocks all non-Google external hosts).
@@ -5460,33 +5471,34 @@ Added ignored local helpers and artifacts:
   `NEXT_PUBLIC_DEMO_ONLY=true`.
 
 Execution and outcome (`FAIL` — external provider model availability):
+
 - Submitted the exact user instruction once through the authenticated Norway
   Judge Sandbox UI (`authenticated: true`, `csrfVerified: true`,
   `uiSubmissionCount: 1`, `liveEvaluations: 1`).
 - Outbound privacy/envelope checks passed before dispatch (`exactInstruction:
-  true`, `isolatedContext: true`, `permittedTools: true` with
+true`, `isolatedContext: true`, `permittedTools: true` with
   `tools: [{ googleSearch: {} }]` only, `noHistory: true`, `noSensitiveValues:
-  true`, `applicationFinalGuardReached: true`, `requestBytes: 1374`,
+true`, `applicationFinalGuardReached: true`, `requestBytes: 1374`,
   `databaseAvailable: false`, `paymentsEnabled: false`).
 - **Google API Request 1 (`models/gemini-2.5-flash:generateContent`):** HTTP
   `404`, `apiErrorStatus: "NOT_FOUND"`, `headersMs: 775`, `bodyMs: 817`, total
   application roundtrip `durationMs: 1044`. Google API message: `"This model
-  models/gemini-2.5-flash is no longer available to new users. Please update
-  your code to use models/gemini-3.8-flash for the latest features and
-  improvements."`
+models/gemini-2.5-flash is no longer available to new users. Please update
+your code to use models/gemini-3.8-flash for the latest features and
+improvements."`
 - **Google API Request 2 (`models/gemini-3.5-flash-lite:generateContent`):** NOT
   called (`1` Google API request total; zero retries or fallback calls).
 - Zero candidates, `finishReason: null`, zero tool calls, `groundingPresent:
-  false`, `searchQueryCount: 0`, `sourceCount: 0`, `supportCount: 0`. All
+false`, `searchQueryCount: 0`, `sourceCount: 0`, `supportCount: 0`. All
   online offer, pricing, SLA, availability and PayPal acceptance facts remain
   `UNKNOWN`; no external merchant was approved and independent offer policy
   evaluation was not reached.
 - Application returned HTTP `400` (`MODEL_API_ERROR`). Norway UI rendered the
   alert `"Evaluation unavailable: MODEL_API_ERROR. No purchase intent or payment
-  was created."` with `0` browser runtime errors, no research cards and no
+was created."` with `0` browser runtime errors, no research cards and no
   purchase proposal (`.tools/task07kr-chat-redacted.png`).
 - Restoration verified on temporary safe public server (`localGeminiAvailable:
-  false`, `localDiscoveryAvailable: false`, `publicLiveGemini: false`, policy
+false`, `localDiscoveryAvailable: false`, `publicLiveGemini: false`, policy
   POST `200`, discovery POST `403`, owner chat GET `403`), and all owned servers
   were stopped. Zero PayPal requests, zero DB reads/writes, no git staging/
   commit/push and no deployment. Next step: select a search-grounding model
@@ -5505,6 +5517,7 @@ keeping the purchasing-agent model unchanged, and running offline verification
 only.
 
 Modified files:
+
 - `agent/src/gemini-response.ts`: removed the `googleSearch` parameter/branch from
   `parseGeminiResponse`; tool-calling and finish parsing remain unchanged.
 - `agent/src/models.ts`: removed `googleSearch` from `GeminiSettings` and
@@ -5514,7 +5527,7 @@ Modified files:
 - `web/src/lib/offer-discovery.ts`: added `"LIVE_TAVILY_SEARCH"` source and
   `searchProvider?: "tavily"`, `searchResultsCount?: number` evidence metadata.
 - `web/src/server/paypal/offer-discovery.ts`: exported `TAVILY_SEARCH_URL =
-  "https://api.tavily.com/search"` and `TAVILY_MAX_RESULTS = 5`; replaced Gemini
+"https://api.tavily.com/search"` and `TAVILY_MAX_RESULTS = 5`; replaced Gemini
   Google Search grounding with a guarded `POST https://api.tavily.com/search`
   call (`Authorization: Bearer <TAVILY_API_KEY>`, `search_depth: "basic"`,
   `max_results: 5`, `include_answer: false`, `include_raw_content: false`,
@@ -5542,6 +5555,7 @@ Modified files:
 - `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
 
 Offline checks run and results:
+
 - `npx --workspace @flint/agent vitest run gemini.test.ts gemini-response.test.ts gemini-body.test.ts`:
   PASS (`3/3` files, `78/78` tests).
 - `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
@@ -5572,6 +5586,7 @@ PayPal operations, database mutations or git/deployment actions, then restore
 public restrictions.
 
 Added ignored local helpers and artifacts:
+
 - `.tools/task07lr-run.mjs` and `.tools/task07lr-trace.mjs` (syntax-checked via
   `node --check`; enforces the hard limit of `1` Tavily request + `1` conditional
   Gemini request, verifies exact outbound envelopes and secret exclusion, and
@@ -5582,6 +5597,7 @@ Added ignored local helpers and artifacts:
   Task07L-R.
 
 Execution and verified outcome (`PASS`):
+
 - Confirmed `TAVILY_API_KEY` and `GEMINI_API_KEY` (`GEMINI_MODEL="gemini-3.5-flash-lite"`)
   were present in `web/.env.local` via boolean check without printing values.
 - Submitted the exact user instruction once through the authenticated Norway
@@ -5603,7 +5619,7 @@ Execution and verified outcome (`PASS`):
   `finishReason: "STOP"`, `toolCalls: ["reportDiscoveredOffers"]`,
   `strictSchemaValid: true`.
 - **Collected Offer & Citations:** `Weatherstack` · `Standard API Plan (up to
-  50,000 requests)`, `priceMinor: "999"` (`$9.99 USD`, `billing: "Monthly"`,
+50,000 requests)`, `priceMinor: "999"` (`$9.99 USD`, `billing: "Monthly"`,
   `factStatus: "claimed"`), `availability: "Available online via sign up"`,
   `delivery: "Instant digital access upon registration"`, `slaMinutes: null`
   (`unknown`), `paypal: "unknown"` (`paypalEvidence: null`), cited source
@@ -5635,6 +5651,7 @@ unrelated sites, show evidence/uncertainty in Norway, and never approve or bind
 external merchants for Sandbox payments.
 
 Modified files:
+
 - `web/src/lib/offer-discovery.ts`: added `paypalSourceUrl?: string | null` to
   `DiscoveredOffer` and `targetMerchantDomain?: string`,
   `searchRequests?: 1 | 2`, `paymentSearchResultsCount?: number` to
@@ -5644,7 +5661,7 @@ Modified files:
   `prioritizePaymentResults`, `boundary.allowPaymentSearch` and deterministic
   `classifyPayPalEvidence`. When Search 1 identifies a merchant domain, runs a
   targeted basic Tavily search (`"${merchantDomain} supported payment methods
-  PayPal FAQ billing documentation checkout"`, `max_results: 3`), prioritizes
+PayPal FAQ billing documentation checkout"`, `max_results: 3`), prioritizes
   official merchant FAQ/billing/checkout pages, and verifies model claims
   against cited official merchant domain snippets: `"claimed"` requires an
   official merchant page explicitly confirming PayPal; `"not-listed"` records
@@ -5655,7 +5672,7 @@ Modified files:
   `eligible: false` (`canonicalVerdict: "UNAPPROVED_MERCHANT"`).
 - `web/src/components/offer-discovery.tsx`: updated Norway research cards to
   display the 3-state PayPal classification (`explicitly confirmed in official
-  merchant documentation`, `not mentioned in published payment methods`, or
+merchant documentation`, `not mentioned in published payment methods`, or
   `insufficient evidence`), supporting evidence snippet and clickable
   `Official payment source` link (`paypalSourceUrl`).
 - `web/test/offer-discovery.test.ts`: updated offline fixtures for the targeted
@@ -5667,6 +5684,7 @@ Modified files:
 - `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
 
 Offline checks run and results:
+
 - `npx --workspace @flint/web vitest run offer-discovery judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
   PASS (`4/4` files, `81/81` tests, including `26/26` in
   `web/test/offer-discovery.test.ts`).
@@ -6302,6 +6320,7 @@ merchant-specific payment-method search sequencing within the existing
 2-Tavily / 1-Gemini budget, and verify offline without live calls.
 
 Modified files:
+
 - `web/src/server/paypal/offer-discovery.ts`: added `parseTierTable`,
   `hasLostProseTableContext`, `priceCandidateLines`, `verifyAvailabilityClaim`,
   `verifyDeliveryClaim`, `verifySlaClaim` and `offerMerchantDomain`; updated
@@ -6310,7 +6329,7 @@ Modified files:
   and `discoverOffers`.
   - Root cause & fix: `sanitizeText` collapsed table newlines into spaces and
     `evidenceLines` split only on `[.!?]`, merging AccuWeather's `Free` (`CPM
-    Overage: Not available`), `Starter` and `Standard` rows into one string
+Overage: Not available`), `Starter` and `Standard` rows into one string
     where `containsPhrase(line, "available")` matched inside `Not available`.
     Pipe tables now require an intact header row, tier column and matching
     per-row cell count; `CPM Overage` and non-availability columns are excluded;
@@ -6318,7 +6337,7 @@ Modified files:
     require an explicit tier-subject availability/delivery/SLA predicate with
     matching polarity (rejecting bare `"available"` and cross-tier clauses).
   - Payment-method search sequence: reordered to `Tavily offer search -> Gemini
-    collector -> Tavily targeted merchant payment-method search` (still capped
+collector -> Tavily targeted merchant payment-method search` (still capped
     at 2 Tavily requests + 1 Gemini call, byte-for-byte guarded before `fetch`
     and validated on inbound payment snippets). Payment search now targets the
     merchant domain actually extracted by Gemini (`accuweather.com` in the
@@ -6332,6 +6351,7 @@ Modified files:
 - `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
 
 Offline checks run and results:
+
 - `npx --workspace @flint/web vitest run offer-discovery paypal-agent-chat judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
   PASS (`5/5` files, `106/106` tests, including `40/40` in
   `web/test/offer-discovery.test.ts`).
@@ -6361,6 +6381,7 @@ choose `"Approve for manual checkout"` or `"Reject"` without autonomous payment,
 merchant approval, credential collection or financial mutations.
 
 Modified files:
+
 - `web/src/lib/offer-discovery.ts`: added `ManualCheckoutDecision`,
   `safeExternalOfferUrl` (public HTTPS only; rejects non-HTTPS schemes,
   credentials, ports, hashes, IP/loopback/internal hosts, sensitive query keys
@@ -6396,6 +6417,7 @@ Modified files:
 - `HANDOFF-PAYPAL.md`: recorded this entry and updated the current project state.
 
 Offline checks run and results:
+
 - `npx --workspace @flint/web vitest run offer-discovery paypal-agent-chat judge-sandbox paypal-gemini-agent paypal-gemini-boundary`:
   PASS (`5/5` files, `108/108` tests, including `42/42` in
   `web/test/offer-discovery.test.ts`).
@@ -6939,14 +6961,14 @@ using the checked-in SQL in a separate Neon database, not the payment
 database. Give the function its own least-privilege database login and
 configure these Preview variables:
 
-| Variable | Setting |
-| --- | --- |
-| `EARMARK_PUBLIC_RESEARCH_ENABLED` | `true` after quota and provider setup |
-| `EARMARK_PUBLIC_RESEARCH_ORIGIN` | Exact stable Preview HTTPS origin, no trailing slash |
-| `EARMARK_RESEARCH_DATABASE_URL` | Server-only direct TLS Neon quota role URL |
-| `EARMARK_RESEARCH_QUOTA_SECRET` | Server-only random 32-byte value encoded as 64 hex characters |
+| Variable                           | Setting                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `EARMARK_PUBLIC_RESEARCH_ENABLED`  | `true` after quota and provider setup                                                |
+| `EARMARK_PUBLIC_RESEARCH_ORIGIN`   | Exact stable Preview HTTPS origin, no trailing slash                                 |
+| `EARMARK_RESEARCH_DATABASE_URL`    | Server-only direct TLS Neon quota role URL                                           |
+| `EARMARK_RESEARCH_QUOTA_SECRET`    | Server-only random 32-byte value encoded as 64 hex characters                        |
 | `TAVILY_API_KEY`, `GEMINI_API_KEY` | Server-only research credentials, preferably dedicated and capped with the providers |
-| `GEMINI_COLLECTOR_MODEL` | Optional supported Gemini collector model override |
+| `GEMINI_COLLECTOR_MODEL`           | Optional supported Gemini collector model override                                   |
 
 Do not provision PayPal, owner auth, financial database or Monad
 configuration for the public Preview. Delete old quota rows periodically
@@ -7240,7 +7262,6 @@ or account change was made by Task 09D.
   and one genuine provider smoke. Local offline verification is complete;
   hosted research success and the original author-block cause remain unproven.
 
-
 ### 2026-11-11 — Authorized recovery publication
 
 User authorized one recovery commit and normal push to the existing
@@ -7265,7 +7286,6 @@ environment files, credentials and private local evidence are excluded.
 No manual Vercel action or Production promotion is authorized. Git push
 may activate the existing Vercel Git integration. Actual commit/push
 outcome will be recorded in the local handoff after the operation.
-
 
 ### 2026-11-11 — Synchronize main with primary hackathon release
 
@@ -7292,7 +7312,6 @@ A normal push of main is authorized by the user and follows a final fetch and
 remote-head check. No deployment command, provider request, database mutation
 or financial operation was performed. An existing Git integration may react
 to the push; deployment success is not established by this operation.
-
 
 ### 2026-11-11 — Production research quota diagnostics
 
@@ -7340,7 +7359,6 @@ Next.js build completed strict TypeScript checking, static generation of 16
 pages and route tracing. The 48-chunk browser boundary scan passed. The
 atomic quota SQL matched main exactly. Validation used offline fixtures.
 GitHub main still matched the release base at the pre-push check.
-
 
 ### 2026-11-11 — Norway Production UI integration on current main
 
@@ -7779,11 +7797,11 @@ Refresh the MCP tools by restarting Codex after authentication and
 opening a fresh chat in this workspace if needed. The previously approved
 migration and 12/120 activation remain pending.
 
-
 ### 2026-11-13 — Fix live public AI research reliability (`offer_analysis`)
 
 Inspected read-only Vercel `earmark-paypal` Production logs and environment
 metadata for `dpl_3z9xeeTnviL7FXZ4dUnZoBKLELh5` (`b310a33`):
+
 - Vercel Hobby runtime log retention is 30 minutes (`vercel logs runtime --since 60m`
   and `--since 48h` returned HTTP 400); `vercel logs runtime --since 30m` returned 0
   records (`2026-11-13T01:28:44.627Z–01:58:44.627Z`).
@@ -7803,6 +7821,7 @@ metadata for `dpl_3z9xeeTnviL7FXZ4dUnZoBKLELh5` (`b310a33`):
   `{ thinkingLevel: "low" }`.
 
 Changed files in `.tools/task09-quota` (`main` worktree at `b310a33`, local only):
+
 - `web/src/lib/offer-discovery.ts`: Exported `SearchSourceCategory` (`"pricing" | "docs" | "web"`),
   `PartialSearchSource`, and extended `IncompleteComparison` with optional
   `results` and `retrievedAt` (preserving `sources` compatibility).
@@ -7847,6 +7866,7 @@ Changed files in `.tools/task09-quota` (`main` worktree at `b310a33`, local only
   Tavily relevance ranking, and `IncompleteOfferComparison` markup.
 
 Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after final edits):
+
 - Prettier `--check` on all 7 modified code/test files: passed.
 - Biome lint `--vcs-enabled=false --error-on-warnings` on all 7 modified files:
   0 errors, 0 warnings. (`npm run lint` from `.tools` skips `.` via parent VCS ignore.)
@@ -7873,9 +7893,83 @@ Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after f
 - `.next/static` static bundle scan for server secret/config identifiers: passed (`0` matches).
 
 Unverified / pending:
+
 - No live Gemini or Tavily API calls, no PayPal calls, no DB mutations, and no
   `git add`/commit/push or Vercel deployment occurred.
 - Live Production reliability requires reviewing `.tools/task09-quota` diff,
   publishing to `main` (and optionally setting `GEMINI_COLLECTOR_FALLBACK_MODEL`
   on Vercel Production if overriding the `gemini-3.5-flash-lite` default), and
   running a single authorized Production check.
+
+### 2026-11-13 — Fix official merchant pricing discovery (`.tools/task09-quota`)
+
+Request: Investigate why Earmark identified `Alibaba Model Studio Qwen3.8 Flash`
+but missed/rejected its official pricing page
+`https://www.alibabacloud.com/help/en/model-studio/model-pricing`, and implement
+a general-purpose fix prioritizing first-party pricing docs, distinguishing fixed
+subscriptions vs prepaid credits vs usage-based token rates, adding deadline-safe
+official-domain pricing search, and preserving research-only pricing links
+without PayPal/checkout fabrication.
+
+Root causes identified in `web/src/server/paypal/offer-discovery.ts` and
+`web/src/components/offer-discovery.tsx`:
+
+- `PRICING_PATH_RE` (`\/(?:pricing|plans|packages|tiers|subscriptions|billing)\b`)
+  and `merchantPlanSources` missed hyphenated official pricing slugs such as
+  `/help/en/model-studio/model-pricing` and `/docs/api-pricing`, downgrading
+  them below `/pricing` paths and suppressing `officialMerchantUrl`.
+- `offerMerchantDomain` checked only `provider === domainLabel` (`alibabamodelstudio`
+  !== `alibabacloud`) and inspected only `citedUrls`.
+- `discoverOffers` ran no secondary official-domain pricing search when an
+  identified offer returned with unverified pricing and no official pricing page.
+- `billingPeriod` / `priceEvidence` / `parseTierTable` accepted only fixed
+  `"month" | "year" | "one-time"` plans with 2-decimal `priceMinor` cents,
+  ignoring `| Model |` tables and sub-cent per-million-token usage pricing or
+  prepaid credits.
+
+Files modified in `.tools/task09-quota`:
+
+- `web/src/lib/offer-discovery.ts`: Added `OfferBillingModel`,
+  `OfferUnitPrice`, `VerifiedOfferPricingDetails`, optional `pricingDetails` on
+  `DiscoveredOffer`, `searchRequests?: 1 | 2 | 3`, and fallback support for
+  `pricingDetails?.sourceUrl` in `selectVerifiedOfferSourceUrl`.
+- `web/src/server/paypal/offer-discovery.ts`: Added `isOfficialPricingPath`,
+  `matchesMerchantDomain`, `lookupMerchantDomain`, `hasOfficialPricingDocument`,
+  `buildTargetedPricingQuery`, `pricing_search` stage (`publicStageLimits`,
+  `PAYMENT_EVIDENCE_RESERVE_MS` + `MIN_PRICING_SEARCH_MS` deadline guard),
+  `allowPricingSearch` / `allowPricingResults` in `createDiscoveryBoundary`,
+  token-rate exclusion in fixed `priceEvidence`, and server-side
+  `verifyUsageOrCreditPricing` extracting verified model name, region, explicit
+  currency (no bare-`$` inference), unit prices, billing model, and billing
+  terms from official tables and prose while keeping `pricing.period = null`,
+  `officialCheckoutUrl = null`, `paypal = "unknown"`, and `policy.eligible = false`.
+- `web/src/server/paypal/public-research.ts`: Mapped `pricing_search` in
+  `stageTimeouts` to `PUBLIC_RESEARCH_SEARCH_TIMEOUT`.
+- `web/src/components/offer-discovery.tsx`: Updated `OfferDiscovery` and
+  assisted manual checkout cards to display verified usage-based / prepaid-credit
+  unit prices, billing model, terms, model name, region, and official pricing
+  documentation research links distinctly from checkout/monthly plans.
+- `web/test/offer-discovery.test.ts`: Added 3 offline regression tests covering
+  direct Alibaba Cloud Model Studio `Qwen3.8 Flash` (`model-pricing`), missed
+  initial search recovery + deadline/boundary checks, and an unrelated API
+  merchant (`NovaML API` `Echo-7B` usage pricing vs `Starter Credit Pack`
+  prepaid credits).
+- `HANDOFF-PAYPAL.md`: Logged root cause, changes, and verification results.
+
+Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after code edits):
+
+- Prettier `--check` on all 5 modified code/test files: passed.
+- Biome lint `--vcs-enabled=false --error-on-warnings` on all 5 modified files:
+  0 errors, 0 warnings.
+- `npm run typecheck`: passed.
+- `npm run build --workspace @flint/web` (`VERCEL=1`): passed (`16` static +
+  dynamic routes compiled).
+- `node scripts/check-web-boundary.mjs`: passed (`48` compiled JS chunks).
+- Focused Vitest (`offer-discovery` `87/87`, `judge-sandbox` `19/19`,
+  `paypal-gemini-agent` `16/16`, `paypal-gemini-boundary` `20/20`): `142/142`
+  passed, `0` failed, `0` skipped.
+
+Unverified / pending:
+
+- No live Tavily/Gemini/PayPal calls, no database changes, and no new commit,
+  push, or Vercel deployment occurred. Root checkout remains untouched.

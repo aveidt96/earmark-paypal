@@ -25,6 +25,12 @@ const reasonLabels: Record<string, string> = {
   PAYPAL_ACCEPTANCE_UNVERIFIED: "PayPal acceptance is unverified",
 };
 
+const billingModelLabels = {
+  subscription: "Fixed subscription",
+  "prepaid-credits": "Prepaid credits",
+  "usage-based": "Usage-based (pay-as-you-go)",
+} as const;
+
 const suitability = {
   matches: "Matches requirements",
   "needs-evidence": "More evidence needed",
@@ -243,6 +249,16 @@ export function OfferDiscovery({
               : null;
           const billingPeriod =
             offer.pricing.period ?? billingEvidence?.period ?? "Unknown";
+          const pricingDetails =
+            offer.pricingDetails &&
+            citedUrls.includes(
+              safeExternalOfferUrl(offer.pricingDetails.sourceUrl) ?? "",
+            )
+              ? offer.pricingDetails
+              : null;
+          const billingModelLabel = pricingDetails
+            ? billingModelLabels[pricingDetails.billingModel]
+            : null;
           const researchReasons = offer.policy.reasons.flatMap((reason) => {
             if (reason === "BILLING_TERMS_UNKNOWN" && billingEvidence)
               return [];
@@ -263,6 +279,14 @@ export function OfferDiscovery({
             offer.currency
               ? `${(Number(offer.priceMinor) / 100).toFixed(2)} ${offer.currency}`
               : null;
+          const unitPricingSummary = pricingDetails?.unitPrices.length
+            ? pricingDetails.unitPrices
+                .map(
+                  (entry) =>
+                    `${entry.label}: ${entry.amount} ${entry.currency} per ${entry.unit}`,
+                )
+                .join(" · ")
+            : null;
 
           return (
             <li key={offer.id} className="chat-proposal offer-research-card">
@@ -285,22 +309,72 @@ export function OfferDiscovery({
                 </p>
               )}
               <div className="offer-research-terms">
-                <p className="offer-research-price">
-                  Listed price:{" "}
-                  {listedPrice ? (
-                    <>
+                {pricingDetails ? (
+                  <>
+                    <p className="offer-research-price">
+                      Unit pricing:{" "}
                       <strong className="offer-research-amount">
-                        {listedPrice}
+                        {unitPricingSummary ?? "Unknown"}
                       </strong>
                       {" · "}Source-matched
-                    </>
-                  ) : offer.pricing.status === "conflicting" ? (
-                    "Unknown · conflicting evidence"
-                  ) : (
-                    "Unknown"
-                  )}
-                </p>
-                <p>Billing period: {billingPeriod}</p>
+                    </p>
+                    <p>
+                      Billing model: {billingModelLabel}
+                      {pricingDetails.billingTerms
+                        ? ` · Terms: ${pricingDetails.billingTerms}`
+                        : ""}
+                    </p>
+                    {(pricingDetails.modelName ||
+                      pricingDetails.region ||
+                      pricingDetails.currency) && (
+                      <p>
+                        {pricingDetails.modelName
+                          ? `Verified model: ${pricingDetails.modelName}`
+                          : "Model: Unknown"}
+                        {pricingDetails.region
+                          ? ` · Region: ${pricingDetails.region}`
+                          : ""}
+                        {pricingDetails.currency
+                          ? ` · Currency: ${pricingDetails.currency}`
+                          : ""}
+                      </p>
+                    )}
+                    {safePricingUrl && citedUrls.includes(safePricingUrl) && (
+                      <p>
+                        Official pricing documentation (research only · not
+                        checkout):{" "}
+                        <a
+                          href={safePricingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          referrerPolicy="no-referrer"
+                        >
+                          {new URL(safePricingUrl).hostname}
+                          {new URL(safePricingUrl).pathname}
+                        </a>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="offer-research-price">
+                      Listed price:{" "}
+                      {listedPrice ? (
+                        <>
+                          <strong className="offer-research-amount">
+                            {listedPrice}
+                          </strong>
+                          {" · "}Source-matched
+                        </>
+                      ) : offer.pricing.status === "conflicting" ? (
+                        "Unknown · conflicting evidence"
+                      ) : (
+                        "Unknown"
+                      )}
+                    </p>
+                    <p>Billing period: {billingPeriod}</p>
+                  </>
+                )}
               </div>
               <div className="offer-research-facts">
                 <p>
@@ -420,9 +494,18 @@ export function OfferDiscovery({
                         </strong>
                       </div>
                       <p>
-                        {offer.service} · Listed price:{" "}
-                        {listedPrice ?? "Unknown"} · Billing period:{" "}
-                        {billingPeriod}.
+                        {offer.service} ·{" "}
+                        {pricingDetails ? (
+                          <>
+                            Unit pricing: {unitPricingSummary ?? "Unknown"} ·{" "}
+                            Billing model: {billingModelLabel}.
+                          </>
+                        ) : (
+                          <>
+                            Listed price: {listedPrice ?? "Unknown"} · Billing
+                            period: {billingPeriod}.
+                          </>
+                        )}
                       </p>
                       <p>
                         {suitability[offer.reviewFit]}
@@ -446,7 +529,9 @@ export function OfferDiscovery({
                           >
                             {verifiedCheckoutUrl
                               ? "Continue to merchant checkout"
-                              : "View plan on merchant site"}
+                              : pricingDetails
+                                ? "View official pricing docs (research only)"
+                                : "View plan on merchant site"}
                           </a>
                         </p>
                       ) : (

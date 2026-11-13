@@ -1,6 +1,26 @@
 /** Research evidence only. Never a checkout or merchant-approval payload. */
 export type OfferBillingPeriod = "month" | "year" | "one-time";
+export type OfferBillingModel =
+  "subscription" | "prepaid-credits" | "usage-based";
 export type ManualCheckoutDecision = "approved-manual" | "rejected";
+
+export type OfferUnitPrice = {
+  label: string;
+  amount: string;
+  currency: "USD" | "EUR" | "GBP";
+  unit: string;
+  sourceUrl: string;
+};
+
+export type VerifiedOfferPricingDetails = {
+  billingModel: OfferBillingModel;
+  modelName: string | null;
+  region: string | null;
+  currency: "USD" | "EUR" | "GBP" | null;
+  unitPrices: OfferUnitPrice[];
+  billingTerms: string | null;
+  sourceUrl: string;
+};
 
 export type SearchSourceCategory = "pricing" | "docs" | "web";
 
@@ -124,7 +144,10 @@ export function safePlanCheckoutUrl(
 
 /** Select an existing cited, provenance-verified HTTPS merchant source URL; never invents checkout links. */
 export function selectVerifiedOfferSourceUrl(
-  offer: Pick<DiscoveredOffer, "sources" | "pricing" | "paypalSourceUrl">,
+  offer: Pick<
+    DiscoveredOffer,
+    "sources" | "pricing" | "pricingDetails" | "paypalSourceUrl"
+  >,
 ): string | null {
   const citedUrls: string[] = [];
   for (const source of offer.sources) {
@@ -137,6 +160,10 @@ export function selectVerifiedOfferSourceUrl(
     ? safeExternalOfferUrl(offer.pricing.sourceUrl)
     : null;
   if (pricingUrl && citedUrls.includes(pricingUrl)) return pricingUrl;
+  const detailsUrl = offer.pricingDetails?.sourceUrl
+    ? safeExternalOfferUrl(offer.pricingDetails.sourceUrl)
+    : null;
+  if (detailsUrl && citedUrls.includes(detailsUrl)) return detailsUrl;
   const paypalUrl = offer.paypalSourceUrl
     ? safeExternalOfferUrl(offer.paypalSourceUrl)
     : null;
@@ -162,6 +189,7 @@ export interface DiscoveredOffer {
   officialCheckoutUrl?: string | null;
   features?: Array<{ text: string; sourceUrl: string }>;
   billingEvidence?: { period: OfferBillingPeriod; sourceUrl: string } | null;
+  pricingDetails?: VerifiedOfferPricingDetails | null;
   factStatus: "claimed" | "unknown";
   pricing: {
     status: "source-matched" | "conflicting" | "unknown";
@@ -187,7 +215,7 @@ export interface OfferDiscoveryResult {
     durationMs: number;
     modelTurns: 1 | 2;
     searchProvider?: "tavily";
-    searchRequests?: 1 | 2;
+    searchRequests?: 1 | 2 | 3;
     searchResultsCount?: number;
     paymentSearchResultsCount?: number;
     collectorModel?: string;

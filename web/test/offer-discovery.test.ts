@@ -19,6 +19,7 @@ import {
   TAVILY_PAYMENT_MAX_RESULTS,
   DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL,
   buildTargetedPayPalQuery,
+  buildTargetedPricingQuery,
   computeBackoffDelayMs,
   discoverOffers,
   createDiscoveryBoundary,
@@ -3479,5 +3480,547 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(reserve).not.toHaveBeenCalled();
     expect(createMandate).not.toHaveBeenCalled();
     vi.restoreAllMocks();
+  });
+
+  it("prioritizes and verifies Alibaba Cloud Model Studio official token pricing without misrepresenting usage rates as monthly plans", async () => {
+    const officialPricingUrl =
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing";
+    const thirdPartyUrl =
+      "https://blog.aggregator.example/alibaba-qwen-pricing-comparison";
+    const f = transport(
+      [
+        {
+          provider: "Alibaba Model Studio",
+          service: "Qwen3.8 Flash",
+          // Simulate collector trying to force 5 cents monthly; server must reject monthly misrepresentation and verify usage pricing.
+          priceMinor: "5",
+          currency: "USD",
+          billing: "per month",
+          availability: null,
+          delivery: null,
+          slaMinutes: null,
+          paypal: "unknown",
+          paypalEvidence: null,
+          paypalSourceUrl: null,
+          sourceUrls: [officialPricingUrl, thirdPartyUrl],
+        },
+      ],
+      {
+        tavilyResults: [
+          {
+            title: "Best Qwen API Providers Compared",
+            url: thirdPartyUrl,
+            content: "Third-party overview estimates $0.05 per month.",
+          },
+          {
+            title: "Model pricing - Alibaba Cloud Model Studio",
+            url: officialPricingUrl,
+            content:
+              "| Model | Region | Input Price (USD / 1M tokens) | Output Price (USD / 1M tokens) | Billing Mode |\n| --- | --- | --- | --- | --- |\n| Qwen3.8 Flash | Singapore (International) | $0.05 | $0.40 | Pay-as-you-go |",
+          },
+        ],
+        paymentResults: [],
+      },
+    );
+
+    const result = await discoverOffers(
+      "Compare Alibaba Model Studio Qwen3.8 Flash API pricing",
+      env,
+      f,
+    );
+
+    expect(f).toHaveBeenCalledTimes(3);
+    const collectorBody = JSON.parse(String(f.mock.calls[1]?.[1]?.body));
+    const collectorContext = JSON.parse(
+      collectorBody.contents[0].parts[0].text,
+    );
+    expect(
+      collectorContext.observationsIncludingUntrustedProviderData.results.map(
+        (r: { url: string }) => r.url,
+      ),
+    ).toEqual([officialPricingUrl, thirdPartyUrl]);
+
+    expect(result.targetMerchantDomain).toBe("alibabacloud.com");
+    expect(result.evidence.searchRequests).toBe(2);
+    expect(result.reviewRecommendation).toBeNull();
+    expect(result.offers[0]).toMatchObject({
+      provider: "Alibaba Model Studio",
+      service: "Qwen3.8 Flash",
+      priceMinor: null,
+      currency: "USD",
+      paypal: "unknown",
+      officialMerchantUrl: officialPricingUrl,
+      officialCheckoutUrl: null,
+      pricing: {
+        status: "source-matched",
+        period: null,
+        sourceUrl: officialPricingUrl,
+      },
+      pricingDetails: {
+        billingModel: "usage-based",
+        modelName: "Qwen3.8 Flash",
+        region: "Singapore (International)",
+        currency: "USD",
+        billingTerms: "Pay-as-you-go",
+        sourceUrl: officialPricingUrl,
+        unitPrices: [
+          {
+            label: "Input",
+            amount: "0.05",
+            currency: "USD",
+            unit: "1M input tokens",
+            sourceUrl: officialPricingUrl,
+          },
+          {
+            label: "Output",
+            amount: "0.40",
+            currency: "USD",
+            unit: "1M output tokens",
+            sourceUrl: officialPricingUrl,
+          },
+        ],
+      },
+      reviewFit: "matches",
+      policy: { eligible: false },
+    });
+
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, { result, assistedCheckout: true }),
+    );
+    expect(html).toContain("Usage-based (pay-as-you-go)");
+    expect(html).toContain("Verified model: Qwen3.8 Flash");
+    expect(html).toContain("Region: Singapore (International)");
+    expect(html).toContain("Input: 0.05 USD per 1M input tokens");
+    expect(html).toContain("Output: 0.40 USD per 1M output tokens");
+    expect(html).toContain(
+      "Official pricing documentation (research only · not checkout)",
+    );
+    expect(html).toContain(`href="${officialPricingUrl}"`);
+    expect(html).not.toContain("Billing period: month");
+    expect(html).not.toContain("Continue to merchant checkout");
+    expect(html).toContain("unknown (insufficient evidence)");
+  });
+
+  it("runs a narrowly targeted official-domain pricing search when initial search misses Alibaba Model Studio pricing, and enforces deadline and boundary guards", async () => {
+    const overviewUrl =
+      "https://www.alibabacloud.com/help/en/model-studio/what-is-model-studio";
+    const officialPricingUrl =
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing";
+    const blogUrl = "https://medium.com/@techwriter/qwen3-8-flash-review";
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const target = String(input);
+      if (target.includes(":generateContent")) {
+        return Response.json({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    functionCall: {
+                      name: "reportDiscoveredOffers",
+                      args: {
+                        offers: [
+                          {
+                            provider: "Alibaba Model Studio",
+                            service: "Qwen3.8 Flash",
+                            priceMinor: null,
+                            currency: null,
+                            billing: null,
+                            availability: null,
+                            delivery: null,
+                            slaMinutes: null,
+                            paypal: "unknown",
+                            paypalEvidence: null,
+                            paypalSourceUrl: null,
+                            sourceUrls: [overviewUrl, blogUrl],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }
+      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
+        query?: string;
+      };
+      if (
+        parsedBody.query ===
+        buildTargetedPricingQuery("alibabacloud.com", "Qwen3.8 Flash")
+      ) {
+        return Response.json({
+          query: parsedBody.query,
+          results: [
+            {
+              title: "Model pricing - Alibaba Cloud Model Studio",
+              url: officialPricingUrl,
+              content:
+                "| Model | Region | Input (USD/1M tokens) | Output (USD/1M tokens) | Billing |\n| --- | --- | --- | --- | --- |\n| Qwen3.8 Flash | Singapore (International) | $0.05 USD | $0.40 USD | Pay-as-you-go |",
+            },
+          ],
+        });
+      }
+      if (parsedBody.query === buildTargetedPayPalQuery("alibabacloud.com")) {
+        return Response.json({
+          query: parsedBody.query,
+          results: [],
+        });
+      }
+      return Response.json({
+        query: parsedBody.query,
+        results: [
+          {
+            title: "Qwen3.8 Flash impressions",
+            url: blogUrl,
+            content: "Review blog post without official billing table.",
+          },
+          {
+            title: "What is Model Studio? - Alibaba Cloud",
+            url: overviewUrl,
+            content:
+              "Alibaba Cloud Model Studio provides unified access to Qwen3.8 Flash and other foundation models.",
+          },
+        ],
+      });
+    });
+
+    const result = await discoverOffers(
+      "Research Alibaba Model Studio Qwen3.8 Flash official pricing",
+      env,
+      fetcher,
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(result.evidence.searchRequests).toBe(3);
+    expect(result.targetMerchantDomain).toBe("alibabacloud.com");
+    expect(result.offers[0]).toMatchObject({
+      officialMerchantUrl: officialPricingUrl,
+      officialCheckoutUrl: null,
+      paypal: "unknown",
+      pricing: {
+        status: "source-matched",
+        period: null,
+        sourceUrl: officialPricingUrl,
+      },
+      pricingDetails: {
+        billingModel: "usage-based",
+        modelName: "Qwen3.8 Flash",
+        region: "Singapore (International)",
+        currency: "USD",
+        sourceUrl: officialPricingUrl,
+      },
+      policy: { eligible: false },
+    });
+
+    // Insufficient deadline headroom skips the optional targeted pricing search cleanly while preserving payment_evidence.
+    const onFailure = vi.fn();
+    const tightFetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes(":generateContent")) {
+        return Response.json({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    functionCall: {
+                      name: "reportDiscoveredOffers",
+                      args: {
+                        offers: [
+                          {
+                            provider: "Alibaba Model Studio",
+                            service: "Qwen3.8 Flash",
+                            priceMinor: null,
+                            currency: null,
+                            billing: null,
+                            availability: null,
+                            delivery: null,
+                            slaMinutes: null,
+                            paypal: "unknown",
+                            paypalEvidence: null,
+                            paypalSourceUrl: null,
+                            sourceUrls: [overviewUrl],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }
+      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
+        query?: string;
+      };
+      if (
+        parsedBody.query?.startsWith("site:alibabacloud.com accepted payment")
+      ) {
+        return Response.json({ query: parsedBody.query, results: [] });
+      }
+      return Response.json({
+        query: parsedBody.query,
+        results: [
+          {
+            title: "What is Model Studio? - Alibaba Cloud",
+            url: overviewUrl,
+            content: "Alibaba Cloud Model Studio overview.",
+          },
+        ],
+      });
+    });
+    const tightResult = await discoverOffers(
+      "Research Alibaba Model Studio Qwen3.8 Flash official pricing",
+      env,
+      tightFetcher,
+      1000,
+      {
+        deadlineAt: performance.now() + 15000,
+        onFailure,
+      },
+    );
+    expect(tightFetcher).toHaveBeenCalledTimes(3);
+    expect(tightResult.evidence.searchRequests).toBe(2);
+    expect(onFailure).not.toHaveBeenCalled();
+
+    // Boundary check: allowPricingSearch cannot fire twice or execute off-domain queries.
+    const boundary = createDiscoveryBoundary(
+      "Research Alibaba Model Studio Qwen3.8 Flash official pricing",
+      env.GEMINI_API_KEY,
+      env.TAVILY_API_KEY,
+    );
+    expect(() => boundary.allowPricingSearch("alibabacloud.com")).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
+    boundary.allowCollector({
+      searchProvider: "tavily",
+      retrievedAt: new Date().toISOString(),
+      results: [
+        {
+          title: "What is Model Studio?",
+          url: overviewUrl,
+          snippet: "Model Studio overview.",
+          retrievedAt: new Date().toISOString(),
+        },
+      ],
+    });
+    boundary.allowPricingSearch("alibabacloud.com", "Qwen3.8 Flash");
+    expect(() =>
+      boundary.allowPricingSearch("other-vendor.example", "Other"),
+    ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
+    expect(() =>
+      boundary.guard(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        {
+          method: "POST",
+          redirect: "error",
+          signal: new AbortController().signal,
+        },
+      ),
+    ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
+  });
+
+  it("generalizes official pricing recovery and billing-model distinction to unrelated API merchants", async () => {
+    const quickstartUrl = "https://novaml.example/docs/quickstart";
+    const apiPricingUrl = "https://novaml.example/docs/api-pricing";
+    const creditPricingUrl = "https://novaml.example/billing/credit-packs";
+    const roundupUrl = "https://dev.to/cloud-benchmarks/top-inference-apis";
+
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes(":generateContent")) {
+        return Response.json({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: {
+                role: "model",
+                parts: [
+                  {
+                    functionCall: {
+                      name: "reportDiscoveredOffers",
+                      args: {
+                        offers: [
+                          {
+                            provider: "NovaML API",
+                            service: "Echo-7B",
+                            priceMinor: null,
+                            currency: null,
+                            billing: null,
+                            availability: null,
+                            delivery: null,
+                            slaMinutes: null,
+                            paypal: "unknown",
+                            paypalEvidence: null,
+                            paypalSourceUrl: null,
+                            sourceUrls: [quickstartUrl, roundupUrl],
+                          },
+                          {
+                            provider: "NovaML API",
+                            service: "Starter Credit Pack",
+                            priceMinor: null,
+                            currency: null,
+                            billing: null,
+                            availability: null,
+                            delivery: null,
+                            slaMinutes: null,
+                            paypal: "unknown",
+                            paypalEvidence: null,
+                            paypalSourceUrl: null,
+                            sourceUrls: [quickstartUrl],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      }
+      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
+        query?: string;
+      };
+      if (
+        parsedBody.query ===
+        buildTargetedPricingQuery("novaml.example", "Echo-7B")
+      ) {
+        return Response.json({
+          query: parsedBody.query,
+          results: [
+            {
+              title: "API Pricing - NovaML Documentation",
+              url: apiPricingUrl,
+              content:
+                "Echo-7B (US-East) uses pay-as-you-go usage-based billing: prompt tokens USD 0.12 per 1M input tokens and completion tokens USD 0.36 per 1M output tokens.",
+            },
+            {
+              title: "Prepaid Credit Packs - NovaML Billing",
+              url: creditPricingUrl,
+              content:
+                "| Package | Region | Billing Mode | Price |\n| --- | --- | --- | --- |\n| Starter Credit Pack | US-East | Prepaid credits | USD 25.00 prepaid package |",
+            },
+          ],
+        });
+      }
+      if (parsedBody.query === buildTargetedPayPalQuery("novaml.example")) {
+        return Response.json({ query: parsedBody.query, results: [] });
+      }
+      return Response.json({
+        query: parsedBody.query,
+        results: [
+          {
+            title: "Best Inference APIs",
+            url: roundupUrl,
+            content: "Top inference providers ranked in developer roundup.",
+          },
+          {
+            title: "Quickstart - NovaML Documentation",
+            url: quickstartUrl,
+            content: "Get started with Echo-7B and Starter Credit Pack.",
+          },
+        ],
+      });
+    });
+
+    const result = await discoverOffers(
+      "Compare NovaML API Echo-7B usage rates and prepaid credit packs",
+      env,
+      fetcher,
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(result.targetMerchantDomain).toBe("novaml.example");
+    expect(result.evidence.searchRequests).toBe(3);
+
+    const [usageOffer, prepaidOffer] = result.offers;
+    expect(usageOffer).toMatchObject({
+      provider: "NovaML API",
+      service: "Echo-7B",
+      priceMinor: null,
+      currency: "USD",
+      officialMerchantUrl: apiPricingUrl,
+      officialCheckoutUrl: null,
+      paypal: "unknown",
+      pricing: {
+        status: "source-matched",
+        period: null,
+        sourceUrl: apiPricingUrl,
+      },
+      pricingDetails: {
+        billingModel: "usage-based",
+        modelName: "Echo-7B",
+        region: "US-East",
+        currency: "USD",
+        sourceUrl: apiPricingUrl,
+        unitPrices: [
+          {
+            label: "Input",
+            amount: "0.12",
+            currency: "USD",
+            unit: "1M input tokens",
+            sourceUrl: apiPricingUrl,
+          },
+          {
+            label: "Output",
+            amount: "0.36",
+            currency: "USD",
+            unit: "1M output tokens",
+            sourceUrl: apiPricingUrl,
+          },
+        ],
+      },
+      policy: { eligible: false },
+    });
+    expect(prepaidOffer).toMatchObject({
+      provider: "NovaML API",
+      service: "Starter Credit Pack",
+      priceMinor: null,
+      currency: "USD",
+      officialMerchantUrl: creditPricingUrl,
+      officialCheckoutUrl: null,
+      paypal: "unknown",
+      pricing: {
+        status: "source-matched",
+        period: null,
+        sourceUrl: creditPricingUrl,
+      },
+      pricingDetails: {
+        billingModel: "prepaid-credits",
+        modelName: "Starter Credit Pack",
+        region: "US-East",
+        currency: "USD",
+        billingTerms: "Prepaid credits",
+        sourceUrl: creditPricingUrl,
+        unitPrices: [
+          {
+            label: "Prepaid package",
+            amount: "25.00",
+            currency: "USD",
+            unit: "prepaid package",
+            sourceUrl: creditPricingUrl,
+          },
+        ],
+      },
+      policy: { eligible: false },
+    });
+
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, { result }),
+    );
+    expect(html).toContain("Usage-based (pay-as-you-go)");
+    expect(html).toContain("Prepaid credits");
+    expect(html).toContain(`href="${apiPricingUrl}"`);
+    expect(html).toContain(`href="${creditPricingUrl}"`);
+    expect(html).not.toContain("Billing period: month");
+    expect(html).not.toContain("Continue to merchant checkout");
   });
 });
