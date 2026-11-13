@@ -31,11 +31,31 @@ const suitability = {
   "does-not-match": "Does not match",
 } as const;
 
+const partialCategoryLabels = {
+  pricing: "Pricing page excerpt",
+  docs: "API & billing docs",
+  web: "Unverified web excerpt",
+} as const;
+
 export function IncompleteOfferComparison({
   result,
 }: {
   result: IncompleteComparison;
 }) {
+  const retrievedItems = (
+    result.results?.length
+      ? result.results
+      : result.sources.map((url) => ({
+          title: url.replace(/^https:\/\//, ""),
+          url,
+          snippet: "",
+          category: "web" as const,
+        }))
+  ).flatMap((item) => {
+    const safeUrl = safeExternalOfferUrl(item.url);
+    return safeUrl ? [{ ...item, url: safeUrl }] : [];
+  });
+
   return (
     <section className="offer-research" aria-label="Comparison incomplete">
       <header className="offer-research-meta">
@@ -43,27 +63,61 @@ export function IncompleteOfferComparison({
         <p>
           {result.reason === "timeout"
             ? "Earmark AI ran out of time to compare offers."
-            : "Earmark AI couldn’t compare offers right now."}{" "}
-          Browse the search results below or try again in a moment. Prices,
-          budget fit, and payment options still need verification.
+            : "Earmark AI couldn’t complete the offer comparison right now."}{" "}
+          Preserved search results are shown below as unverified excerpts.
         </p>
       </header>
       <div className="offer-research-sources">
-        <ul aria-label="Unverified search results">
-          {result.sources.map((url) => (
-            <li key={url}>
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                referrerPolicy="no-referrer"
-              >
-                {url.replace(/^https:\/\//, "")}
-              </a>
-            </li>
-          ))}
+        <ul
+          className="offer-research-list"
+          aria-label="Unverified search results"
+        >
+          {retrievedItems.map((item) => {
+            const label =
+              partialCategoryLabels[item.category ?? "web"] ??
+              partialCategoryLabels.web;
+            return (
+              <li key={item.url} className="offer-research-card">
+                <div className="norway-card-heading">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                  >
+                    {item.title}
+                  </a>
+                  <Badge tone="warning">{label}</Badge>
+                </div>
+                <small className="offer-research-reasons">
+                  {item.url.replace(/^https:\/\//, "")}
+                </small>
+                {item.snippet ? <p>{item.snippet}</p> : null}
+              </li>
+            );
+          })}
         </ul>
       </div>
+      <section
+        className="offer-research-unknowns"
+        aria-label="What remains unknown"
+      >
+        <strong>What remains unknown</strong>
+        <ul>
+          <li>
+            Exact plan pricing, currency, billing period, and budget fit still
+            require confirmation on the merchant site.
+          </li>
+          <li>
+            Plan availability, API quotas, and SLA or delivery terms are
+            unverified.
+          </li>
+          <li>PayPal acceptance has not been verified for these merchants.</li>
+          <li>
+            No merchant is approved and automated payment execution is disabled.
+          </li>
+        </ul>
+      </section>
     </section>
   );
 }

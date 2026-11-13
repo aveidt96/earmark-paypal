@@ -10,6 +10,7 @@ import {
   safeExternalOfferUrl,
   type IncompleteComparison,
   type OfferDiscoveryResult,
+  type PartialSearchSource,
 } from "../lib/offer-discovery";
 import { IncompleteOfferComparison, OfferDiscovery } from "./offer-discovery";
 
@@ -238,10 +239,44 @@ export function PurchasingChat({
               typeof url === "string" ? safeExternalOfferUrl(url) : null;
             return safe ? [safe] : [];
           });
-        if (sources.length) {
+        const uniqueSources = [...new Set<string>(sources)];
+        const seenResults = new Set<string>();
+        const results: PartialSearchSource[] = Array.isArray(incomplete.results)
+          ? incomplete.results.slice(0, 5).flatMap((entry: unknown) => {
+              if (!entry || typeof entry !== "object") return [];
+              const item = entry as Record<string, unknown>;
+              const safeUrl =
+                typeof item.url === "string"
+                  ? safeExternalOfferUrl(item.url)
+                  : null;
+              if (!safeUrl || seenResults.has(safeUrl)) return [];
+              seenResults.add(safeUrl);
+              const title =
+                typeof item.title === "string" && item.title.trim()
+                  ? item.title.trim().slice(0, 200)
+                  : "Untitled result";
+              const snippet =
+                typeof item.snippet === "string" && item.snippet.trim()
+                  ? item.snippet.trim().slice(0, 600)
+                  : "No excerpt available.";
+              const category =
+                item.category === "pricing" ||
+                item.category === "docs" ||
+                item.category === "web"
+                  ? item.category
+                  : undefined;
+              return [{ title, url: safeUrl, snippet, category }];
+            })
+          : [];
+        if (uniqueSources.length) {
           setIncompleteComparison({
             reason: incomplete.reason,
-            sources: [...new Set<string>(sources)],
+            sources: uniqueSources,
+            ...(results.length ? { results } : {}),
+            ...(typeof incomplete.retrievedAt === "string" &&
+            !Number.isNaN(Date.parse(incomplete.retrievedAt))
+              ? { retrievedAt: incomplete.retrievedAt }
+              : {}),
           });
           return;
         }

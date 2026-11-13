@@ -1,12 +1,21 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-11**
+Last updated: **2026-11-13**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **Task: Live public AI research reliability fix verified on `origin/main` (`b310a33`) in `.tools/task09-quota`, 2026-11-13; ready for commit/push when authorized.**
+  Adds bounded exponential backoff + equal jitter on primary comparison `503`s,
+  recoverable failover to `GEMINI_COLLECTOR_FALLBACK_MODEL` (defaulting public
+  research to `gemini-3.5-flash-lite` under the existing `55s` deadline and
+  `reportDiscoveredOffers` boundary guards), official pricing/docs ranking, and
+  categorized partial-search fallback UI separated from unknowns. Root checkout
+  stays untouched on `paypal-hackathon-primary-release` (`0945d04`) with paused
+  Task 10 Lambda WIP isolated.
 
 - **Task 09D, 2026-11-11: offline recovery verified; publication authorized.**
   The direct-Vercel release preserves approved Norway composition. Hosted
@@ -7542,3 +7551,331 @@ The local validation log is ignored under
 
 No live provider requests, payments, staging, commits, pushes or deployments
 occurred. The release remains local and awaits publication authorization.
+
+### 2026-11-11 — Production publication of the reviewed research release
+
+Fetched `origin/main` over HTTP/1.1 after the initial Git connection timed
+out. The fetched tip matched the reviewed base `9cf3647`. The 11 staged
+paths and committed diff matched the approved review artifact exactly.
+The staged whitespace and credential-pattern checks passed. Reused the
+approved 101-test, TypeScript and Chromium validation because no release
+source changed after review.
+
+Committed `3c9817089c96211838c97f4825f77034e0abe93b` as `aveidt96` and pushed
+it normally to `main` as a fast-forward. The original Vercel project
+`earmark-paypal` reported `READY` for the exact SHA on Production. The
+`https://earmark-paypal.vercel.app` alias points to
+`https://earmark-paypal-4i6e5remj-samuelid22.vercel.app`. Its GitHub Vercel
+check passed. The same Git push automatically triggered a failed check in
+the separately linked `earmark-paypal-i2bk` project. No direct action or
+configuration change was made in that project.
+
+The masked Production inventory still has the same 19 variable names.
+No environment values were printed or changed. Read-only Production
+checks showed Earmark AI and the third-party provider disclosure, a working
+Judge page, research configured, and PayPal payment execution disabled.
+An initial read-only verification script collided with a reserved
+PowerShell variable and was corrected. A static JavaScript download timed
+out in the subsequent run, so that scan was retried separately.
+
+No live provider evaluation, payment, financial data mutation or manual
+deployment was performed. The live research request remains for the user's
+manual Production test. This publication note is local and was added after
+the reviewed commit.
+
+The bounded retry read the original Production homepage and all 10 public JavaScript chunks it references. The scan found zero credential-pattern matches.
+
+### 2026-11-11 — Recover from public offer comparison failures
+
+The original Production Vercel logs recorded Gemini HTTP 503 after 2.321
+and 26.520 seconds, plus a 32.004-second local comparison timeout with
+no upstream response headers. The three requests reached comparison after
+the quota check and initial merchant search.
+
+`web/src/server/paypal/offer-discovery.ts` retries only an early comparison
+503, once, after a 750 ms delay and with at least 12 seconds still available
+in the original comparison window. Both sends pass the same outbound guard
+and share the same abort signal and deadline. `web/src/server/paypal/public-research.ts`
+logs the retry with safe timing data and returns a separate source-only
+result on a comparison timeout or 503. The result contains URL links from
+the validated initial search. It contains no offer, prices, recommendation,
+eligibility verdict or payment action. One quota admission still covers the
+whole request, with the existing 55-second total and 12-second payment
+evidence reserve.
+
+`web/src/lib/offer-discovery.ts` defines the response type.
+`web/src/components/purchasing-chat.tsx` accepts it only for public research,
+checks the links again and clears prior results. `web/src/components/offer-discovery.tsx`
+shows Comparison incomplete with unverified sources. `web/src/app/norway.css`
+wraps long source URLs. `web/test/offer-discovery.test.ts` checks retry,
+unchanged deadline, terminal errors, sanitized logging, source filtering
+and quota count. `scripts/preview-smoke.mjs` covers the source-only response,
+unsafe link filtering, narrow viewport and absence of checkout controls.
+
+Node 22.14.0 passed 113 focused research, Judge and agent-checkout tests.
+
+### 2026-11-12 — Offer comparison recovery verification
+
+The initial TypeScript check caught an explicit-undefined assignment to an
+optional property. The type was corrected and the workspace/API check
+passed. The default Biome scan skipped the nested `.tools` checkout.
+The focused run with the checkout's config found a new CSS specificity
+warning, which was corrected. All eight changed code/test files then
+passed zero-warning lint and Prettier. Two informational regex suggestions
+concern existing code. The Node 22.14.0 Next.js Production build completed,
+including TypeScript, 16 static pages and route tracing. All 48 browser
+chunks passed the boundary scan. The changed-code credential-pattern and
+Git whitespace checks passed.
+
+Full offline Chromium smoke passed eight PayPal pages, both themes, five
+viewport widths and the Judge flows. The 390px incomplete-comparison case
+showed one safe source link, filtered a non-HTTPS fixture link, hid checkout
+controls and had no horizontal overflow. The smoke reported zero browser
+exceptions and zero external requests. No live provider evaluation,
+financial operation, staging, commit, push or deployment occurred.
+Publication and a separately authorized live check remain pending.
+
+### 2026-11-12 — Offer comparison recovery deployed to Production
+
+Fetched GitHub `main` and verified it matched tested base `3c981708`.
+Published the eight reviewed recovery files in `f56e35f48548279d15108d23ec711eed81901486`
+as `aveidt96`, using one normal fast-forward push to `origin/main`.
+The staged and committed diffs matched the tested candidate. Staged
+whitespace and credential-pattern scans passed. Handoff and local
+artifacts remained outside the commit.
+
+Direct Vercel REST inspection returned 403. The authenticated CLI verified
+the original project `earmark-paypal` reached `READY` for the exact SHA,
+with the public alias `https://earmark-paypal.vercel.app` pointing to
+`https://earmark-paypal-53sg4hkjw-samuelid22.vercel.app`. The research
+function is Node.js 22 with a 60-second duration. The original project's
+GitHub deployment check succeeded. The separately linked
+`earmark-paypal-i2bk` check failed independently.
+
+Read-only GET checks returned HTTP 200 on the homepage and research
+readiness route, which returned available. The published diff retains
+the already verified 113 focused tests and offline build/browser results.
+No live provider evaluation or financial operation occurred during release.
+The user retains the manual Production research check.
+
+### 2026-11-12 — Prepare higher research quotas for judging
+
+Production's published route uses three admissions per network address
+and 24 total per UTC day. The existing dedicated research schema bootstrap
+also constrains `used` to at most 24. A higher runtime limit requires
+expanding that database constraint before activation.
+
+- `web/src/server/paypal/public-research.ts` accepts optional server-only
+  `EARMARK_RESEARCH_VISITOR_DAILY_LIMIT` and
+  `EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT` as canonical integers from 1 to 120.
+  Missing settings retain 3 and 24. Invalid settings fail configuration
+  validation. The existing PostgreSQL upsert binds both limits as parameters,
+  keeping both conditions in the same atomic admission.
+- `docs/public-research-quota-capacity.sql` changes the existing research
+  table's check constraint from 24 to 120 in one transaction, with a short
+  lock timeout. It preserves rows and grants. `docs/public-research-quota.sql`
+  now creates fresh research databases with the 120 ceiling.
+- `web/test/offer-discovery.test.ts` verifies defaults, rejects invalid
+  settings, checks the SQL parameters and confirms a denied admission never
+  reaches a provider. The ignored `.tools/quota-capacity-proof.mts` runs
+  the actual upsert and migration on disposable loopback PostgreSQL 17.
+
+Recommended judging settings are `EARMARK_RESEARCH_VISITOR_DAILY_LIMIT=12`
+and `EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT=120`. These are public research
+limits, shared by people behind the same IP and by all traffic on the site,
+respectively. Confirm the original database's `daily_quota_used_check`
+before running the migration as owner on the dedicated research database.
+Apply the migration first, then publish the candidate with those variables
+on the original `earmark-paypal` Vercel Production project. Remove the two
+settings and redeploy to return to 3/24 after judging. The 120 database
+ceiling is compatible with the lower application caps. Existing UTC-day
+counts remain in place throughout.
+
+Node 22.14.0 passed all 114 focused tests, the Next.js Production build
+including TypeScript, the 48-chunk browser boundary scan, focused
+zero-warning Biome lint, formatting, and `git diff --check`. The first
+local PostgreSQL proof passed the migration and concurrency assertions but
+hit its statement timeout creating a separate database for a fresh-install
+check. The fixture was shut down. The rerun passed using a rollback
+transaction for the fresh schema. PostgreSQL 17 preserved the original
+quota row, enforced both 3/24 and 12/120 across two concurrent pools,
+rejected use above 120, and confirmed the application role cannot delete.
+The second fixture was shut down successfully.
+
+No production database changes, provider calls, financial operations,
+Git publication or deployment were performed. Before judging, verify
+provider headroom and run a separately authorized manual research check.
+The Production retry and source-only fallback remain available when
+Gemini is slow or unavailable.
+
+### 2026-11-12 — Restore visitor quota after a terminal Gemini 503
+
+The Production handler charged both counters at admission before it
+contacted a provider. A final 503 therefore consumed a visitor slot even
+when the response had no comparison. `web/src/server/paypal/public-research.ts`
+now uses the same UTC day for admission and refund, and restores one
+visitor slot after a confirmed terminal Gemini comparison 503. A
+successful retry counts once. The site-wide `used` counter continues to
+bound actual admitted provider work, including failed requests. Refund
+work shares the request deadline and has the existing eight-second DB cap.
+An unavailable refund is logged without identifiers and the source
+fallback still returns. There is no retroactive credit or reset of counts.
+
+`web/test/offer-discovery.test.ts` verifies that only the final 503
+restores a slot, that a successful retry counts once, and that a stalled
+refund preserves the fallback. The ignored
+`.tools/quota-capacity-proof.mts` now also verifies refund isolation,
+no underflow, and preservation of the global counter against disposable
+PostgreSQL 17. All 115 focused tests, the combined Node 22 Production
+build and TypeScript, the 48-chunk browser boundary scan, focused lint,
+formatting, whitespace and staged credential-pattern checks passed.
+
+The only four paths in local commit `b310a33144cda973b2d9e3b025341864ae0c32a3` are
+`web/src/server/paypal/public-research.ts`, `web/test/offer-discovery.test.ts`,
+`docs/public-research-quota.sql`, and `docs/public-research-quota-capacity.sql`.
+The ignored `.tools/quota-production-preflight.mts` reports only sanitized
+schema/access facts. Vercel lists the research database variable, but the
+protected value was unavailable in the local CLI environment. The Neon
+connector is scoped to `earmark-testnet` and the browser reached sign-in.
+The dedicated research owner connection remains required before the 120
+database migration. The Vercel Production quota override names were both
+absent, so the refund can be released with the current 3/24 limits while
+the higher settings await the migration.
+
+### 2026-11-12 — Gemini 503 visitor refund published at current limits
+
+Pushed `b310a33144cda973b2d9e3b025341864ae0c32a3` to GitHub `main` as a normal
+fast-forward with the four verified files. The original Vercel
+`earmark-paypal` Production project reached `READY` for that exact
+commit and the public alias resolves to
+`earmark-paypal-58b4mi54x-samuelid22.vercel.app`. The research readiness
+GET returned HTTP 200 with `available: true`. The original deployment
+check succeeded. The separately linked `earmark-paypal-i2bk` check failed.
+
+Production runs the visitor refund with the existing 3/24 limits. The
+two override names were absent and no production quota migration or Vercel
+setting was applied. The user selected connecting the dedicated Neon
+research project. The last scope check still returned `earmark-testnet`.
+After reconnecting, verify the research database identity and owner
+role, apply `docs/public-research-quota-capacity.sql`, then set
+`EARMARK_RESEARCH_VISITOR_DAILY_LIMIT=12` and
+`EARMARK_RESEARCH_GLOBAL_DAILY_LIMIT=120` on the original Production
+project and verify the redeployment. No live research or financial
+operation was performed.
+
+### 2026-11-12 — Research connector authenticated, current chat needs refresh
+
+The user added and approved the project-scoped `neonresearch` connector.
+Read-only local Codex checks confirmed OAuth authentication and availability
+of both the SQL and transaction tools in a fresh app-server process.
+The active chat still exposes only `Neon` scoped to `earmark-testnet`;
+looking up `neonresearch` in the chat returned unknown server. The
+documented app-server resume was refused because the active chat already
+has a writer. No migration or Vercel change was attempted.
+
+The ignored isolated artifacts `.tools/neon-codex-rpc-schema/` and
+`.tools/neon-research-rpc.mjs` supported this read-only diagnosis.
+Refresh the MCP tools by restarting Codex after authentication and
+opening a fresh chat in this workspace if needed. The previously approved
+migration and 12/120 activation remain pending.
+
+
+### 2026-11-13 — Fix live public AI research reliability (`offer_analysis`)
+
+Inspected read-only Vercel `earmark-paypal` Production logs and environment
+metadata for `dpl_3z9xeeTnviL7FXZ4dUnZoBKLELh5` (`b310a33`):
+- Vercel Hobby runtime log retention is 30 minutes (`vercel logs runtime --since 60m`
+  and `--since 48h` returned HTTP 400); `vercel logs runtime --since 30m` returned 0
+  records (`2026-11-13T01:28:44.627Z–01:58:44.627Z`).
+- `vercel logs requests` showed two `POST /api/paypal/research` requests at
+  `2026-11-12T18:01:00.110Z` (`fb8mk-1794506460110-7b3cacb3bb37`) and
+  `2026-11-12T18:04:40.725Z` (`mtgb2-1794506680725-a6eb57a2342a`), both returning
+  HTTP `200` (which matches both full discovery and `offer_analysis`
+  `incompleteComparison` fallback, whereas `INVALID_MODEL_RESPONSE` /
+  `DISCOVERY_REPORT_REQUIRED` would have returned HTTP `502`). Prior recorded
+  Production runtime logs (`2026-11-11` entry) isolated post-Tavily failures to
+  `offer_analysis` (Gemini HTTP `503` at `2.321s` and `26.520s`, and one `32.004s`
+  local timeout).
+- Masked `vercel env ls production` confirmed neither `GEMINI_MODEL` nor
+  `GEMINI_COLLECTOR_MODEL` is set, so Production defaults to `gemini-3.8-flash`
+  with no fallback collector configured. Local live traces used
+  `gemini-3.5-flash-lite` cleanly with `reportDiscoveredOffers` and
+  `{ thinkingLevel: "low" }`.
+
+Changed files in `.tools/task09-quota` (`main` worktree at `b310a33`, local only):
+- `web/src/lib/offer-discovery.ts`: Exported `SearchSourceCategory` (`"pricing" | "docs" | "web"`),
+  `PartialSearchSource`, and extended `IncompleteComparison` with optional
+  `results` and `retrievedAt` (preserving `sources` compatibility).
+- `web/src/server/paypal/offer-discovery.ts`:
+  - Replaced single fixed `750ms` retry with `computeBackoffDelayMs` (base `500ms`,
+    cap `2000ms`, up to `2` primary `503` retries with equal jitter and minimum
+    `8000ms` remaining attempt guard) while keeping `GeminiModel` at
+    `maxAttempts: 1` (single retry/fallback controller inside `55s` shared
+    deadline / `32s` `offer_analysis` stage limit / `12s` payment reserve).
+  - Added configurable `GEMINI_COLLECTOR_FALLBACK_MODEL` via `resolveFallbackCollectorModel`
+    (public research defaults to `gemini-3.5-flash-lite` when unset, `"off"`/`"none"`
+    disables, non-`gemini-3*` rejected with `DISCOVERY_MODEL_UNSUPPORTED`; local/Judge
+    mode leaves fallback disabled unless configured). Reserves `8000ms` fallback
+    headroom when stage budget `>= 22000ms`, failing over only on recoverable errors
+    (`503`, `429`, `500`/`502`/`504`/`408`, `MODEL_TIMEOUT`, `MODEL_TRANSPORT_ERROR`),
+    never on `401`/`403`, `400`/`404`, `SAFETY_BLOCK`, `INVALID_MODEL_RESPONSE`,
+    `DISCOVERY_REPORT_REQUIRED`, or policy rejections.
+  - Extended `createDiscoveryBoundary` with single-use `allowFallbackCollector()`
+    preserving the exact `reportDiscoveredOffers` schema, headers, and serialized
+    collector payload; records active `usedCollectorModel` in `evidence.collectorModel`.
+  - Refined `buildOfferSearchQuery`, `offerSourcePriority`, `classifySearchSourceCategory`,
+    and `selectTargetMerchantDomain` to prefer official merchant pricing pages (`pricing`)
+    and API/billing docs (`docs`) over blogs, forums, and roundup comparisons.
+  - Passed sanitized `PartialComparisonContext` (`sources`, `results`, `retrievedAt`)
+    into `runStage`'s `onFailure` hook.
+- `web/src/server/paypal/public-research.ts`: Added safe `onComparisonRetry` and
+  `onComparisonFallback` metadata logging (no prompts/secrets), kept visitor quota
+  refund strictly on terminal `offer_analysis` HTTP `503`, and preserved sanitized
+  `results` + `retrievedAt` inside `incompleteComparison` for comparison timeouts,
+  `503`, `500`/`502`/`transport`, and `invalid_response` (preserving `429 -> 502`
+  and `401/403 -> 502`).
+- `web/src/components/purchasing-chat.tsx`, `web/src/components/offer-discovery.tsx`,
+  `web/src/app/norway.css`: Client-validated optional `results`/`retrievedAt`
+  via `safeExternalOfferUrl`, rendered categorized unverified excerpts clearly
+  separated from an explicit `What remains unknown` `<section>` with zero approval
+  or payment controls.
+- `.env.example`, `web/.env.example`: Documented optional `# GEMINI_COLLECTOR_FALLBACK_MODEL=gemini-3.5-flash-lite`.
+- `web/test/offer-discovery.test.ts`: Updated existing `incompleteComparison` /
+  `503` / `504` / search-query assertions; added regression tests for
+  `computeBackoffDelayMs`, multi-503 recovery, `GEMINI_COLLECTOR_FALLBACK_MODEL`
+  recoverable failover & boundary guards, non-recoverable fail-closed handling,
+  Tavily relevance ranking, and `IncompleteOfferComparison` markup.
+
+Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after final edits):
+- Prettier `--check` on all 7 modified code/test files: passed.
+- Biome lint `--vcs-enabled=false --error-on-warnings` on all 7 modified files:
+  0 errors, 0 warnings. (`npm run lint` from `.tools` skips `.` via parent VCS ignore.)
+- `npm run typecheck` (`@flint/agent` build + `@flint/agent`/`@flint/web`/`api/src`
+  `tsc --noEmit`): passed.
+- `npm run build --workspace @flint/web` (`VERCEL=1`, `EARMARK_PUBLIC_DEMO_ONLY=true`,
+  all live switches `"false"`): passed (16 static + dynamic routes built).
+- Focused `@flint/agent` Vitest (`8` files: `gemini`, `gemini-response`, `gemini-body`,
+  `gemini-read-only`, `models`, `policy`, `config`, `testnet`): `150/150` passed, 0 skipped.
+- Focused `@flint/web` Vitest (`15` files: `offer-discovery`, `judge-sandbox`,
+  `paypal-gemini-agent`, `paypal-gemini-boundary`, `paypal-policy`, `paypal-oauth`,
+  `paypal-webhooks`, `paypal-test-auth`, `paypal-postgres`, `paypal-us-migration`,
+  `paypal-agent-recovery`, `paypal-agent-campaign05c`, `paypal-config`, `hosted`,
+  `theme-console`): `292/292` passed (including `84/84` in `offer-discovery.test.ts`),
+  0 skipped.
+- Full `npm test` run also executed: `@flint/contracts` failed (missing pinned Forge
+  in `.tools/task09-quota`), and legacy EVM `abi.test.ts` (`2` failed),
+  `service.test.ts`, `agent/integration.test.ts`, and `agent/security-demo.test.ts`
+  failed/skipped due to missing `TaskVault.json` / `ANVIL_START_FAILED`;
+  `paypal-sandbox.integration.test.ts` skipped as configured. All other suites passed.
+- `node scripts/preview-smoke.mjs`: passed all 8 PayPal pages, legacy denials,
+  both themes, 5 viewports (`375`–`1440px`), offline research + incomplete comparison
+  overflow/safety checks, zero browser exceptions or external requests.
+- `.next/static` static bundle scan for server secret/config identifiers: passed (`0` matches).
+
+Unverified / pending:
+- No live Gemini or Tavily API calls, no PayPal calls, no DB mutations, and no
+  `git add`/commit/push or Vercel deployment occurred.
+- Live Production reliability requires reviewing `.tools/task09-quota` diff,
+  publishing to `main` (and optionally setting `GEMINI_COLLECTOR_FALLBACK_MODEL`
+  on Vercel Production if overriding the `gemini-3.5-flash-lite` default), and
+  running a single authorized Production check.

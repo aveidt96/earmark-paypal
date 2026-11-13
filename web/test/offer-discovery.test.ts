@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { channel } from "node:diagnostics_channel";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { OfferDiscovery } from "../src/components/offer-discovery";
+import {
+  IncompleteOfferComparison,
+  OfferDiscovery,
+} from "../src/components/offer-discovery";
 import {
   MAX_RESEARCH_BUDGET_MINOR,
   parseResearchBudget,
@@ -14,10 +17,13 @@ import {
   TAVILY_SEARCH_URL,
   TAVILY_MAX_RESULTS,
   TAVILY_PAYMENT_MAX_RESULTS,
+  DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL,
   buildTargetedPayPalQuery,
+  computeBackoffDelayMs,
   discoverOffers,
   createDiscoveryBoundary,
   discoverySource,
+  resolveFallbackCollectorModel,
 } from "../src/server/paypal/offer-discovery";
 import { createJudgeHandler } from "../src/server/paypal/judge-http";
 import {
@@ -540,8 +546,13 @@ describe("anonymous Norway research", () => {
       const log = vi.spyOn(console, "warn").mockImplementation(() => {});
       const fixture = transport();
       let calls = 0;
-      const fetcher: typeof fetch = (url, init) =>
-        ++calls === stopAt
+      const fetcher: typeof fetch = (url, init) => {
+        calls += 1;
+        const shouldHang =
+          stage === "offer_analysis"
+            ? String(url).includes(":generateContent")
+            : calls === stopAt;
+        return shouldHang
           ? new Promise((_resolve, reject) =>
               init?.signal?.addEventListener(
                 "abort",
@@ -550,6 +561,7 @@ describe("anonymous Norway research", () => {
               ),
             )
           : fixture(url, init);
+      };
       try {
         const pending = handlePublicResearch(
           request(payload),
@@ -561,11 +573,27 @@ describe("anonymous Norway research", () => {
         await vi.advanceTimersByTimeAsync(timeoutMs);
         const reply = await pending;
         expect(reply.status).toBe(stage === "offer_analysis" ? 200 : 504);
-        expect(await reply.json()).toEqual(
-          stage === "offer_analysis"
-            ? { incompleteComparison: { reason: "timeout", sources: [url] } }
-            : { error },
-        );
+        const body = await reply.json();
+        if (stage === "offer_analysis") {
+          expect(body).toEqual({
+            incompleteComparison: {
+              reason: "timeout",
+              sources: [url],
+              results: [
+                {
+                  title: "Fixture pricing",
+                  url,
+                  snippet:
+                    "Weather API monthly plan listed at $5.00 USD per month.",
+                  category: "pricing",
+                },
+              ],
+              retrievedAt: expect.any(String),
+            },
+          });
+        } else {
+          expect(body).toEqual({ error });
+        }
         expect(log).toHaveBeenCalledExactlyOnceWith(
           "public-research: provider stage failed",
           {
@@ -576,7 +604,7 @@ describe("anonymous Norway research", () => {
             httpStatus: null,
           },
         );
-        expect(calls).toBe(stopAt);
+        expect(calls).toBe(stage === "offer_analysis" ? 3 : stopAt);
       } finally {
         log.mockRestore();
         vi.useRealTimers();
@@ -597,7 +625,20 @@ describe("anonymous Norway research", () => {
       );
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
-        incompleteComparison: { reason: "timeout", sources: [url] },
+        incompleteComparison: {
+          reason: "timeout",
+          sources: [url],
+          results: [
+            {
+              title: "Fixture pricing",
+              url,
+              snippet:
+                "Weather API monthly plan listed at $5.00 USD per month.",
+              category: "pricing",
+            },
+          ],
+          retrievedAt: expect.any(String),
+        },
       });
       expect(log).toHaveBeenCalledExactlyOnceWith(
         "public-research: provider stage failed",
@@ -609,7 +650,7 @@ describe("anonymous Norway research", () => {
           httpStatus: 504,
         },
       );
-      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fetcher).toHaveBeenCalledTimes(3);
     } finally {
       log.mockRestore();
     }
@@ -661,14 +702,34 @@ describe("anonymous Norway research", () => {
             expect.objectContaining({ day: reserve.mock.calls[0]?.[2].day }),
           );
         } else expect(refund).not.toHaveBeenCalled();
-        expect(calls).toHaveLength(2);
+        const expectedGeminiCalls =
+          retryStatus === 200 ? 2 : retryStatus === 503 ? 4 : 3;
+        expect(calls).toHaveLength(expectedGeminiCalls);
         expect(calls[1]?.body).toBe(calls[0]?.body);
-        expect(calls[1]?.signal).toBe(calls[0]?.signal);
-        expect(fetcher).toHaveBeenCalledTimes(retryStatus === 200 ? 4 : 3);
-        expect(info).toHaveBeenCalledExactlyOnceWith(
-          "public-research: retrying offer comparison",
-          { httpStatus: 503, remainingMs: expect.any(Number) },
+        expect(calls[1]?.signal).toBeInstanceOf(AbortSignal);
+        expect(fetcher).toHaveBeenCalledTimes(
+          retryStatus === 200 ? 4 : expectedGeminiCalls + 1,
         );
+        expect(info).toHaveBeenCalledWith(
+          "public-research: retrying offer comparison",
+          {
+            model: "gemini-3.8-flash",
+            attempt: 2,
+            delayMs: expect.any(Number),
+            httpStatus: 503,
+            remainingMs: expect.any(Number),
+          },
+        );
+        if (retryStatus !== 200) {
+          expect(info).toHaveBeenCalledWith(
+            "public-research: falling back for offer comparison",
+            expect.objectContaining({
+              fromModel: "gemini-3.8-flash",
+              toModel: DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL,
+              httpStatus: retryStatus,
+            }),
+          );
+        }
         const body = await reply.json();
         if (retryStatus === 200) {
           expect(reply.status).toBe(200);
@@ -688,6 +749,15 @@ describe("anonymous Norway research", () => {
                   incompleteComparison: {
                     reason: "unavailable",
                     sources: [url],
+                    results: [
+                      {
+                        title: "Pricing",
+                        url,
+                        snippet: "A weather API plan.",
+                        category: "pricing",
+                      },
+                    ],
+                    retrievedAt: expect.any(String),
                   },
                 }
               : { error: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE" },
@@ -725,7 +795,7 @@ describe("anonymous Norway research", () => {
     try {
       const pending = handlePublicResearch(
         request(payload),
-        publicEnv,
+        { ...publicEnv, GEMINI_COLLECTOR_FALLBACK_MODEL: "off" },
         async () => true,
         (instruction, env, _, budget, timing) =>
           discoverOffers(instruction, env, fetcher, budget, timing),
@@ -735,7 +805,20 @@ describe("anonymous Norway research", () => {
       const reply = await pending;
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
-        incompleteComparison: { reason: "unavailable", sources: [url] },
+        incompleteComparison: {
+          reason: "unavailable",
+          sources: [url],
+          results: [
+            {
+              title: "Fixture pricing",
+              url,
+              snippet:
+                "Weather API monthly plan listed at $5.00 USD per month.",
+              category: "pricing",
+            },
+          ],
+          retrievedAt: expect.any(String),
+        },
       });
       expect(fetcher).toHaveBeenCalledTimes(2);
       expect(refund).toHaveBeenCalledTimes(1);
@@ -759,7 +842,7 @@ describe("anonymous Norway research", () => {
     try {
       const pending = handlePublicResearch(
         request(payload),
-        publicEnv,
+        { ...publicEnv, GEMINI_COLLECTOR_FALLBACK_MODEL: "off" },
         async () => true,
         (instruction, env, _, budget, timing) =>
           discoverOffers(instruction, env, fetcher, budget, timing),
@@ -768,7 +851,20 @@ describe("anonymous Norway research", () => {
       await vi.advanceTimersByTimeAsync(34500);
       const reply = await pending;
       expect(await reply.json()).toEqual({
-        incompleteComparison: { reason: "unavailable", sources: [url] },
+        incompleteComparison: {
+          reason: "unavailable",
+          sources: [url],
+          results: [
+            {
+              title: "Fixture pricing",
+              url,
+              snippet:
+                "Weather API monthly plan listed at $5.00 USD per month.",
+              category: "pricing",
+            },
+          ],
+          retrievedAt: expect.any(String),
+        },
       });
       expect(refund).toHaveBeenCalledTimes(1);
       expect(warn).toHaveBeenLastCalledWith(
@@ -816,7 +912,20 @@ describe("anonymous Norway research", () => {
       const reply = await pending;
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
-        incompleteComparison: { reason: "timeout", sources: [url] },
+        incompleteComparison: {
+          reason: "timeout",
+          sources: [url],
+          results: [
+            {
+              title: "Fixture pricing",
+              url,
+              snippet:
+                "Weather API monthly plan listed at $5.00 USD per month.",
+              category: "pricing",
+            },
+          ],
+          retrievedAt: expect.any(String),
+        },
       });
       expect(log).toHaveBeenCalledExactlyOnceWith(
         "public-research: provider stage failed",
@@ -828,7 +937,7 @@ describe("anonymous Norway research", () => {
           httpStatus: null,
         },
       );
-      expect(calls).toBe(2);
+      expect(calls).toBe(3);
     } finally {
       log.mockRestore();
       vi.useRealTimers();
@@ -1186,6 +1295,351 @@ describe("anonymous Norway research", () => {
     expect(discover).toHaveBeenCalledTimes(2);
     expect(discover.mock.calls[0]?.[0]).toBe(instruction);
   });
+
+  it("computes bounded exponential backoff with equal jitter and recovers from two 503s", async () => {
+    expect(computeBackoffDelayMs(0, () => 0)).toBe(250);
+    expect(computeBackoffDelayMs(0, () => 1)).toBe(500);
+    expect(computeBackoffDelayMs(1, () => 0)).toBe(500);
+    expect(computeBackoffDelayMs(1, () => 1)).toBe(1000);
+    expect(computeBackoffDelayMs(2, () => 0)).toBe(1000);
+    expect(computeBackoffDelayMs(5, () => 1)).toBe(2000);
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fixture = transport([offer]);
+    let geminiCalls = 0;
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes(":generateContent")) {
+        geminiCalls += 1;
+        if (geminiCalls <= 2) return new Response("{}", { status: 503 });
+      }
+      return fixture(input, init);
+    });
+    try {
+      const pending = handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      await vi.advanceTimersByTimeAsync(2000);
+      const reply = await pending;
+      expect(reply.status).toBe(200);
+      expect(geminiCalls).toBe(3);
+      expect(await reply.json()).toMatchObject({
+        discovery: {
+          evidence: { collectorModel: "gemini-3.8-flash", modelTurns: 1 },
+        },
+      });
+      expect(info).toHaveBeenCalledTimes(2);
+    } finally {
+      info.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers via configurable GEMINI_COLLECTOR_FALLBACK_MODEL on recoverable primary failures only and enforces boundary guards", async () => {
+    expect(
+      resolveFallbackCollectorModel("gemini-3.8-flash", undefined, true),
+    ).toBe(DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL);
+    expect(
+      resolveFallbackCollectorModel("gemini-3.8-flash", "off", true),
+    ).toBeNull();
+    expect(
+      resolveFallbackCollectorModel(
+        "gemini-3.8-flash",
+        "gemini-3.8-flash",
+        true,
+      ),
+    ).toBeNull();
+    expect(() =>
+      resolveFallbackCollectorModel(
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        true,
+      ),
+    ).toThrow("DISCOVERY_MODEL_UNSUPPORTED");
+
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const refund = vi.fn(async () => true);
+    try {
+      for (const mode of ["429", "503", "transport"] as const) {
+        info.mockClear();
+        refund.mockClear();
+        const fixture = transport([offer]);
+        const urls: string[] = [];
+        const bodies: string[] = [];
+        const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+          const target = String(input);
+          if (target.includes(":generateContent")) {
+            urls.push(target);
+            bodies.push(String(init?.body ?? ""));
+            if (!target.includes("gemini-3.5-flash-lite")) {
+              if (mode === "transport") throw new Error("network reset");
+              return new Response("{}", { status: Number(mode) });
+            }
+          }
+          return fixture(input, init);
+        });
+        const reply = await handlePublicResearch(
+          request(payload),
+          {
+            ...publicEnv,
+            GEMINI_COLLECTOR_FALLBACK_MODEL: "gemini-3.5-flash-lite",
+          },
+          async () => true,
+          (instruction, env, _, budget, timing) =>
+            discoverOffers(instruction, env, fetcher, budget, timing),
+          refund,
+        );
+        expect(reply.status).toBe(200);
+        expect(refund).not.toHaveBeenCalled();
+        expect(urls.at(-1)).toContain(
+          "/models/gemini-3.5-flash-lite:generateContent",
+        );
+        expect(new Set(bodies).size).toBe(1);
+        const collectorEnvelope = JSON.parse(bodies[0] ?? "{}");
+        expect(
+          collectorEnvelope.tools[0].functionDeclarations.map(
+            (d: { name: string }) => d.name,
+          ),
+        ).toEqual(["reportDiscoveredOffers"]);
+        expect(await reply.json()).toMatchObject({
+          discovery: {
+            evidence: {
+              collectorModel: "gemini-3.5-flash-lite",
+              outboundGuardPassed: true,
+            },
+            offers: [{ policy: { eligible: false } }],
+          },
+        });
+      }
+    } finally {
+      info.mockRestore();
+    }
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      const fixture = transport([offer]);
+      const seenModels: string[] = [];
+      const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+        const target = String(input);
+        if (target.includes(":generateContent")) {
+          seenModels.push(target);
+          if (!target.includes("gemini-3.5-flash-lite")) {
+            return new Promise((_resolve, reject) =>
+              init?.signal?.addEventListener(
+                "abort",
+                () => reject(new Error("primary hung")),
+                { once: true },
+              ),
+            );
+          }
+        }
+        return fixture(input, init);
+      });
+      const pending = handlePublicResearch(
+        request(payload),
+        publicEnv,
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+      );
+      await vi.advanceTimersByTimeAsync(24000);
+      const reply = await pending;
+      expect(reply.status).toBe(200);
+      expect(seenModels).toHaveLength(2);
+      expect(seenModels[1]).toContain("gemini-3.5-flash-lite");
+      expect(await reply.json()).toMatchObject({
+        discovery: { evidence: { collectorModel: "gemini-3.5-flash-lite" } },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const boundary = createDiscoveryBoundary(
+      payload.instruction,
+      publicEnv.GEMINI_API_KEY,
+      publicEnv.TAVILY_API_KEY,
+      "gemini-3.8-flash",
+      [],
+      1000,
+      "gemini-3.5-flash-lite",
+    );
+    expect(() => boundary.allowFallbackCollector()).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
+    boundary.allowCollector({
+      searchProvider: "tavily",
+      retrievedAt: "2026-11-13T00:00:00.000Z",
+      results: [
+        {
+          title: "Pricing",
+          url,
+          snippet: "$5/month",
+          retrievedAt: "2026-11-13T00:00:00.000Z",
+        },
+      ],
+    });
+    boundary.allowFallbackCollector();
+    expect(() => boundary.allowFallbackCollector()).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
+  });
+
+  it("never falls back on non-recoverable failures and preserves safe partial excerpts without refunding non-503 errors", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const refund = vi.fn(async () => true);
+    try {
+      for (const [label, fetcher, expectedStatus, expectedShape] of [
+        [
+          "auth-401",
+          transport([offer], { geminiStatus: 401 }),
+          502,
+          { error: "PUBLIC_RESEARCH_ANALYSIS_UNAVAILABLE" },
+        ],
+        [
+          "bad-request-400",
+          transport([offer], { geminiStatus: 400 }),
+          200,
+          {
+            incompleteComparison: {
+              reason: "unavailable",
+              sources: [url],
+              results: expect.any(Array),
+              retrievedAt: expect.any(String),
+            },
+          },
+        ],
+        [
+          "safety-block",
+          transport([offer], {
+            geminiResponse: { candidates: [{ finishReason: "SAFETY" }] },
+          }),
+          200,
+          {
+            incompleteComparison: {
+              reason: "unavailable",
+              sources: [url],
+              results: expect.any(Array),
+              retrievedAt: expect.any(String),
+            },
+          },
+        ],
+        [
+          "invalid-json",
+          transport([offer], {
+            geminiResponse: {
+              candidates: [{ content: { parts: [{ text: "not-json" }] } }],
+            },
+          }),
+          200,
+          {
+            incompleteComparison: {
+              reason: "unavailable",
+              sources: [url],
+              results: expect.any(Array),
+              retrievedAt: expect.any(String),
+            },
+          },
+        ],
+      ] as const) {
+        refund.mockClear();
+        const spyFetcher = vi.fn(fetcher);
+        const reply = await handlePublicResearch(
+          request(payload),
+          {
+            ...publicEnv,
+            GEMINI_COLLECTOR_FALLBACK_MODEL: "gemini-3.5-flash-lite",
+          },
+          async () => true,
+          (instruction, env, _, budget, timing) =>
+            discoverOffers(instruction, env, spyFetcher, budget, timing),
+          refund,
+        );
+        expect(reply.status, label).toBe(expectedStatus);
+        expect(await reply.json(), label).toEqual(expectedShape);
+        // Exactly 1 Tavily + 1 primary Gemini call; fallback must not run.
+        expect(spyFetcher, label).toHaveBeenCalledTimes(2);
+        expect(refund, label).not.toHaveBeenCalled();
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("prioritizes official pricing and API/billing docs over blogs/roundups and renders partial results distinctly from unknowns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const blogUrl =
+        "https://blog.aggregator.example/best-weather-apis-ranked";
+      const forumUrl = "https://www.reddit.com/r/webdev/comments/weather_apis";
+      const docsUrl = "https://vendor.example/docs/api-plans";
+      const officialPricingUrl = "https://vendor.example/pricing";
+      const fetcher = transport([offer], {
+        geminiStatus: 503,
+        tavilyResults: [
+          {
+            title: "Top 10 Weather APIs Compared",
+            url: blogUrl,
+            content: "Roundup article.",
+          },
+          {
+            title: "Discussion thread",
+            url: forumUrl,
+            content: "Forum post.",
+          },
+          {
+            title: "API Plans Documentation",
+            url: docsUrl,
+            content: "Metered tiers documented.",
+          },
+          {
+            title: "Official Vendor Pricing",
+            url: officialPricingUrl,
+            content: "Starter $9 USD monthly.",
+          },
+        ],
+      });
+      const reply = await handlePublicResearch(
+        request(payload),
+        { ...publicEnv, GEMINI_COLLECTOR_FALLBACK_MODEL: "off" },
+        async () => true,
+        (instruction, env, _, budget, timing) =>
+          discoverOffers(instruction, env, fetcher, budget, timing),
+        async () => true,
+      );
+      expect(reply.status).toBe(200);
+      const body = await reply.json();
+      expect(body.incompleteComparison.sources).toEqual([
+        officialPricingUrl,
+        docsUrl,
+        blogUrl,
+        forumUrl,
+      ]);
+      expect(
+        body.incompleteComparison.results.map(
+          (r: { category: string }) => r.category,
+        ),
+      ).toEqual(["pricing", "docs", "web", "web"]);
+
+      const html = renderToStaticMarkup(
+        createElement(IncompleteOfferComparison, {
+          result: body.incompleteComparison,
+        }),
+      );
+      expect(html).toContain("Comparison incomplete");
+      expect(html).toContain("Official Vendor Pricing");
+      expect(html).toContain("Pricing page excerpt");
+      expect(html).toContain("API &amp; billing docs");
+      expect(html).toContain("What remains unknown");
+      expect(html).toContain("PayPal acceptance has not been verified");
+      expect(html).not.toContain("Approve for manual checkout");
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 const origin = "http://127.0.0.1:3032";
 type MutableTavilyEnvelope = {
@@ -1305,7 +1759,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       );
       const searchRaw = String(searchInit?.body);
       expect(JSON.parse(searchRaw)).toEqual({
-        query: `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods. Include public checkout pages for exact plans when available.`,
+        query: `${instruction} Official merchant pricing pages, API plans, and billing documentation with named tiers, currency, and billing periods.`,
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,

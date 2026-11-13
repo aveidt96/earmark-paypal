@@ -2,9 +2,20 @@
 export type OfferBillingPeriod = "month" | "year" | "one-time";
 export type ManualCheckoutDecision = "approved-manual" | "rejected";
 
+export type SearchSourceCategory = "pricing" | "docs" | "web";
+
+export type PartialSearchSource = {
+  title: string;
+  url: string;
+  snippet: string;
+  category?: SearchSourceCategory | undefined;
+};
+
 export type IncompleteComparison = {
   reason: "timeout" | "unavailable";
   sources: string[];
+  results?: PartialSearchSource[] | undefined;
+  retrievedAt?: string | undefined;
 };
 
 // A comparison limit only. Financial mandates use their own policy and amounts.

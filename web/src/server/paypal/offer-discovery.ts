@@ -11,6 +11,8 @@ import {
   type OfferDiscoveryResult,
   type DiscoveredOffer,
   type OfferBillingPeriod,
+  type PartialSearchSource,
+  type SearchSourceCategory,
 } from "../../lib/offer-discovery";
 import {
   assertNoSensitiveMaterialInAgentPayload,
@@ -44,6 +46,9 @@ export const TAVILY_PAYMENT_MAX_RESULTS = 3 as const;
 
 // Retain the existing comparison default for local owner and Judge callers.
 const LOCAL_DISCOVERY_BUDGET_MINOR = 1000;
+const GEMINI_3_MODEL_PATTERN = /^gemini-3(?:\.[0-9]+)?-[a-z0-9-]+$/;
+export const DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL =
+  "gemini-3.5-flash-lite" as const;
 const publicStageLimits = {
   offer_search: 16000,
   offer_analysis: 32000,
@@ -51,8 +56,43 @@ const publicStageLimits = {
 } as const;
 // An earlier verified lookup took nearly 10 seconds before response headers.
 const PAYMENT_EVIDENCE_RESERVE_MS = 12000;
-const COMPARISON_RETRY_DELAY_MS = 750;
-const MIN_COMPARISON_RETRY_MS = 12000;
+const COMPARISON_RETRY_BASE_MS = 500;
+const COMPARISON_RETRY_CAP_MS = 2000;
+const MAX_PRIMARY_503_RETRIES = 2;
+const MIN_COMPARISON_ATTEMPT_MS = 8000;
+const FALLBACK_RESERVE_MS = 8000;
+const MIN_PRIMARY_SPLIT_MS = 22000;
+const MIN_FALLBACK_ATTEMPT_MS = 6000;
+
+export function computeBackoffDelayMs(
+  retryIndex: number,
+  random: () => number = Math.random,
+) {
+  const exp = Math.min(
+    COMPARISON_RETRY_CAP_MS,
+    COMPARISON_RETRY_BASE_MS * 2 ** retryIndex,
+  );
+  // Equal jitter bounds sleeps to [0.5 * cap, cap] so retries stay deterministic yet spread.
+  return Math.round(exp * (0.5 + 0.5 * random()));
+}
+
+export function resolveFallbackCollectorModel(
+  primaryModel: string,
+  configured: string | undefined,
+  enableDefaultFallback: boolean,
+): string | null {
+  if (configured === undefined) {
+    return enableDefaultFallback &&
+      primaryModel !== DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL
+      ? DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL
+      : null;
+  }
+  const trimmed = configured.trim();
+  if (!trimmed || /^(?:none|off)$/i.test(trimmed)) return null;
+  if (!GEMINI_3_MODEL_PATTERN.test(trimmed))
+    throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
+  return trimmed === primaryModel ? null : trimmed;
+}
 
 export type ResearchStageFailure = {
   stage: keyof typeof publicStageLimits;
@@ -71,13 +111,32 @@ export type ResearchStageFailure = {
   httpStatus: number | null;
 };
 
+export type PartialComparisonContext = {
+  sources: string[];
+  results: PartialSearchSource[];
+  retrievedAt: string;
+};
+
 type PublicResearchTiming = {
   deadlineAt: number;
   onFailure: (
     failure: ResearchStageFailure,
-    comparisonSources?: string[],
+    comparisonContext?: PartialComparisonContext,
   ) => void;
-  onComparisonRetry?: (remainingMs: number) => void;
+  onComparisonRetry?: (info: {
+    model: string;
+    attempt: number;
+    delayMs: number;
+    httpStatus: number;
+    remainingMs: number;
+  }) => void;
+  onComparisonFallback?: (info: {
+    fromModel: string;
+    toModel: string;
+    reason: ResearchStageFailure["classification"];
+    httpStatus: number | null;
+    remainingMs: number;
+  }) => void;
 };
 
 function researchFailureClass(
@@ -102,6 +161,26 @@ function researchFailureClass(
   )
     return "invalid_response";
   return "rejected_or_internal";
+}
+
+function isRecoverableComparisonError(
+  error: unknown,
+  status: number | null,
+): boolean {
+  if (!(error instanceof AgentError)) return false;
+  if (
+    error.code === "MODEL_AUTH_ERROR" ||
+    error.code === "SAFETY_BLOCK" ||
+    error.code === "INVALID_MODEL_RESPONSE" ||
+    error.code === "DISCOVERY_REPORT_REQUIRED" ||
+    error.code === "MODEL_NETWORK_DISABLED" ||
+    error.code === "GEMINI_OUTBOUND_POLICY_REQUIRED"
+  )
+    return false;
+  if (status !== null) return status === 408 || status === 429 || status >= 500;
+  return (
+    error.code === "MODEL_TIMEOUT" || error.code === "MODEL_TRANSPORT_ERROR"
+  );
 }
 const reportSchema = z.strictObject({ offers: z.array(offerSchema).max(5) });
 const collector = {
@@ -187,21 +266,50 @@ export function buildTargetedPayPalQuery(merchantDomain: string) {
 }
 
 function buildOfferSearchQuery(instruction: string) {
-  const query = `${instruction} Official merchant pricing pages with named tiers, explicit currency and billing periods. Include public checkout pages for exact plans when available.`;
+  const query = `${instruction} Official merchant pricing pages, API plans, and billing documentation with named tiers, currency, and billing periods.`;
   return query.length <= 1000 ? query : instruction;
 }
+
+const LOW_SIGNAL_HOST_OR_PATH_RE =
+  /^blog\.|\/(?:blog|articles?|news|compare|comparisons|reviews?|alternatives?|forum|forums|community)\b|(?:^|\.)(?:reddit\.com|medium\.com|dev\.to|g2\.com|capterra\.com|alternativeto\.net|stackshare\.io|news\.ycombinator\.com|substack\.com|quora\.com)$/i;
+const COMPARISON_TITLE_RE =
+  /\b(?:best|top\s+\d+|ranked|every\s+provider\s+ranked|comparison|compared|alternatives?|versus|vs\.?)\b/i;
+const CHANGELOG_RE = /\b(?:changelog|release notes|what'?s new)\b/i;
+const PRICING_PATH_RE =
+  /\/(?:pricing|plans|packages|tiers|subscriptions|billing)\b/i;
+const DOCS_PATH_RE =
+  /\/(?:api|developer|developers|docs|documentation|faq|help|payments?|checkout|terms|support)\b/i;
 
 function offerSourcePriority({
   title,
   url,
-}: ValidatedResearchResults["results"][number]) {
+}: Pick<ValidatedResearchResults["results"][number], "title" | "url">) {
   const { hostname, pathname } = new URL(url);
   if (
-    /^blog\.|\/(?:blog|articles?|compare)\b/i.test(`${hostname}${pathname}`) ||
-    /\b(?:best|top\s+\d+|ranked|comparison|compared)\b/i.test(title)
+    LOW_SIGNAL_HOST_OR_PATH_RE.test(hostname) ||
+    LOW_SIGNAL_HOST_OR_PATH_RE.test(pathname) ||
+    COMPARISON_TITLE_RE.test(title) ||
+    CHANGELOG_RE.test(`${pathname} ${title}`)
   )
-    return 2;
-  return /\b(?:pricing|plans|subscriptions)\b/i.test(pathname) ? 0 : 1;
+    return 3;
+  if (PRICING_PATH_RE.test(pathname)) return 0;
+  if (
+    DOCS_PATH_RE.test(pathname) ||
+    /\b(?:pricing|plans?|billing|api\s+plans?|checkout|payment\s+methods?)\b/i.test(
+      title,
+    )
+  )
+    return 1;
+  return 2;
+}
+
+export function classifySearchSourceCategory(
+  item: Pick<ValidatedResearchResults["results"][number], "title" | "url">,
+): SearchSourceCategory {
+  const priority = offerSourcePriority(item);
+  if (priority === 0) return "pricing";
+  if (priority === 1) return "docs";
+  return "web";
 }
 
 function isPaymentDocument({ title, url }: { title: string; url: string }) {
@@ -286,23 +394,10 @@ function selectTargetMerchantDomain(
     withDomain[0];
   if (preferred) return preferred.domain;
 
-  const direct =
-    results.find(
-      (r) =>
-        /\/(?:pricing|plans|billing|faq|docs|documentation|checkout)\b/i.test(
-          r.url,
-        ) &&
-        !/\b(?:best|top\s+\d+|every\s+provider\s+ranked|compared)\b/i.test(
-          r.title,
-        ),
-    ) ??
-    results.find(
-      (r) =>
-        !/\b(?:best|top\s+\d+|every\s+provider\s+ranked|compared)\b/i.test(
-          r.title,
-        ),
-    ) ??
-    results[0];
+  const ranked = [...results].sort(
+    (a, b) => offerSourcePriority(a) - offerSourcePriority(b),
+  );
+  const direct = ranked.find((r) => offerSourcePriority(r) <= 1) ?? ranked[0];
   if (!direct) throw new PaymentError("DISCOVERY_GROUNDING_REQUIRED");
   return rootDomain(new URL(direct.url).hostname);
 }
@@ -349,6 +444,7 @@ export function createDiscoveryBoundary(
   collectorModel = "gemini-3.8-flash",
   forbidden: readonly string[] = [],
   budgetMinor = LOCAL_DISCOVERY_BUDGET_MINOR,
+  fallbackCollectorModel?: string | null,
 ) {
   if (!isResearchBudgetMinor(budgetMinor))
     throw new PaymentError("DISCOVERY_BUDGET_INVALID");
@@ -356,8 +452,18 @@ export function createDiscoveryBoundary(
   discoveryInstruction(instruction, allSecrets);
   if (!geminiKey.trim() || !tavilyKey.trim())
     throw new PaymentError("DISCOVERY_DISABLED");
-  if (!/^gemini-3(?:\.[0-9]+)?-[a-z0-9-]+$/.test(collectorModel))
+  if (!GEMINI_3_MODEL_PATTERN.test(collectorModel))
     throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
+  if (
+    fallbackCollectorModel !== undefined &&
+    fallbackCollectorModel !== null &&
+    !GEMINI_3_MODEL_PATTERN.test(fallbackCollectorModel)
+  )
+    throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
+  const allowedFallbackModel =
+    fallbackCollectorModel && fallbackCollectorModel !== collectorModel
+      ? fallbackCollectorModel
+      : null;
   const schema = z.toJSONSchema(reportSchema, { io: "input" });
   delete schema.$schema;
   const task = {
@@ -376,9 +482,12 @@ export function createDiscoveryBoundary(
   });
   let expectedCollector: string | null = null;
   let expectedPaymentSearch: string | null = null;
+  let activeCollectorModel = collectorModel;
+  let fallbackActivated = false;
   return {
     task,
     collectorModel,
+    fallbackCollectorModel: allowedFallbackModel,
     allowCollector(research: ValidatedResearchResults) {
       if (expectedCollector !== null || expectedPaymentSearch !== null)
         throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
@@ -424,6 +533,17 @@ export function createDiscoveryBoundary(
         },
       });
       return parsed.data;
+    },
+    allowFallbackCollector() {
+      if (
+        !allowedFallbackModel ||
+        fallbackActivated ||
+        expectedCollector === null ||
+        expectedPaymentSearch !== null
+      )
+        throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
+      fallbackActivated = true;
+      activeCollectorModel = allowedFallbackModel;
     },
     allowPaymentSearch(merchantDomain: string) {
       if (expectedCollector === null || expectedPaymentSearch !== null)
@@ -479,7 +599,7 @@ export function createDiscoveryBoundary(
       }
       if (
         url !==
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(collectorModel)}:generateContent` ||
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeCollectorModel)}:generateContent` ||
         init.method !== "POST" ||
         init.redirect !== "error" ||
         !init.signal
@@ -1195,8 +1315,13 @@ export async function discoverOffers(
     tavilyKey = env.TAVILY_API_KEY,
     collectorModel =
       env.GEMINI_COLLECTOR_MODEL ?? env.GEMINI_MODEL ?? "gemini-3.8-flash";
-  if (!/^gemini-3(?:\.[0-9]+)?-[a-z0-9-]+$/.test(collectorModel))
+  if (!GEMINI_3_MODEL_PATTERN.test(collectorModel))
     throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
+  const fallbackCollectorModel = resolveFallbackCollectorModel(
+    collectorModel,
+    env.GEMINI_COLLECTOR_FALLBACK_MODEL,
+    Boolean(timing),
+  );
   const timeout = Number(env.AI_TIMEOUT_MS ?? "60000");
   if (
     !timing &&
@@ -1210,11 +1335,13 @@ export async function discoverOffers(
     collectorModel,
     forbidden,
     budgetMinor,
+    fallbackCollectorModel,
   );
   let httpStatus = 0,
     initialSearchAccepted = false,
-    collectorAccepted = false,
+    collectorAttempts = 0,
     paymentSearchAccepted = false;
+  let usedCollectorModel = collectorModel;
   const started = Date.now();
 
   async function runStage<T>(
@@ -1224,7 +1351,7 @@ export async function discoverOffers(
       transport: typeof fetch,
       deadlineAt: number,
     ) => Promise<T>,
-    comparisonSources?: string[],
+    comparisonContext?: PartialComparisonContext,
   ): Promise<T> {
     const transport = fetcher ?? fetch;
     const start = performance.now();
@@ -1238,15 +1365,15 @@ export async function discoverOffers(
         Math.floor(timing.deadlineAt - start - reserve),
       ),
     );
-    let httpStatus: number | null = null;
+    let stageHttpStatus: number | null = null;
     try {
       if (!timeoutMs) throw new AgentError("MODEL_TIMEOUT");
       return await work(
         timeoutMs,
         async (...args) => {
-          httpStatus = null;
+          stageHttpStatus = null;
           const response = await transport(...args);
-          httpStatus = response.status;
+          stageHttpStatus = response.status;
           return response;
         },
         start + timeoutMs,
@@ -1256,13 +1383,13 @@ export async function discoverOffers(
         {
           stage,
           classification: timeoutMs
-            ? researchFailureClass(error, httpStatus)
+            ? researchFailureClass(error, stageHttpStatus)
             : "deadline_exhausted",
           elapsedMs: Math.round(performance.now() - start),
           timeoutMs,
-          httpStatus,
+          httpStatus: stageHttpStatus,
         },
-        comparisonSources,
+        comparisonContext,
       );
       throw error;
     }
@@ -1316,69 +1443,151 @@ export async function discoverOffers(
     results: sanitizedResults,
   });
 
+  const partialContext: PartialComparisonContext = {
+    sources: researchResults.results.map(({ url }) => url),
+    results: researchResults.results.map(({ title, url, snippet }) => ({
+      title,
+      url,
+      snippet,
+      category: classifySearchSourceCategory({ title, url }),
+    })),
+    retrievedAt,
+  };
+
   const report = await runStage(
     "offer_analysis",
-    async (timeout, transport, deadlineAt) => {
-      const collectorTransport: typeof fetch = async (url, init) => {
+    async (stageTimeoutMs, transport, deadlineAt) => {
+      let attemptStatus: number | null = null;
+      let maxSeenAttempts = 0;
+
+      const runCollectorAttempt = async (
+        model: string,
+        attemptTimeoutMs: number,
+      ) => {
+        attemptStatus = null;
+        let attemptDispatched = false;
+        const collectorTransport: typeof fetch = async (url, init) => {
+          if (
+            !initialSearchAccepted ||
+            attemptDispatched ||
+            paymentSearchAccepted
+          )
+            throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
+          boundary.guard(String(url), init ?? {});
+          attemptDispatched = true;
+          collectorAttempts += 1;
+          if (collectorAttempts > maxSeenAttempts)
+            throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
+          const response = await transport(url, init);
+          attemptStatus = response.status;
+          httpStatus = response.status;
+          return response;
+        };
+        const collectorClient = new GeminiModel(
+          {
+            apiKey: geminiKey,
+            model,
+            baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+            networkEnabled: true,
+            timeoutMs: attemptTimeoutMs,
+            maxAttempts: 1,
+            maxOutputTokens: 3000,
+            systemInstruction: system,
+            customTools: [collector],
+            outboundPolicy: boundary.guard,
+          },
+          collectorTransport,
+        );
+        const decision = await collectorClient.decide({
+          task: boundary.task,
+          observations: researchResults,
+        });
         if (
-          !initialSearchAccepted ||
-          collectorAccepted ||
-          paymentSearchAccepted
+          decision.kind !== "tool" ||
+          decision.name !== collector.name ||
+          !attemptDispatched
         )
-          throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
-        boundary.guard(String(url), init ?? {});
-        collectorAccepted = true;
-        let response = await transport(url, init);
-        const remainingMs = Math.floor(deadlineAt - performance.now());
-        const signal = init?.signal;
-        if (
-          timing &&
-          response.status === 503 &&
-          signal &&
-          !signal.aborted &&
-          remainingMs >= COMPARISON_RETRY_DELAY_MS + MIN_COMPARISON_RETRY_MS
-        ) {
-          void response.body?.cancel().catch(() => {});
-          await delay(COMPARISON_RETRY_DELAY_MS, undefined, { signal });
-          const retryTimeMs = Math.floor(deadlineAt - performance.now());
-          if (!signal.aborted && retryTimeMs >= MIN_COMPARISON_RETRY_MS) {
-            // Both attempts use the same vetted envelope and original signal.
-            boundary.guard(String(url), init ?? {});
-            timing.onComparisonRetry?.(retryTimeMs);
-            response = await transport(url, init);
-          }
-        }
-        httpStatus = response.status;
-        return response;
+          throw new AgentError("DISCOVERY_REPORT_REQUIRED");
+        usedCollectorModel = model;
+        return reportSchema.parse(decision.args);
       };
-      const collectorClient = new GeminiModel(
-        {
-          apiKey: geminiKey,
-          model: collectorModel,
-          baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-          networkEnabled: true,
-          timeoutMs: timeout,
-          maxAttempts: 1,
-          maxOutputTokens: 3000,
-          systemInstruction: system,
-          customTools: [collector],
-          outboundPolicy: boundary.guard,
-        },
-        collectorTransport,
-      );
-      const decision = await collectorClient.decide({
-        task: boundary.task,
-        observations: researchResults,
-      });
+
+      const reserveForFallback =
+        Boolean(fallbackCollectorModel) &&
+        stageTimeoutMs >= MIN_PRIMARY_SPLIT_MS;
+      const primaryDeadlineAt = reserveForFallback
+        ? deadlineAt - FALLBACK_RESERVE_MS
+        : deadlineAt;
+
+      let lastPrimaryError: unknown;
+      let lastPrimaryStatus: number | null = null;
+      for (let retry = 0; ; retry += 1) {
+        const remainingPrimaryMs = Math.floor(
+          primaryDeadlineAt - performance.now(),
+        );
+        if (remainingPrimaryMs <= 0) {
+          lastPrimaryError ??= new AgentError("MODEL_TIMEOUT");
+          break;
+        }
+        maxSeenAttempts += 1;
+        try {
+          return await runCollectorAttempt(collectorModel, remainingPrimaryMs);
+        } catch (error) {
+          lastPrimaryError = error;
+          lastPrimaryStatus = attemptStatus;
+          const canRetry503 =
+            Boolean(timing) &&
+            attemptStatus === 503 &&
+            retry < MAX_PRIMARY_503_RETRIES;
+          if (!canRetry503) break;
+          const backoffMs = computeBackoffDelayMs(retry);
+          const leftBeforeSleepMs = Math.floor(
+            primaryDeadlineAt - performance.now(),
+          );
+          if (leftBeforeSleepMs < backoffMs + MIN_COMPARISON_ATTEMPT_MS) break;
+          await delay(backoffMs);
+          const leftAfterSleepMs = Math.floor(
+            primaryDeadlineAt - performance.now(),
+          );
+          if (leftAfterSleepMs < MIN_COMPARISON_ATTEMPT_MS) break;
+          timing?.onComparisonRetry?.({
+            model: collectorModel,
+            attempt: retry + 2,
+            delayMs: backoffMs,
+            httpStatus: 503,
+            remainingMs: leftAfterSleepMs,
+          });
+        }
+      }
+
+      const remainingStageMs = Math.floor(deadlineAt - performance.now());
       if (
-        decision.kind !== "tool" ||
-        decision.name !== collector.name ||
-        !collectorAccepted
-      )
-        throw new AgentError("DISCOVERY_REPORT_REQUIRED");
-      return reportSchema.parse(decision.args);
+        fallbackCollectorModel &&
+        isRecoverableComparisonError(lastPrimaryError, lastPrimaryStatus) &&
+        remainingStageMs >= MIN_FALLBACK_ATTEMPT_MS
+      ) {
+        const primaryClass = researchFailureClass(
+          lastPrimaryError,
+          lastPrimaryStatus,
+        );
+        boundary.allowFallbackCollector();
+        timing?.onComparisonFallback?.({
+          fromModel: collectorModel,
+          toModel: fallbackCollectorModel,
+          reason: primaryClass,
+          httpStatus: lastPrimaryStatus,
+          remainingMs: remainingStageMs,
+        });
+        maxSeenAttempts += 1;
+        return await runCollectorAttempt(
+          fallbackCollectorModel,
+          remainingStageMs,
+        );
+      }
+
+      throw lastPrimaryError;
     },
-    researchResults.results.map(({ url }) => url),
+    partialContext,
   );
   const grouped = new Map<string, (typeof report.offers)[number][]>();
   for (const offer of report.offers) {
@@ -1709,7 +1918,7 @@ export async function discoverOffers(
       searchRequests: 2,
       searchResultsCount: sanitizedResults.length,
       paymentSearchResultsCount: sanitizedPaymentResults.length,
-      collectorModel,
+      collectorModel: usedCollectorModel,
       collectedTool: "reportDiscoveredOffers",
       citedSourceCount: cited.size,
       outboundGuardPassed: true,

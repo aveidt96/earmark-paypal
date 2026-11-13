@@ -10,6 +10,7 @@ import {
 import {
   discoveryInstruction,
   discoverOffers,
+  type PartialComparisonContext,
   type ResearchStageFailure,
 } from "./offer-discovery";
 import { PaymentError } from "./domain";
@@ -461,8 +462,8 @@ export async function handlePublicResearch(
 
   const provider: {
     failure?: ResearchStageFailure;
-    comparisonSources: string[] | undefined;
-  } = { comparisonSources: undefined };
+    comparison?: PartialComparisonContext | undefined;
+  } = {};
   try {
     const discovery = await discover(
       payload.instruction,
@@ -476,16 +477,19 @@ export async function handlePublicResearch(
       payload.budgetMinor,
       {
         deadlineAt,
-        onFailure(failure, comparisonSources) {
+        onFailure(failure, comparisonContext) {
           provider.failure = failure;
-          provider.comparisonSources = comparisonSources;
+          provider.comparison = comparisonContext;
           console.warn("public-research: provider stage failed", failure);
         },
-        onComparisonRetry(remainingMs) {
-          console.info("public-research: retrying offer comparison", {
-            httpStatus: 503,
-            remainingMs,
-          });
+        onComparisonRetry(info) {
+          console.info("public-research: retrying offer comparison", info);
+        },
+        onComparisonFallback(info) {
+          console.info(
+            "public-research: falling back for offer comparison",
+            info,
+          );
         },
       },
     );
@@ -500,6 +504,16 @@ export async function handlePublicResearch(
       failure?.classification === "upstream_timeout";
     const comparisonUnavailable =
       failure?.stage === "offer_analysis" && failure.httpStatus === 503;
+    const recoverablePartialComparison =
+      failure?.stage === "offer_analysis" &&
+      (timedOut ||
+        comparisonUnavailable ||
+        failure.classification === "transport" ||
+        failure.classification === "invalid_response" ||
+        (failure.classification === "upstream_http" &&
+          failure.httpStatus !== 429 &&
+          failure.httpStatus !== 401 &&
+          failure.httpStatus !== 403));
     if (comparisonUnavailable) {
       const timeLeft = Math.floor(deadlineAt - performance.now());
       if (timeLeft > 0)
@@ -510,14 +524,12 @@ export async function handlePublicResearch(
           Math.min(QUOTA_TIMEOUT_MS, timeLeft),
         );
     }
-    if (
-      failure?.stage === "offer_analysis" &&
-      provider.comparisonSources?.length &&
-      (timedOut || comparisonUnavailable)
-    ) {
+    if (recoverablePartialComparison && provider.comparison?.sources.length) {
       const incompleteComparison: IncompleteComparison = {
         reason: timedOut ? "timeout" : "unavailable",
-        sources: provider.comparisonSources,
+        sources: provider.comparison.sources,
+        results: provider.comparison.results,
+        retrievedAt: provider.comparison.retrievedAt,
       };
       return json({ incompleteComparison });
     }

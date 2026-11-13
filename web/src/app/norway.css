@@ -1033,7 +1033,9 @@ html[data-theme="norway"] .purchasing-chat > .button:hover:not(:disabled) {
   cursor: pointer;
   padding: 6px 0;
 }
-.chat-response .offer-research-sources ul[aria-label] {
+.chat-response
+  .offer-research-sources
+  ul[aria-label]:not(.offer-research-list) {
   margin-bottom: 8px;
   padding: 8px 16px;
 }
@@ -1099,6 +1101,23 @@ html[data-theme="norway"] .purchasing-chat > .button:hover:not(:disabled) {
   .offer-research-sources
   ul[aria-label="Unverified search results"] {
   overflow-wrap: anywhere;
+}
+.offer-research-unknowns {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed #cfd4ce;
+  background: #f7f8f6;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #36404a;
+}
+.offer-research-unknowns ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
 }
 .public-research-chat .norway-assisted-checkout {
   display: grid;
