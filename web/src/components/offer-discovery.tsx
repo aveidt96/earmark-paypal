@@ -43,6 +43,12 @@ const partialCategoryLabels = {
   web: "Unverified web excerpt",
 } as const;
 
+const officialProviderKindLabels = {
+  pricing: "Official pricing documentation · research only",
+  docs: "Official developer documentation · research only",
+  "official-site": "Official vendor website · research only",
+} as const;
+
 export function IncompleteOfferComparison({
   result,
 }: {
@@ -164,6 +170,39 @@ export function OfferDiscovery({
 
   const selectedOfferId =
     selection?.key === resultKey ? selection.offerId : null;
+  const offerDomains = new Set(
+    result.offers.flatMap((offer) => {
+      const urls = [
+        ...(offer.officialMerchantUrl ? [offer.officialMerchantUrl] : []),
+        ...offer.sources.filter((s) => s.cited).map((s) => s.url),
+      ];
+      return urls.flatMap((raw) => {
+        const safe = safeExternalOfferUrl(raw);
+        if (!safe) return [];
+        const host = new URL(safe).hostname.toLowerCase().replace(/^www\./, "");
+        return [host];
+      });
+    }),
+  );
+  const verifiedProviders = (result.officialProviders ?? []).flatMap(
+    (provider) => {
+      const safeUrl = safeExternalOfferUrl(provider.url);
+      if (!safeUrl) return [];
+      const host = new URL(safeUrl).hostname
+        .toLowerCase()
+        .replace(/^www\./, "");
+      const coveredByOffer =
+        result.offers.length > 0 &&
+        [...offerDomains].some(
+          (d) =>
+            d === provider.domain ||
+            d.endsWith(`.${provider.domain}`) ||
+            d === host,
+        );
+      if (coveredByOffer) return [];
+      return [{ ...provider, safeUrl }];
+    },
+  );
 
   function toggleOffer(offerId: string) {
     setSelection((current) =>
@@ -208,6 +247,73 @@ export function OfferDiscovery({
           </p>
         )}
       </header>
+      {verifiedProviders.length > 0 && (
+        <section
+          className="offer-research-providers"
+          aria-label="Verified official providers"
+        >
+          <strong>Verified official providers</strong>
+          <ul
+            className="offer-research-list"
+            aria-label="Verified official provider websites"
+          >
+            {verifiedProviders.map((provider) => {
+              const billingLabel =
+                provider.billingModel !== "unknown"
+                  ? billingModelLabels[provider.billingModel]
+                  : null;
+              const priceLabel =
+                provider.pricingStatus === "source-matched"
+                  ? billingLabel
+                    ? `Source-matched (${billingLabel})`
+                    : "Source-matched"
+                  : provider.pricingStatus === "conflicting"
+                    ? "Unknown · conflicting evidence"
+                    : "Unknown";
+              return (
+                <li
+                  key={provider.id}
+                  className="chat-proposal offer-research-card"
+                >
+                  <div className="norway-card-heading">
+                    <div>
+                      <h4>{provider.provider}</h4>
+                      <span className="offer-research-reasons">
+                        {provider.domain}
+                      </span>
+                    </div>
+                    <Badge tone="info">
+                      {officialProviderKindLabels[provider.kind]}
+                    </Badge>
+                  </div>
+                  <p>
+                    <a
+                      href={provider.safeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      referrerPolicy="no-referrer"
+                    >
+                      {provider.title}
+                    </a>{" "}
+                    · Research link only (not a checkout destination)
+                  </p>
+                  <p className="offer-research-payment">
+                    Price: {priceLabel} · PayPal:{" "}
+                    {provider.paypal === "claimed"
+                      ? "claimed in merchant docs (checkout unverified)"
+                      : provider.paypal === "not-listed"
+                        ? "not listed in accepted methods"
+                        : "unknown"}
+                  </p>
+                  {result.offers.length === 0 && provider.snippet ? (
+                    <p>{provider.snippet}</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <ul
         className="offer-research-list"
         aria-label="Discovered offer comparison"
@@ -584,8 +690,15 @@ export function OfferDiscovery({
           );
         })}
       </ul>
-      {result.offers.length === 0 && (
+      {result.offers.length === 0 && verifiedProviders.length === 0 && (
         <p>No sufficiently structured offer evidence was returned.</p>
+      )}
+      {result.offers.length === 0 && verifiedProviders.length > 0 && (
+        <p>
+          Structured offer comparison could not extract full tier pricing from
+          the retrieved snippets. Confirm current pricing on the verified
+          official provider links above.
+        </p>
       )}
       {result.searchSuggestions && (
         <iframe

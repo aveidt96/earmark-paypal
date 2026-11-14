@@ -171,6 +171,19 @@ export function selectVerifiedOfferSourceUrl(
   return nonPaymentUrl ?? citedUrls[0] ?? null;
 }
 
+export interface DiscoveredOfficialProvider {
+  id: string;
+  provider: string;
+  domain: string;
+  url: string;
+  title: string;
+  snippet: string;
+  kind: "pricing" | "docs" | "official-site";
+  pricingStatus: "source-matched" | "conflicting" | "unknown";
+  billingModel: OfferBillingModel | "unknown";
+  paypal: "claimed" | "unknown" | "not-listed";
+  checkoutUrl: null;
+}
 export interface DiscoveredOffer {
   id: string;
   provider: string;
@@ -205,6 +218,7 @@ export interface OfferDiscoveryResult {
   instruction: string;
   retrievedAt: string;
   targetMerchantDomain?: string;
+  officialProviders?: DiscoveredOfficialProvider[];
   offers: DiscoveredOffer[];
   /** Index into offers for human review only. Never an authorized proposal. */
   reviewRecommendation: number | null;
@@ -215,7 +229,7 @@ export interface OfferDiscoveryResult {
     durationMs: number;
     modelTurns: 1 | 2;
     searchProvider?: "tavily";
-    searchRequests?: 1 | 2 | 3;
+    searchRequests?: 1 | 2 | 3 | 4;
     searchResultsCount?: number;
     paymentSearchResultsCount?: number;
     collectorModel?: string;

@@ -1,6 +1,6 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-13**
+Last updated: **2026-11-14**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
@@ -8,7 +8,22 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
-- **Task: Official merchant pricing discovery fix verified locally in `.tools/task09-quota` (stacked on local commit `086209b`), 2026-11-13; ready for review/commit when authorized.**
+- **Task: Official provider discovery fix verified locally in `.tools/task09-quota` (stacked on `origin/main` commit `4c6ed86`), 2026-11-14; ready for review before commit/push/deployment.**
+  Separates first-class verified official provider website and documentation
+  discovery (`officialProviders?: DiscoveredOfficialProvider[]`) from Gemini's
+  structured offer pricing extraction (`offers`), excludes third-party
+  aggregators/forums/blogs via `exclude_domains` (`TAVILY_EXCLUDED_DOMAINS` +
+  `buildExcludedDomains`) and `buildOfferSearchQuery`, triggers a deadline-safe
+  pre-Gemini `provider_search` step (`allowProviderSearch` /
+  `allowProviderResults` / `clearProviderSearch`) when initial Tavily results lack
+  official vendor domains or are crowded by listicles, rejects spoofed/comparison
+  domains and checkout-only paths (`isSpoofedOrThirdPartyProvider`), renders
+  verified research-only official links even when `offers` is `[]` or price
+  validation fails, recognizes prepaid top-up/credit billing cleanly, and preserves
+  all policy, PayPal safety, quota, and outbound guards. Root checkout remains
+  untouched on `paypal-hackathon-primary-release` (`0945d04`).
+
+- **Task: Official merchant pricing discovery fix verified locally in `.tools/task09-quota` (stacked on local commit `086209b`), 2026-11-13; published at `4c6ed86`.**
   Adds first-party hyphenated pricing path prioritization (`isOfficialPricingPath`),
   multi-token merchant-domain matching (`matchesMerchantDomain`, e.g.
   `Alibaba Model Studio` → `alibabacloud.com`), deadline-bounded targeted
@@ -7972,4 +7987,80 @@ Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after c
 Unverified / pending:
 
 - No live Tavily/Gemini/PayPal calls, no database changes, and no new commit,
+  push, or Vercel deployment occurred. Root checkout remains untouched.
+
+### 2026-11-14 — Fix official provider discovery (`.tools/task09-quota`)
+
+Request: Address production regression where broad queries such as
+`"Find $20 Chinese AI model plans"` returned `"No sufficiently structured offer
+evidence was returned."` when Gemini returned zero structured offers or
+incomplete pricing evidence. Make official vendor and pricing-documentation link
+discovery a general-purpose first-class step independent of Gemini pricing
+extraction, exclude third-party listicles/aggregators, guard against spoofed
+domains, keep research links distinct from checkout, recognize usage-based and
+prepaid credits within a budget, preserve existing safety/quota boundaries, run
+offline verification checks, and update this handoff.
+
+Root causes identified in `web/src/server/paypal/offer-discovery.ts` and
+`web/src/components/offer-discovery.tsx`:
+
+- `buildOfferSearchQuery` biased Tavily results toward `"named tiers, currency,
+  and billing periods"` without `exclude_domains`, causing aggregator blogs and
+  comparison directories to crowd out official vendor usage/prepaid credit docs.
+- `discoverOffers` ran targeted follow-up search only after Gemini (`offers`)
+  already returned an offer; when Gemini returned `offers: []` or missed
+  vendors, zero official provider websites survived into `OfferDiscoveryResult`
+  and `OfferDiscovery` showed `"No sufficiently structured offer evidence was
+  returned."`.
+- `PREPAID_CREDIT_RE` did not match common credit top-up phrasing such as
+  `top-ups` or `credit balances`.
+
+Files modified in `.tools/task09-quota`:
+
+- `web/src/lib/offer-discovery.ts`: Added `DiscoveredOfficialProvider` (with
+  literal `checkoutUrl: null`), optional `officialProviders` on
+  `OfferDiscoveryResult`, and widened `evidence.searchRequests` to `1 | 2 | 3 | 4`.
+- `web/src/server/paypal/offer-discovery.ts`: Added `TAVILY_EXCLUDED_DOMAINS`,
+  `buildExcludedDomains`, updated `buildOfferSearchQuery`, added
+  `buildOfficialProviderDiscoveryQuery`, `isSpoofedOrThirdPartyProvider`,
+  `collectThirdPartyHostnames`, `extractOfficialProviders`,
+  `reconcileOfficialProviders`, `rankOfficialFirstDiverse`, and shared
+  `assertUntrustedResultsSafe`; widened `PREPAID_CREDIT_RE`; added
+  `provider_search` (`publicStageLimits`, `MIN_PROVIDER_SEARCH_MS`,
+  `allowProviderSearch` / `allowProviderResults` / `clearProviderSearch`) in
+  `createDiscoveryBoundary` and `discoverOffers` (before Gemini and within the
+  shared deadline); preserved verified `officialProviders` even when `offers` is
+  `[]` or price validation fails.
+- `web/src/server/paypal/public-research.ts`: Mapped `provider_search` in
+  `stageTimeouts` to `PUBLIC_RESEARCH_SEARCH_TIMEOUT`.
+- `web/src/components/offer-discovery.tsx` & `web/src/app/norway.css`: Added
+  `"Verified official providers"` research card rendering in `OfferDiscovery`
+  (client-side re-validated with `safeExternalOfferUrl`, marked as research link
+  only rather than checkout, with explicit `Price: Unknown` / `PayPal: unknown`
+  states and suppression of the empty-evidence fallback when verified official
+  providers exist).
+- `web/test/offer-discovery.test.ts`: Re-aligned initial Tavily search body check
+  and blog-only call count expectation (`4` calls with pre-Gemini
+  `provider_search`), added `exclude_domains` mutation guard check, and added
+  regression tests for empty Gemini `offers: []` multi-provider discovery
+  (`DeepSeek`, `Alibaba Cloud`, `Zhipu AI`), non-AI cross-industry discovery
+  (`Resend`, `Postmark`, `Mailjet`), price-validation failure survival, spoofed /
+  aggregator / checkout-path rejection, and `provider_search` boundary enforcement.
+- `HANDOFF-PAYPAL.md`: Documented root causes, changes, and verification results.
+
+Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after code edits):
+
+- Prettier `--write` + Biome check `--vcs-enabled=false --error-on-warnings` on
+  all modified code/test files: `0` errors, `0` warnings.
+- `npm run typecheck`: passed across workspaces and `api/src/tsconfig.json`.
+- `VERCEL=1 npm run build --workspace @flint/web`: passed (`16/16` static routes
+  + dynamic routes compiled).
+- `node scripts/check-web-boundary.mjs`: passed (`48` compiled JS chunks checked).
+- Focused Vitest (`offer-discovery` `90/90`, `judge-sandbox` `19/19`,
+  `paypal-gemini-agent` `16/16`, `paypal-gemini-boundary` `20/20`, `hosted`
+  `8/8`): `5/5` files, `153/153` tests passed, `0` failed, `0` skipped.
+
+Unverified / pending:
+
+- No live Tavily, Gemini, or PayPal calls, no database mutations, and no commit,
   push, or Vercel deployment occurred. Root checkout remains untouched.

@@ -1041,6 +1041,7 @@ html[data-theme="norway"] .purchasing-chat > .button:hover:not(:disabled) {
 }
 .public-research-chat .offer-research,
 .public-research-chat .offer-research-meta,
+.public-research-chat .offer-research-providers,
 .public-research-chat .offer-research-card,
 .public-research-chat .offer-research-terms,
 .public-research-chat .offer-research-facts {
@@ -1049,6 +1050,9 @@ html[data-theme="norway"] .purchasing-chat > .button:hover:not(:disabled) {
 }
 .public-research-chat .offer-research {
   gap: 16px;
+}
+.public-research-chat .offer-research-providers {
+  gap: 10px;
 }
 .public-research-chat .offer-research-meta,
 .public-research-chat .offer-research-terms,

@@ -14,6 +14,7 @@ import {
 } from "../src/lib/offer-discovery";
 vi.mock("server-only", () => ({}));
 import {
+  TAVILY_EXCLUDED_DOMAINS,
   TAVILY_SEARCH_URL,
   TAVILY_MAX_RESULTS,
   TAVILY_PAYMENT_MAX_RESULTS,
@@ -1650,6 +1651,7 @@ type MutableTavilyEnvelope = {
   include_answer: boolean;
   include_raw_content: boolean;
   include_images: boolean;
+  exclude_domains?: string[];
   privateDatabaseRow?: unknown;
 };
 type MutableCollectorEnvelope = {
@@ -1760,12 +1762,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       );
       const searchRaw = String(searchInit?.body);
       expect(JSON.parse(searchRaw)).toEqual({
-        query: `${instruction} Official merchant pricing pages, API plans, and billing documentation with named tiers, currency, and billing periods.`,
+        query: `${instruction} official vendor website API pricing documentation prepaid credits pay-as-you-go plans`,
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
         include_raw_content: false,
         include_images: false,
+        exclude_domains: [...TAVILY_EXCLUDED_DOMAINS],
       });
       const paymentSearchRaw = String(paymentSearchInit?.body);
       expect(JSON.parse(paymentSearchRaw)).toEqual({
@@ -2081,7 +2084,8 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       env,
       f,
     );
-    expect(f).toHaveBeenCalledTimes(3);
+    // Turn 1 returns blog-only articles, triggering a pre-Gemini official provider_search (4 calls total).
+    expect(f).toHaveBeenCalledTimes(4);
     expect(result.offers[0]).toMatchObject({
       paypal: "unknown",
       paypalEvidence: null,
@@ -2920,6 +2924,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       },
       (b: MutableTavilyEnvelope) => {
         b.include_raw_content = true;
+      },
+      (b: MutableTavilyEnvelope) => {
+        b.exclude_domains = [];
       },
       (b: MutableTavilyEnvelope) => {
         b.privateDatabaseRow = { captureId: "CANARY_FORBIDDEN_SYNTHETIC_ONLY" };
@@ -4022,5 +4029,359 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(html).toContain(`href="${creditPricingUrl}"`);
     expect(html).not.toContain("Billing period: month");
     expect(html).not.toContain("Continue to merchant checkout");
+  });
+
+  it("discovers multiple verified official providers via targeted search before Gemini and preserves official links even when Gemini returns empty offers", async () => {
+    const deepseekPricing = "https://api-docs.deepseek.com/quick_start/pricing";
+    const alibabaPricing =
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing";
+    const zhipuPricing = "https://open.bigmodel.cn/pricing";
+    const openrouterUrl = "https://openrouter.ai/rankings/chinese-models";
+    const mediumUrl = "https://medium.com/@ai-writer/top-chinese-ai-apis";
+    const roundupBlogUrl =
+      "https://blog.llmtrends.example/best-chinese-ai-model-plans-2026";
+    const analysisUrl = "https://artificialanalysis.ai/models/chinese";
+    const spoofCompareUrl = "https://deepseek-compare.example/pricing";
+    const spoofSubdomainUrl = "https://deepseek.com.spoof.example/pricing";
+    const spoofBrandPathUrl = "https://evil-mirror.example/deepseek-pricing";
+    const spoofOfficialTitleUrl = "https://reseller-hub.example/api-plans";
+
+    const searchBodies: Array<Record<string, unknown>> = [];
+    const authorizeSpy = vi.spyOn(policy, "authorize");
+    const reserveSpy = vi.spyOn(PayPalPaymentService.prototype, "reserve");
+    let tavilyTurn = 0;
+
+    try {
+      const f = vi.fn<typeof fetch>(async (input, init) => {
+        if (String(input) === TAVILY_SEARCH_URL) {
+          tavilyTurn += 1;
+          const body = JSON.parse(String(init?.body ?? "{}")) as Record<
+            string,
+            unknown
+          >;
+          searchBodies.push(body);
+          if (tavilyTurn === 1) {
+            // Crowded initial results: 1 official doc + 4 aggregators/listicles
+            return Response.json({
+              query: body.query,
+              results: [
+                {
+                  title: "Top 10 Chinese AI Models Compared",
+                  url: mediumUrl,
+                  content: "Blog roundup comparing model plans.",
+                },
+                {
+                  title: "Best Chinese LLM APIs",
+                  url: openrouterUrl,
+                  content: "Unified aggregator rankings.",
+                },
+                {
+                  title: "Chinese Model Leaderboard",
+                  url: analysisUrl,
+                  content: "Benchmark comparison chart.",
+                },
+                {
+                  title: "Best Chinese AI Model Plans 2026",
+                  url: roundupBlogUrl,
+                  content: "Comparison blog article.",
+                },
+                {
+                  title: "Models & Pricing | DeepSeek API Docs",
+                  url: deepseekPricing,
+                  content:
+                    "DeepSeek API supports pay-as-you-go prepaid top-up credits with usage billed per 1M tokens.",
+                },
+              ],
+            });
+          }
+          if (tavilyTurn === 2) {
+            // Pre-Gemini official provider_search recovers additional official vendors + mixed spoofed/aggregator noise
+            return Response.json({
+              query: body.query,
+              results: [
+                {
+                  title: "Model pricing - Alibaba Cloud Model Studio",
+                  url: alibabaPricing,
+                  content:
+                    "Alibaba Cloud Model Studio offers pay-as-you-go token pricing and coding packages.",
+                },
+                {
+                  title: "Pricing | Zhipu AI BigModel",
+                  url: zhipuPricing,
+                  content:
+                    "Zhipu AI BigModel API offers prepaid token packages and pay-as-you-go API access.",
+                },
+                {
+                  title: "DeepSeek Official Pricing",
+                  url: spoofBrandPathUrl,
+                  content: "DeepSeek prices mirrored here.",
+                },
+                {
+                  title: "DeepSeek vs Qwen Pricing Comparison",
+                  url: spoofCompareUrl,
+                  content: "Unofficial comparison site.",
+                },
+                {
+                  title: "DeepSeek Official Portal",
+                  url: spoofSubdomainUrl,
+                  content: "Subdomain spoof.",
+                },
+              ],
+            });
+          }
+          // Third Tavily call is targeted PayPal acceptance check
+          return Response.json({ query: body.query, results: [] });
+        }
+        if (String(input).includes(":generateContent")) {
+          // Simulate empty Gemini collector output
+          return Response.json({
+            candidates: [
+              {
+                finishReason: "STOP",
+                content: {
+                  role: "model",
+                  parts: [
+                    {
+                      functionCall: {
+                        name: "reportDiscoveredOffers",
+                        args: { offers: [] },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }
+        return Response.json({
+          results: [
+            {
+              title: "Alibaba Cloud Official Pricing",
+              url: spoofOfficialTitleUrl,
+              content: "Vendor summary.",
+            },
+          ],
+        });
+      });
+
+      const result = await discoverOffers(
+        "Find $20 Chinese AI model plans",
+        env,
+        f,
+        2000,
+      );
+
+      // 1: offer_search, 2: pre-Gemini provider_search, 3: Gemini (empty), 4: payment_evidence
+      expect(f).toHaveBeenCalledTimes(4);
+      expect(searchBodies).toHaveLength(3);
+      expect(searchBodies[0]?.exclude_domains).toEqual(
+        expect.arrayContaining(["medium.com", "openrouter.ai", "reddit.com"]),
+      );
+      expect(searchBodies[1]?.exclude_domains).toEqual(
+        expect.arrayContaining([
+          "medium.com",
+          "openrouter.ai",
+          "blog.llmtrends.example",
+        ]),
+      );
+
+      expect(result.offers).toEqual([]);
+      expect(result.proposal).toBeNull();
+      expect(result.ownerAuthorized).toBe(false);
+      expect(result.fundsReserved).toBe(false);
+      expect(authorizeSpy).not.toHaveBeenCalled();
+      expect(reserveSpy).not.toHaveBeenCalled();
+
+      const providerUrls = result.officialProviders?.map((p) => p.url) ?? [];
+      expect(providerUrls).toEqual(
+        expect.arrayContaining([deepseekPricing, alibabaPricing, zhipuPricing]),
+      );
+      for (const badUrl of [
+        mediumUrl,
+        openrouterUrl,
+        analysisUrl,
+        roundupBlogUrl,
+        spoofCompareUrl,
+        spoofSubdomainUrl,
+        spoofBrandPathUrl,
+      ]) {
+        expect(providerUrls).not.toContain(badUrl);
+      }
+      for (const p of result.officialProviders ?? []) {
+        expect(p.pricingStatus).toBe("unknown");
+        expect(p.paypal).toBe("unknown");
+        expect(p.checkoutUrl).toBeNull();
+      }
+
+      const html = renderToStaticMarkup(
+        createElement(OfferDiscovery, {
+          result,
+          researchBudgetMinor: 2000,
+          assistedCheckout: true,
+        }),
+      );
+      expect(html).toContain("Verified official providers");
+      expect(html).toContain(`href="${deepseekPricing}"`);
+      expect(html).toContain(`href="${alibabaPricing}"`);
+      expect(html).toContain(`href="${zhipuPricing}"`);
+      expect(html).toContain("Research link only (not a checkout destination)");
+      expect(html).toContain("Price: Unknown");
+      expect(html).toContain("PayPal: unknown");
+      expect(html).not.toContain(
+        "No sufficiently structured offer evidence was returned.",
+      );
+      expect(html).not.toContain("Continue to merchant checkout");
+      expect(html).not.toContain("Approve for manual checkout");
+      expect(html).not.toContain("deepseek-compare.example");
+      expect(html).not.toContain("openrouter.ai");
+    } finally {
+      authorizeSpy.mockRestore();
+      reserveSpy.mockRestore();
+    }
+  });
+
+  it("generalizes official-provider discovery beyond Chinese AI to unrelated industries and preserves links on price-validation failure", async () => {
+    const resendPricing = "https://resend.com/pricing";
+    const postmarkPricing = "https://postmarkapp.com/pricing";
+    const mailjetDocs = "https://dev.mailjet.com/email/guides/billing";
+    const g2Url = "https://www.g2.com/categories/transactional-email";
+    const checkoutOnlyUrl = "https://postmarkapp.com/checkout/start";
+    const spoofUnofficialUrl = "https://reseller-emails.example/resend";
+
+    const f = transport(
+      [
+        {
+          provider: "Resend",
+          service: "Resend Pro",
+          // Simulate bare-$ / ambiguous price validation failure on structured offer
+          priceMinor: "2000",
+          currency: "USD",
+          billing: "per month",
+          availability: null,
+          delivery: null,
+          slaMinutes: null,
+          paypal: "unknown",
+          paypalEvidence: null,
+          paypalSourceUrl: null,
+          sourceUrls: [resendPricing],
+        },
+      ],
+      {
+        tavilyResults: [
+          {
+            title: "Resend Official Pricing",
+            url: spoofUnofficialUrl,
+            content:
+              "Resend Pro costs $20 per month via unofficial mirror directory.",
+          },
+          {
+            title: "Transactional Email Reviews",
+            url: g2Url,
+            content: "Top transactional email tools compared.",
+          },
+          {
+            title: "Pricing · Resend",
+            url: resendPricing,
+            content: "Pro starts at $20 (currency omitted in bare cell).",
+          },
+          {
+            title: "Pricing | Postmark",
+            url: postmarkPricing,
+            content:
+              "Prepaid email credit packages and transactional billing plans.",
+          },
+          {
+            title: "Postmark Checkout",
+            url: checkoutOnlyUrl,
+            content: "Complete checkout here.",
+          },
+          {
+            title: "Billing & Credits Guide | Mailjet Developer Docs",
+            url: mailjetDocs,
+            content:
+              "Pay-as-you-go API usage and prepaid top-up credits available.",
+          },
+        ],
+        paymentResults: [],
+      },
+    );
+
+    const result = await discoverOffers(
+      "Compare $20 European transactional email API plans",
+      env,
+      f,
+      2000,
+    );
+
+    // Resend's offer failed price verification (unknown), yet all official non-checkout provider docs survive.
+    expect(result.offers[0]?.pricing.status).toBe("unknown");
+    expect(result.offers[0]?.policy.eligible).toBe(false);
+    const urls = result.officialProviders?.map((p) => p.url) ?? [];
+    expect(urls).toEqual(
+      expect.arrayContaining([resendPricing, postmarkPricing, mailjetDocs]),
+    );
+    expect(urls).not.toContain(g2Url);
+    expect(urls).not.toContain(checkoutOnlyUrl);
+    expect(urls).not.toContain(spoofUnofficialUrl);
+
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, {
+        result: {
+          ...result,
+          officialProviders: [
+            ...(result.officialProviders ?? []),
+            {
+              id: "tampered-unsafe",
+              provider: "Tampered",
+              domain: "evil.example",
+              url: "javascript:alert(1)",
+              title: "Unsafe",
+              snippet: "Should never render",
+              kind: "official-site",
+              pricingStatus: "unknown",
+              billingModel: "unknown",
+              paypal: "unknown",
+              checkoutUrl: null,
+            },
+          ],
+        },
+      }),
+    );
+    // Additional official vendors not represented in structured offers still display cleanly without checkout labeling.
+    expect(html).toContain(`href="${postmarkPricing}"`);
+    expect(html).toContain(`href="${mailjetDocs}"`);
+    expect(html).toContain("Research link only (not a checkout destination)");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("Continue to merchant checkout");
+  });
+
+  it("enforces provider_search outbound boundary guards cleanly", () => {
+    const boundary = createDiscoveryBoundary(
+      "Find $20 cloud API plans",
+      env.GEMINI_API_KEY,
+      env.TAVILY_API_KEY,
+      env.GEMINI_MODEL,
+    );
+    boundary.allowProviderSearch(["blog.aggregator.example"]);
+    const badProviderBody = JSON.stringify({
+      query: "Compare $20 cloud API plans",
+      search_depth: "basic",
+      max_results: TAVILY_MAX_RESULTS,
+      include_answer: false,
+      include_raw_content: false,
+      include_images: false,
+    });
+    expect(() =>
+      boundary.guard(TAVILY_SEARCH_URL, {
+        method: "POST",
+        redirect: "error",
+        signal: new AbortController().signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${env.TAVILY_API_KEY}`,
+        },
+        body: badProviderBody,
+      }),
+    ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
   });
 });
