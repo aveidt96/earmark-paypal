@@ -8,6 +8,15 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-15: Incomplete-comparison relevance fix verified offline on latest
+  fetched `origin/main` (`7457b75`, merged PR #3).** Local branch
+  `fix/research-relevance-fallback` filters purchasing evidence before Gemini and
+  in the server/client fallback; unrelated-only searches fail concisely. Published
+  in [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4). The user now
+  authorizes publication to `main` for Production testing through the existing
+  Vercel integration. Production runtime logs at 06:43 UTC
+  remain inaccessible (HTTP 403); the live collector error is unconfirmed.
+
 - **2026-11-15: PR #3 final-review corrections distinguish corroborated identity
   from unverified research links.** Sparse product docs and corporate aliases
   survive without self-asserted verification; request relevance is per product
@@ -8026,13 +8035,13 @@ Root causes identified in `web/src/server/paypal/offer-discovery.ts` and
 `web/src/components/offer-discovery.tsx`:
 
 - `buildOfferSearchQuery` biased Tavily results toward `"named tiers, currency,
-  and billing periods"` without `exclude_domains`, causing aggregator blogs and
+and billing periods"` without `exclude_domains`, causing aggregator blogs and
   comparison directories to crowd out official vendor usage/prepaid credit docs.
 - `discoverOffers` ran targeted follow-up search only after Gemini (`offers`)
   already returned an offer; when Gemini returned `offers: []` or missed
   vendors, zero official provider websites survived into `OfferDiscoveryResult`
   and `OfferDiscovery` showed `"No sufficiently structured offer evidence was
-  returned."`.
+returned."`.
 - `PREPAID_CREDIT_RE` did not match common credit top-up phrasing such as
   `top-ups` or `credit balances`.
 
@@ -8075,7 +8084,7 @@ Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after c
   all modified code/test files: `0` errors, `0` warnings.
 - `npm run typecheck`: passed across workspaces and `api/src/tsconfig.json`.
 - `VERCEL=1 npm run build --workspace @flint/web`: passed (`16/16` static routes
-  + dynamic routes compiled).
+  - dynamic routes compiled).
 - `node scripts/check-web-boundary.mjs`: passed (`48` compiled JS chunks checked).
 - Focused Vitest (`offer-discovery` `90/90`, `judge-sandbox` `19/19`,
   `paypal-gemini-agent` `16/16`, `paypal-gemini-boundary` `20/20`, `hosted`
@@ -8255,3 +8264,223 @@ Live relevance still needs a separately authorized post-deployment check. Quotas
 deadlines, privacy/outbound guards, unrelated main work and financial restrictions
 are preserved. Only a normal update of the existing PR branch is authorized;
 no merge, deployment, live provider API calls, payment or financial DB operations.
+
+### 2026-11-15 — Purchasing relevance across collector and incomplete fallback
+
+Request: diagnose the Production `Find me $20 Chinese model API plans` failure
+at approximately 06:43 UTC (07:43 Africa/Lagos). Fetched `origin/main` and based
+local branch `fix/research-fallback-relevance` on merge `7457b75`; no commits,
+pushes, merges or deployments performed during this task.
+
+Confirmed code defects: ranking deprioritized unrelated Tavily results but still
+filled the five collector slots with them; the same results became partial
+comparison context. The fallback rendered safe URLs/excerpts without checking
+the purchasing instruction, even creating cards from URL-only data. Provider
+identity classification did not protect that path. The initial query also mixed
+the budget with broad generic terms. Reconstructed from the reviewed baseline
+(not a captured Production request), the initial query was:
+
+```text
+Find me $20 Chinese model API plans original product provider official website API pricing documentation prepaid credits pay-as-you-go plans
+```
+
+It is now `Chinese model API plans official provider pricing documentation`.
+The existing provider-search query is now
+`Chinese model API plans original developer provider official website company ownership country product documentation pricing`;
+previously it used the entire original instruction as that suffix's prefix.
+The original instruction and budget still reach the trusted collector task and
+policy checks intact. No search stage or dependency was added.
+
+Affected paths:
+
+- `web/src/lib/research-relevance.ts` (new): share the existing normalized topic
+  and alternative matching, with page-specific product/purchasing evidence and
+  editorial financial-news rejection. This gate never verifies provider identity,
+  origin, pricing, payment or checkout.
+- `web/src/server/paypal/offer-discovery.ts`: reuse that gate in classification;
+  filter before collector truncation, preserve validated identity context, stop
+  with `DISCOVERY_RELEVANT_SOURCES_REQUIRED` if none qualify, and remove monetary
+  noise from the existing search queries. Independently verified exact-tier
+  checkout lookup can still use validated seed pages without supplying unrelated
+  topic evidence to Gemini. PayPal checkout code is untouched.
+- `web/src/server/paypal/public-research.ts`,
+  `web/src/lib/offer-discovery.ts`: bind partial context to the trusted original
+  instruction, recheck relevance, derive URLs from relevant metadata, accept an
+  empty preserved set, and map the no-relevant-evidence error clearly.
+- `web/src/components/purchasing-chat.tsx`,
+  `web/src/components/offer-discovery.tsx`: recheck fallback metadata against the
+  actual submitted instruction, fail closed on URL-only/missing-context data,
+  preserve concise relevant excerpts, and show a short failure message when empty.
+- `web/test/research-relevance.test.ts` (new),
+  `web/test/offer-discovery.test.ts`,
+  `web/test/official-provider-regression.test.ts`: 13 new regressions covering the
+  screenshot's shattered.io funding page, Samsung promotion and Finder treasury
+  article; transactional email and weather API purchasing; collector input/query
+  filtering; trusted budget preservation; no Gemini call on irrelevant-only
+  searches; fallback defense; independently corroborated official-doc retention
+  through a collector failure. Finder's full path/body are constructed fixtures,
+  not captured Production evidence. Existing deadline, checkout, identity and
+  privacy/security assertions remain; fixtures now name relevant services.
+- `scripts/preview-smoke.mjs`: mock mixed relevant/irrelevant fallback results and
+  a wrong response instruction, then submit the exact reported query with only
+  unwanted results. Assert relevant-only links and the empty failure state.
+- `HANDOFF-PAYPAL.md`: record the diagnosis, changes, validation and remaining
+  runtime-access limitation; preserve historical entries.
+
+Fresh checks: **336/336** focused web/security tests across 17 files (including
+**128** discovery/relevance tests); **150/150** agent tests across eight files;
+zero failed/skipped tests. Root lint (including pinned Forge), typecheck, public
+production build, changed-code Prettier and whitespace checks passed. Typecheck
+initially found a missing fixture `retrievedAt`; corrected it, then typecheck and
+the 13 new tests passed. Browser boundary: **46** compiled chunks, zero forbidden
+credential/private-key/local-path markers. Changed-code credential-signature scan:
+zero matches. Offline Chromium smoke: eight pages, both themes, five viewport
+widths, relevant-only/empty fallback checks, zero browser exceptions or external
+requests. All provider responses were mocked and payment/provider execution flags
+disabled; quota/PostgreSQL behavior used doubles, with no financial DB operations.
+Whole-handoff Prettier still reports three pre-existing historical formatting
+differences (also confirmed in `HEAD`); new documentation blocks need no formatting
+changes. Historical prose was left intact.
+
+Runtime diagnosis remains limited: read-only GitHub deployments lookup and the
+Vercel project API returned HTTP 403; no Vercel CLI/token/auth session or connector
+was available. Requested sanitized logs for 06:40–06:46 UTC; none received. In the
+reviewed revision, the screenshot's incomplete/unavailable wording is emitted
+only for a recoverable `offer_analysis` failure with preserved comparison context.
+It can follow an invalid model response (including HTTP 200), transport failure,
+503 or another recoverable upstream status. It does not establish a Gemini
+outage, actual HTTP/error code, model or elapsed/timeout value. Code defaults are
+`GEMINI_COLLECTOR_MODEL ?? GEMINI_MODEL ?? gemini-3.8-flash`, public fallback
+`gemini-3.5-flash-lite`, with a 55s request deadline, 32s comparison cap and 12s
+payment-evidence reserve; these are configured code limits, not observed live
+measurements. Production's deployed SHA and environment were not confirmed.
+
+Limits/next steps: lexical relevance remains conservative and depends on retrieved
+metadata; missing product context/synonyms can exclude valid pages. Independent
+provider identity checks, privacy/outbound guards, quotas/refund rules, deadlines
+and payment restrictions remain. Obtain sanitized runtime entries to identify
+the actual failed stage/model/code/timing, then perform a separately authorized
+post-deployment live retest of the exact query and other purchasing categories.
+Passing offline tests does not establish Production accuracy.
+
+### 2026-11-15 — Recheck repeated failure report and additional screenshots
+
+Fetched `origin/main` again: it remains `7457b75`. Existing local implementation
+and regressions above remain intact on `fix/research-fallback-relevance`; no
+additional application, test or configuration edits were justified by the
+repeated report. `HANDOFF-PAYPAL.md` is the only further file changed in this
+recheck. The added screenshots show the earlier official-provider label problem
+with evidence timestamp `2026-11-15T00:55:37.592Z`, distinct from the reported
+06:43 UTC incomplete-comparison failure. The merged independent-identity tests
+cover the earlier sources; the local fallback fix covers the later path.
+
+Rechecked diagnostic access: GitHub deployments and Vercel project APIs still
+return HTTP 403; no Vercel CLI, token or local auth file is available. No
+Production runtime records or deployed SHA were obtained. The actual live
+collector model/error/status/timing therefore remain unknown.
+
+Fresh repeated validation: expanded offline web/security selection reports
+497 passes, four loopback HTTP test timeouts in the restricted sandbox, and
+21 intentionally skipped live database/Sandbox tests. All eight hosted HTTP
+security tests subsequently pass with loopback access, resolving those four
+failures without source changes: **501 distinct passing offline web tests**,
+including **128 discovery/relevance tests**. Agent checks: **150/150 pass**.
+Root lint (170 existing informational suggestions), typecheck, changed-code
+formatting and whitespace checks pass. The restricted-sandbox build initially
+failed parsing empty TypeScript `--showConfig` output; the identical production
+build succeeds with subprocess access. Browser boundary passes **46** chunks;
+added-content credential-signature scan has zero matches. Live-test opt-ins
+remained false and no provider, database or payment operations were performed.
+Repeated offline Chromium smoke also passes eight pages, both themes and five
+viewport widths, including relevant-only and empty fallback behavior, with zero
+browser exceptions or external requests.
+The prior whole-handoff formatting limitation remains. Production logs and an
+authorized post-deployment live retest are still required; no commit, push,
+merge, deployment or Vercel setting change occurred.
+
+### 2026-11-15 — Publish research relevance fix for draft review
+
+User authorized a normal push and draft PR targeting `main`, without merge,
+deployment, live provider calls or financial operations. Fetched `origin/main`
+again and verified baseline `7457b75ab580299c1932946bb35af46cdd29b7b0` is unchanged.
+Created `fix/research-relevance-fallback` from that exact baseline, preserving the
+existing work and other branches. Verified the connected GitHub account is
+`aveidt96` (ID `189458132`) and repository-local author/committer identity is
+`aveidt96 <189458132+aveidt96@users.noreply.github.com>`.
+
+Only the already reviewed relevance/fallback change is included: shared helper
+and types in `web/src/lib/research-relevance.ts` and
+`web/src/lib/offer-discovery.ts`; handlers in
+`web/src/server/paypal/offer-discovery.ts` and
+`web/src/server/paypal/public-research.ts`; UI in
+`web/src/components/offer-discovery.tsx` and
+`web/src/components/purchasing-chat.tsx`; regressions in
+`web/test/research-relevance.test.ts`, `web/test/offer-discovery.test.ts` and
+`web/test/official-provider-regression.test.ts`; browser fixtures in
+`scripts/preview-smoke.mjs`; and this publication record in `HANDOFF-PAYPAL.md`.
+No additional application implementation, checkout handler, dependency,
+credential, database or deployment-configuration changes were made.
+
+Publication review confirms the exact intended 11-file set, clean whitespace and
+zero added-content credential signatures. Existing validation artifacts confirm
+501 distinct offline web/security passes (four restricted-sandbox loopback
+timeouts resolved by the eight-test hosted rerun), 21 intentionally skipped live
+integration tests, 150 agent passes, lint/typecheck/build/changed-code formatting,
+46-chunk browser boundary and offline Chromium smoke. No application changes
+since those checks warrant repeating them. The PR description records the
+confirmed ranking/fallback defects, reconstructed query, checks and limitations.
+Production runtime logs remain unavailable from the earlier 403 attempts; the
+actual live collector model/error/status/timeout remain unknown. Publication
+results and GitHub checks are verified externally after the normal push and
+recorded in the PR/final report. Live relevance requires a separately authorized
+post-deployment retest; draft publication does not establish Production accuracy.
+
+### 2026-11-15 — Draft PR #4 publication verification and handoff formatting
+
+Normal push published application commit
+`311e0eacd0c3a6d694cce479a10bf7b317844f14` on
+`fix/research-relevance-fallback`; [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4)
+is open as a draft targeting `main`. GitHub verifies both author and committer
+are `aveidt96` (ID `189458132`); the commit metadata uses the requested noreply
+address. Remote `main` remains `7457b75`, and the reviewed tree matches the
+published application commit exactly. The working tree was clean after commit.
+
+Initial GitHub Actions Ubuntu verification passed installation, high-severity
+dependency audit and pinned Forge setup, then stopped at the whole-repository
+Prettier check solely for `HANDOFF-PAYPAL.md`. Its three historical formatting
+differences were already recorded above. This follow-up changes only
+`HANDOFF-PAYPAL.md`: normalize those formatting differences, update publication
+state and record the observed CI outcome. Historical results are preserved;
+application/test/configuration files remain identical to `311e0ea`.
+
+Follow-up handoff Prettier and whitespace checks pass. Only a
+normal follow-up push is authorized; no amend or force-push. Both Vercel automatic
+branch checks were building at the first inspection, with Windows CI still
+running. Final checks are inspected on the new head and reported in the PR/final
+report. No Production deployment, provider/API research, payment or financial
+database operation was performed.
+
+### 2026-11-15 — User-authorized publication of PR #4 to main
+
+The user explicitly requested pushing the research relevance fix to `main`
+because Preview cannot be tested adequately. This supersedes the earlier
+draft-only/no-merge restriction for PR #4 and authorizes the existing automatic
+Vercel Production release triggered by updating `main`. It does not authorize
+live provider research calls, payment or financial database operations, or
+changes to Vercel configuration.
+
+Before publication, verify the clean PR branch at `ed15e16` against freshly
+fetched `main` (`7457b75`). GitHub CI run `43708316243` completed successfully on
+both Ubuntu and Windows, including the complete `npm run check` pipeline,
+dependency audit and pinned Forge setup. Primary `Vercel – earmark-paypal` passed;
+secondary `Vercel – earmark-paypal-i2bk` failed without an exposed underlying
+reason. Do not claim the secondary check passed or infer its failure category.
+
+Only `HANDOFF-PAYPAL.md` changes in this authorization record. Application/test/
+configuration content remains identical to the tested `ed15e16` tree. Check its
+formatting and whitespace, commit with the verified aveidt96 identity and push
+normally to the PR branch, then mark PR #4 ready and merge with an expected-head
+SHA check. Preserve unrelated main work; do not force-push or bypass protection.
+Final remote main SHA and automatic release status are verified after the merge
+and reported to the user. Production availability and the live query's accuracy
+must be verified separately; offline/CI success alone does not establish either.

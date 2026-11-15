@@ -47,6 +47,7 @@ export function conciseResearchDescription(value: string): string {
 }
 
 export type IncompleteComparison = {
+  instruction?: string;
   reason: "timeout" | "unavailable";
   sources: string[];
   results?: PartialSearchSource[] | undefined;

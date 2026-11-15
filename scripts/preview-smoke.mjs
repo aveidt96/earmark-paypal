@@ -810,15 +810,51 @@ try {
       "preview-smoke-session=fixture",
     );
     publicPosts.push(payload);
-    if (publicPosts.length === 4) {
+    if (publicPosts.length >= 4) {
+      const relevantUrl = `https://example.com/${"long-source-path-".repeat(18)}`;
+      const unrelated = [
+        {
+          title: "OpenAI Funding Target Cut $10B to $20B [2026]",
+          url: "https://shattered.io/openai-cuts-funding-target-10-billion-20-billion-1-25-trillion-valuation-2026",
+          snippet:
+            "Keep prompts and evaluation sets portable across providers.",
+        },
+        {
+          title: "All About Galaxy: Galaxy AI, One UI & More | Samsung US",
+          url: "https://www.samsung.com/us/mobile",
+          snippet:
+            "Purchase a Galaxy device and receive Samsung promotional credit.",
+        },
+        {
+          title:
+            "Cryptocurrency Treasury Companies | Who Is Holding Crypto? | Finder",
+          url: "https://www.finder.com/cryptocurrency/treasury-companies",
+          snippet: "Companies holding cryptocurrency treasury assets.",
+        },
+      ];
+      const results =
+        publicPosts.length === 4
+          ? [
+              {
+                title: "Weather API pricing",
+                url: relevantUrl,
+                snippet: "Weather API monthly plans and pricing documentation.",
+                category: "pricing",
+              },
+              ...unrelated,
+            ]
+          : unrelated;
       return route.fulfill({
         json: {
           incompleteComparison: {
             reason: "timeout",
+            // Deliberately mismatched: the client must bind to its submitted request.
+            instruction: "Chinese model API plans",
             sources: [
-              `https://example.com/${"long-source-path-".repeat(18)}`,
+              ...results.map((item) => item.url),
               "javascript:alert(1)",
             ],
+            results,
           },
         },
       });
@@ -915,15 +951,28 @@ try {
       () => document.documentElement.scrollWidth > innerWidth,
     ),
   ).toBe(false);
+  await chat
+    .getByLabel("Your purchasing instruction")
+    .fill("Find me $20 Chinese model API plans");
+  await chat.getByRole("button", { name: "Research offers" }).click();
+  await expect(
+    chat.getByRole("region", { name: "Comparison incomplete" }),
+  ).toContainText("No relevant product or pricing sources could be preserved");
+  await expect(
+    chat
+      .getByRole("region", { name: "Comparison incomplete" })
+      .getByRole("link"),
+  ).toHaveCount(0);
   expect(publicMutationRequests).toEqual(
-    Array(4).fill("POST /api/paypal/research"),
+    Array(5).fill("POST /api/paypal/research"),
   );
-  expect(publicPosts).toEqual(
-    [2500, 2500, 100000, 100000].map((budgetMinor) => ({
+  expect(publicPosts).toEqual([
+    ...[2500, 2500, 100000, 100000].map((budgetMinor) => ({
       instruction: "Compare weather API plans within my research budget",
       budgetMinor,
     })),
-  );
+    { instruction: "Find me $20 Chinese model API plans", budgetMinor: 100000 },
+  ]);
   expect(errors).toEqual([]);
   expect(externalRequests).toEqual([]);
   expect(legacyRequests).toEqual([]);

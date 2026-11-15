@@ -1,4 +1,5 @@
 "use client";
+import { isRelevantPurchasingSource } from "../lib/research-relevance";
 import { useEffect, useId, useRef, useState } from "react";
 import type { PurchasingChatResult } from "../lib/paypal-agent";
 import { PUBLIC_DEMO_ONLY } from "../lib/paypal-agent";
@@ -26,6 +27,8 @@ const judgeErrors: Record<string, string> = {
   JUDGE_LOCAL_GEMINI_DISABLED:
     "Live inference is restricted to the separately configured, authenticated loopback judge profile.",
   DISCOVERY_GROUNDING_REQUIRED: "The search returned no usable public sources",
+  DISCOVERY_RELEVANT_SOURCES_REQUIRED:
+    "No relevant product or pricing sources were found. Try a more specific product or service.",
   DISCOVERY_DISABLED: "Online research is unavailable in this profile",
   DISCOVERY_INSTRUCTION_REQUIRED:
     "Describe the product, plan or service to research",
@@ -72,6 +75,8 @@ const publicResearchErrors: Record<string, string> = {
     "Earmark couldn’t verify the offer evidence. Try a more specific request.",
   PUBLIC_RESEARCH_NO_SOURCES:
     "No usable merchant sources were found. Try a more specific product or service.",
+  PUBLIC_RESEARCH_NO_RELEVANT_SOURCES:
+    "No relevant product or pricing sources were found. Try a more specific product or service.",
   PUBLIC_RESEARCH_TIMEOUT:
     "Live research did not finish in time. Try again in a moment.",
   PUBLIC_RESEARCH_SEARCH_TIMEOUT:
@@ -232,14 +237,6 @@ export function PurchasingChat({
           incomplete?.reason === "unavailable") &&
         Array.isArray(incomplete.sources)
       ) {
-        const sources = incomplete.sources
-          .slice(0, 5)
-          .flatMap((url: unknown) => {
-            const safe =
-              typeof url === "string" ? safeExternalOfferUrl(url) : null;
-            return safe ? [safe] : [];
-          });
-        const uniqueSources = [...new Set<string>(sources)];
         const seenResults = new Set<string>();
         const results: PartialSearchSource[] = Array.isArray(incomplete.results)
           ? incomplete.results.slice(0, 5).flatMap((entry: unknown) => {
@@ -268,18 +265,21 @@ export function PurchasingChat({
               return [{ title, url: safeUrl, snippet, category }];
             })
           : [];
-        if (uniqueSources.length) {
-          setIncompleteComparison({
-            reason: incomplete.reason,
-            sources: uniqueSources,
-            ...(results.length ? { results } : {}),
-            ...(typeof incomplete.retrievedAt === "string" &&
-            !Number.isNaN(Date.parse(incomplete.retrievedAt))
-              ? { retrievedAt: incomplete.retrievedAt }
-              : {}),
-          });
-          return;
-        }
+        setIncompleteComparison({
+          instruction,
+          reason: incomplete.reason,
+          sources: results
+            .filter((item) => isRelevantPurchasingSource(item, instruction))
+            .map((item) => item.url),
+          results: results.filter((item) =>
+            isRelevantPurchasingSource(item, instruction),
+          ),
+          ...(typeof incomplete.retrievedAt === "string" &&
+          !Number.isNaN(Date.parse(incomplete.retrievedAt))
+            ? { retrievedAt: incomplete.retrievedAt }
+            : {}),
+        });
+        return;
       }
       if (
         !body ||

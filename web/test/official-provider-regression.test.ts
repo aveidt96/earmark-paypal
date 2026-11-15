@@ -576,22 +576,14 @@ describe("official provider identity and relevance regression", () => {
   });
 
   it("returns a clear empty state when no suitable first-party source is verified", async () => {
-    const result = await discoverOffers(
-      instruction,
-      env,
-      offlineTransport(badSources, badSources),
-      2000,
-    );
-    expect(result.officialProviders).toEqual([]);
-    expect(result.offers).toEqual([]);
-    expect(result.summary).toContain(
-      "No suitable first-party provider was verified",
-    );
-    const html = renderToStaticMarkup(
-      createElement(OfferDiscovery, { result }),
-    );
-    expect(html).toContain("No suitable first-party provider was verified");
-    expect(html).not.toContain("Verified official providers");
+    await expect(
+      discoverOffers(
+        instruction,
+        env,
+        offlineTransport(badSources, badSources),
+        2000,
+      ),
+    ).rejects.toThrow("DISCOVERY_RELEVANT_SOURCES_REQUIRED");
   });
 
   it("does not use a blog price as verified pricing for a genuine provider", async () => {
@@ -684,6 +676,7 @@ describe("official provider identity and relevance regression", () => {
       createElement(IncompleteOfferComparison, {
         result: {
           reason: "timeout",
+          instruction: "Compare Resend pricing",
           sources: results.map((item) => item.url),
           results,
         },

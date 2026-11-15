@@ -14,6 +14,7 @@ import {
   type ResearchStageFailure,
 } from "./offer-discovery";
 import { PaymentError } from "./domain";
+import { isRelevantPurchasingSource } from "../../lib/research-relevance";
 
 type Env = Record<string, string | undefined>;
 const input = z.strictObject({
@@ -119,6 +120,7 @@ const providerFailures = {
   DISCOVERY_REPORT_REQUIRED: "PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE",
   INVALID_MODEL_RESPONSE: "PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE",
   DISCOVERY_GROUNDING_REQUIRED: "PUBLIC_RESEARCH_NO_SOURCES",
+  DISCOVERY_RELEVANT_SOURCES_REQUIRED: "PUBLIC_RESEARCH_NO_RELEVANT_SOURCES",
   MODEL_TIMEOUT: "PUBLIC_RESEARCH_TIMEOUT",
 } as const;
 
@@ -526,11 +528,15 @@ export async function handlePublicResearch(
           Math.min(QUOTA_TIMEOUT_MS, timeLeft),
         );
     }
-    if (recoverablePartialComparison && provider.comparison?.sources.length) {
+    if (recoverablePartialComparison && provider.comparison) {
+      const results = provider.comparison.results.filter((source) =>
+        isRelevantPurchasingSource(source, payload.instruction),
+      );
       const incompleteComparison: IncompleteComparison = {
+        instruction: payload.instruction,
         reason: timedOut ? "timeout" : "unavailable",
-        sources: provider.comparison.sources,
-        results: provider.comparison.results,
+        sources: results.map((source) => source.url),
+        results,
         retrievedAt: provider.comparison.retrievedAt,
       };
       return json({ incompleteComparison });
