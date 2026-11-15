@@ -12,6 +12,8 @@ import {
 import { Badge, Button } from "./glass";
 
 const reasonLabels: Record<string, string> = {
+  PROVIDER_IDENTITY_UNVERIFIED:
+    "Provider identity needs independent corroboration",
   APPROVED_MERCHANT_REQUIRED: "The request requires an approved merchant",
   GROUNDED_SOURCE_NOT_LINKED: "No retrieved offer source matched the citation",
   CONFLICTING_PRICE_EVIDENCE: "Price evidence conflicts or is ambiguous",
@@ -206,6 +208,12 @@ export function OfferDiscovery({
       return [{ ...provider, safeUrl }];
     },
   );
+  const providerCandidates = (result.providerCandidates ?? []).flatMap(
+    (provider) => {
+      const safeUrl = safeExternalOfferUrl(provider.url);
+      return safeUrl ? [{ ...provider, safeUrl }] : [];
+    },
+  );
 
   function toggleOffer(offerId: string) {
     setSelection((current) =>
@@ -310,9 +318,60 @@ export function OfferDiscovery({
                         ? "not listed in accepted methods"
                         : "unknown"}
                   </p>
+                  {provider.verificationSources?.map((url) => {
+                    const safe = safeExternalOfferUrl(url);
+                    return safe ? (
+                      <a
+                        key={safe}
+                        href={safe}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        referrerPolicy="no-referrer"
+                      >
+                        Identity reference
+                      </a>
+                    ) : null;
+                  })}
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+      {providerCandidates.length > 0 && (
+        <section
+          className="offer-research-providers"
+          aria-label="Provider research links"
+        >
+          <strong>Provider research links · identity unverified</strong>
+          <p>
+            Relevant product documentation was found, but independent provider
+            identity or requested origin evidence is incomplete.
+          </p>
+          <ul className="offer-research-list">
+            {providerCandidates.map((provider) => (
+              <li key={provider.id} className="offer-research-card">
+                <h4>{provider.provider}</h4>
+                <a
+                  href={provider.safeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  referrerPolicy="no-referrer"
+                >
+                  {conciseResearchDescription(
+                    provider.service ?? provider.title,
+                  )}
+                </a>
+                <p>
+                  Price: Unknown · Billing model:{" "}
+                  {provider.billingModel === "unknown"
+                    ? "Unknown"
+                    : billingModelLabels[provider.billingModel]}{" "}
+                  · PayPal: Unknown
+                </p>
+                <p>Research link only (not a checkout destination)</p>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -411,6 +470,9 @@ export function OfferDiscovery({
                   {suitability[offer.reviewFit]}
                 </Badge>
               </div>
+              {offer.providerVerification === "unverified" && (
+                <p>Provider identity unverified · source claims only</p>
+              )}
               {result.reviewRecommendation === index && (
                 <p className="offer-research-recommendation">
                   Recommended for review
@@ -437,7 +499,7 @@ export function OfferDiscovery({
                       pricingDetails.currency) && (
                       <p>
                         {pricingDetails.modelName
-                          ? `Verified model: ${pricingDetails.modelName}`
+                          ? `${offer.providerVerification === "corroborated" ? "Verified" : "Listed"} model: ${pricingDetails.modelName}`
                           : "Model: Unknown"}
                         {pricingDetails.region
                           ? ` · Region: ${pricingDetails.region}`
@@ -449,8 +511,10 @@ export function OfferDiscovery({
                     )}
                     {safePricingUrl && citedUrls.includes(safePricingUrl) && (
                       <p>
-                        Official pricing documentation (research only · not
-                        checkout):{" "}
+                        {offer.providerVerification === "unverified"
+                          ? "Pricing documentation"
+                          : "Official pricing documentation"}{" "}
+                        (research only · not checkout):{" "}
                         <a
                           href={safePricingUrl}
                           target="_blank"
@@ -717,9 +781,11 @@ export function OfferDiscovery({
           );
         })}
       </ul>
-      {result.offers.length === 0 && verifiedProviders.length === 0 && (
-        <p>No suitable first-party provider was verified for this request.</p>
-      )}
+      {result.offers.length === 0 &&
+        verifiedProviders.length === 0 &&
+        providerCandidates.length === 0 && (
+          <p>No suitable first-party provider was verified for this request.</p>
+        )}
       {result.offers.length === 0 && verifiedProviders.length > 0 && (
         <p>
           Structured offer comparison could not extract full tier pricing from

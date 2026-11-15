@@ -74,6 +74,7 @@ const offer = {
 function transport(
   offers: unknown[] = [offer],
   options: {
+    corroborated?: boolean;
     tavilyResults?: unknown[];
     paymentResults?: unknown[];
     tavilyBody?: string;
@@ -102,14 +103,26 @@ function transport(
       }
       return Response.json({
         query: "fixture weather API pricing",
-        results: options.tavilyResults ?? [
-          {
-            title: "Example Weather API pricing",
-            url,
-            content:
-              options.snippet ??
-              "Weather API monthly plan listed at $5.00 USD per month.",
-          },
+        results: [
+          ...(options.tavilyResults ?? [
+            {
+              title: "Example Weather API pricing",
+              url,
+              content:
+                options.snippet ??
+                "Weather API monthly plan listed at $5.00 USD per month.",
+            },
+          ]),
+          ...(options.corroborated
+            ? [
+                {
+                  title: "Example",
+                  url: "https://en.wikipedia.org/wiki/Example_company",
+                  content:
+                    "Example provides a weather API. Official website: https://example.com/",
+                },
+              ]
+            : []),
         ],
       });
     }
@@ -164,12 +177,22 @@ function transport(
 
 it("applies the selected public budget independently and only exposes a merchant's cited plan URL for manual checkout", async () => {
   const instruction = "Find weather API plans under $10 per month";
-  const within = await discoverOffers(instruction, env, transport(), 500);
+  const within = await discoverOffers(
+    instruction,
+    env,
+    transport([offer], { corroborated: true }),
+    500,
+  );
   expect(within.offers[0]).toMatchObject({
     officialMerchantUrl: url,
     policy: { eligible: false },
   });
-  const over = await discoverOffers(instruction, env, transport(), 499);
+  const over = await discoverOffers(
+    instruction,
+    env,
+    transport([offer], { corroborated: true }),
+    499,
+  );
   expect(over.reviewRecommendation).toBeNull();
   expect(over.offers[0]).toMatchObject({
     reviewFit: "does-not-match",
@@ -243,6 +266,7 @@ it.each([
         },
       ],
       {
+        corroborated: true,
         tavilyResults: [
           {
             url,
@@ -472,7 +496,7 @@ describe("anonymous Norway research", () => {
       expect(parseResearchBudget(amount)).toBe(budgetMinor);
       const fetcher = transport(
         [{ ...offer, service: "Starter", priceMinor: "20000" }],
-        { snippet: "Starter costs USD 200 per month." },
+        { snippet: "Starter costs USD 200 per month.", corroborated: true },
       );
       const reply = await handlePublicResearch(
         request({
@@ -1857,7 +1881,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       expect(result.offers.every((o) => !o.policy.eligible)).toBe(true);
       expect(result.offers[0]?.sources).toEqual([{ url, cited: true }]);
       if (instruction.includes("$10")) {
-        expect(result.reviewRecommendation).toBe(0);
+        expect(result.reviewRecommendation).toBeNull();
         expect(result.offers[0]?.pricing).toMatchObject({
           status: "source-matched",
           period: "month",
@@ -2458,7 +2482,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       pricing: { status: "source-matched", period: "month", sourceUrl: url },
       policy: { eligible: false, canonicalVerdict: "UNAPPROVED_MERCHANT" },
     });
-    expect(result.reviewRecommendation).toBe(0);
+    expect(result.reviewRecommendation).toBeNull();
     const html = renderToStaticMarkup(
       createElement(OfferDiscovery, { result }),
     );
@@ -2612,7 +2636,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       env,
       f(),
     );
-    expect(fit.reviewRecommendation).toBe(0);
+    expect(fit.reviewRecommendation).toBeNull();
     expect(fit.offers[0]?.policy).toMatchObject({
       eligible: false,
       canonicalVerdict: "UNAPPROVED_MERCHANT",
@@ -2663,7 +2687,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       discovery: {
-        reviewRecommendation: 0,
+        reviewRecommendation: null,
         proposal: null,
         ownerAuthorized: false,
         fundsReserved: false,
@@ -3308,6 +3332,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           },
         ],
         {
+          corroborated: true,
           snippet:
             "Starter plan is available for signup. Starter plan provides instant API key activation within 5 minutes. Starter is listed at $5.00 USD per month.",
           paymentResults: [
@@ -3540,7 +3565,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       priceMinor: null,
       currency: "USD",
       paypal: "unknown",
-      officialMerchantUrl: officialPricingUrl,
+      officialMerchantUrl: null,
       officialCheckoutUrl: null,
       pricing: {
         status: "source-matched",
@@ -3571,7 +3596,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           },
         ],
       },
-      reviewFit: "matches",
+      reviewFit: "needs-evidence",
       policy: { eligible: false },
     });
 
@@ -3579,12 +3604,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       createElement(OfferDiscovery, { result, assistedCheckout: true }),
     );
     expect(html).toContain("Usage-based (pay-as-you-go)");
-    expect(html).toContain("Verified model: Qwen3.8 Flash");
+    expect(html).toContain("Listed model: Qwen3.8 Flash");
     expect(html).toContain("Region: Singapore (International)");
     expect(html).toContain("Input: 0.05 USD per 1M input tokens");
     expect(html).toContain("Output: 0.40 USD per 1M output tokens");
     expect(html).toContain(
-      "Official pricing documentation (research only · not checkout)",
+      "Pricing documentation (research only · not checkout)",
     );
     expect(html).toContain(`href="${officialPricingUrl}"`);
     expect(html).not.toContain("Billing period: month");
@@ -3691,7 +3716,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(result.evidence.searchRequests).toBe(3);
     expect(result.targetMerchantDomain).toBe("alibabacloud.com");
     expect(result.offers[0]).toMatchObject({
-      officialMerchantUrl: officialPricingUrl,
+      officialMerchantUrl: null,
       officialCheckoutUrl: null,
       paypal: "unknown",
       pricing: {
@@ -3938,7 +3963,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       service: "Echo-7B",
       priceMinor: null,
       currency: "USD",
-      officialMerchantUrl: apiPricingUrl,
+      officialMerchantUrl: null,
       officialCheckoutUrl: null,
       paypal: "unknown",
       pricing: {
@@ -3976,7 +4001,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       service: "Starter Credit Pack",
       priceMinor: null,
       currency: "USD",
-      officialMerchantUrl: creditPricingUrl,
+      officialMerchantUrl: null,
       officialCheckoutUrl: null,
       paypal: "unknown",
       pricing: {
@@ -4176,7 +4201,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       expect(authorizeSpy).not.toHaveBeenCalled();
       expect(reserveSpy).not.toHaveBeenCalled();
 
-      const providerUrls = result.officialProviders?.map((p) => p.url) ?? [];
+      const providerUrls = result.providerCandidates?.map((p) => p.url) ?? [];
       expect(providerUrls).toEqual(
         expect.arrayContaining([deepseekPricing, alibabaPricing, zhipuPricing]),
       );
@@ -4191,7 +4216,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       ]) {
         expect(providerUrls).not.toContain(badUrl);
       }
-      for (const p of result.officialProviders ?? []) {
+      for (const p of result.providerCandidates ?? []) {
         expect(p.pricingStatus).toBe("unknown");
         expect(p.paypal).toBe("unknown");
         expect(p.checkoutUrl).toBeNull();
@@ -4204,13 +4229,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           assistedCheckout: true,
         }),
       );
-      expect(html).toContain("Verified official providers");
+      expect(html).toContain("Provider research links");
       expect(html).toContain(`href="${deepseekPricing}"`);
       expect(html).toContain(`href="${alibabaPricing}"`);
       expect(html).toContain(`href="${zhipuPricing}"`);
       expect(html).toContain("Research link only (not a checkout destination)");
       expect(html).toContain("Price: Unknown");
-      expect(html).toContain("PayPal: unknown");
+      expect(html).toContain("PayPal: Unknown");
       expect(html).not.toContain(
         "No sufficiently structured offer evidence was returned.",
       );
@@ -4301,7 +4326,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     // Resend's offer failed price verification (unknown), yet all official non-checkout provider docs survive.
     expect(result.offers[0]?.pricing.status).toBe("unknown");
     expect(result.offers[0]?.policy.eligible).toBe(false);
-    const urls = result.officialProviders?.map((p) => p.url) ?? [];
+    const urls = result.providerCandidates?.map((p) => p.url) ?? [];
     expect(urls).toEqual(
       expect.arrayContaining([resendPricing, postmarkPricing, mailjetDocs]),
     );
@@ -4314,7 +4339,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         result: {
           ...result,
           officialProviders: [
-            ...(result.officialProviders ?? []),
+            ...(result.providerCandidates ?? []),
             {
               id: "tampered-unsafe",
               provider: "Tampered",

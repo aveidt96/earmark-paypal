@@ -8,6 +8,13 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-15: PR #3 final-review corrections distinguish corroborated identity
+  from unverified research links.** Sparse product docs and corporate aliases
+  survive without self-asserted verification; request relevance is per product
+  page with natural-language/alternative matching. Offline checks pass. Both
+  Vercel projects are blocked by commit-author/team access; hosted builds and live
+  relevance remain unverified. No merge or deployment is authorized.
+
 - **2026-11-15: Draft-review branch `fix/official-provider-verification` targets
   `main` baseline `6182306`.** Carries the verified provider-identity/relevance
   fix and its offline regressions; publication is authorized as a draft PR only.
@@ -8183,3 +8190,68 @@ conservative rejection when identity/product/origin evidence is sparse.
 Next step is human draft-PR review. Production relevance still requires a
 separately authorized deployment and live retest. No payment backend, checkout,
 quota/deadline/privacy guard or financial database change is included.
+
+### 2026-11-15 — Final review of draft PR #3 (`c70f37f`)
+
+Confirmed four defects in the submitted diff: product-only titles could fail the
+exact corporate-domain check; own-page ownership/origin statements were mandatory
+in short snippets; every request keyword was required (and `that`/`with` could
+truncate the actual product); fabricated own-page company/model/origin claims
+could nevertheless pass as official. Earlier passing fixtures did not prove
+independent identity verification. These findings supersede that assurance.
+
+Narrow corrections on the existing `fix/official-provider-verification` branch:
+
+- `web/src/server/paypal/offer-discovery.ts`: Separate plausible candidates from
+  corroborated first-party sources. A verified association requires an explicitly
+  labeled official HTTPS host in a separately retrieved Wikipedia/Wikidata article
+  excerpt, with model ownership and requested Chinese company origin supported
+  there. Exact safe host/subdomain association supports corporate/product aliases;
+  candidates' self-assertions, arbitrary publishers, spoof hosts and user pages
+  do not establish identity. Wikipedia is now eligible as identity context, while
+  both reference publishers remain excluded as merchants. Reuse the existing
+  searches and bounds; no embedded reference URL is fetched. Missing identity
+  evidence retains relevant links as unverified. Match page-specific topic terms,
+  polite phrasing, email/SMTP aliases and comparison alternatives; recognize sparse
+  input/output token-rate snippets. Another corporate product cannot supply
+  relevance. Uncorroborated offers cannot be recommended or expose official
+  merchant/checkout URLs.
+- `web/src/lib/offer-discovery.ts`, `web/src/components/offer-discovery.tsx`:
+  Optional candidate/identity provenance fields, visibly separate unverified
+  research cards, linked corroboration and source-claim labeling. No raw snippets
+  or payment authority added; actual PayPal checkout/backend remain untouched.
+- `web/test/official-provider-regression.test.ts`,
+  `web/test/offer-discovery.test.ts`: Sparse Qwen/Alibaba Cloud, GLM/Zhipu and novel
+  corporate aliases; empty Gemini retention; fabricated claims/reference spoofing;
+  same-company unrelated-product rejection; natural email/weather/storage requests;
+  uncorroborated checkout/recommendation denial. Positive checkout fixtures now
+  provide independent identity evidence. All fixtures are constructed offline.
+- `HANDOFF-PAYPAL.md`: Record this review, corrections and external blockers.
+
+Fresh validation: **323/323** focused web/security tests (including **115**
+discovery tests), **150/150** agent tests, zero failures/skips. Root lint (including
+pinned Forge), typecheck, public production build, changed-code Prettier and
+whitespace checks passed. Browser boundary passed **46** chunks. Existing offline
+browser smoke passed eight pages, both themes and five viewports; focused new-card
+browser checks passed at 375px/1440px with safe links, no checkout or overflow,
+zero external requests and zero browser errors. All provider/payment execution
+switches were disabled; PostgreSQL checks used doubles, not a live database.
+
+Vercel evidence: GitHub combined statuses for `c70f37f` report failures for both
+`earmark-paypal` and `earmark-paypal-i2bk`; the bot table marks both `BLOCKED`.
+[The bot explanation](https://github.com/aveidt96/earmark-paypal/pull/3#issuecomment-6887532978)
+says commit author `samuel0604-byte` is not a member of `samuelid22's projects`.
+This establishes an account/team-access gate, not a demonstrated compiler failure.
+No hosted build execution or build logs are established by the available evidence.
+No account access, authorship, visibility, deployment or CI configuration changed.
+
+Limits: corroboration is bounded retrieved public-reference evidence, not
+universal ownership authentication. Missing/malformed reference statements and
+unrecognized language/topic synonyms can leave genuine sources unverified or
+missed. Geographic fit is explicitly unknown without corroborating origin data.
+Controlled deployment review must assess this trust/recall tradeoff; actual
+execution is blocked on owner resolution of Vercel membership/GitHub connection.
+Live relevance still needs a separately authorized post-deployment check. Quotas,
+deadlines, privacy/outbound guards, unrelated main work and financial restrictions
+are preserved. Only a normal update of the existing PR branch is authorized;
+no merge, deployment, live provider API calls, payment or financial DB operations.

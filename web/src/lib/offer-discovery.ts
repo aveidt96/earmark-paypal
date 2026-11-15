@@ -199,6 +199,8 @@ export interface DiscoveredOfficialProvider {
   billingModel: OfferBillingModel | "unknown";
   paypal: "claimed" | "unknown" | "not-listed";
   checkoutUrl: null;
+  /** Independently retrieved identity references; never checkout evidence. */
+  verificationSources?: string[];
 }
 export interface DiscoveredOffer {
   id: string;
@@ -216,6 +218,7 @@ export interface DiscoveredOffer {
   sources: Array<{ url: string; cited: boolean }>;
   officialMerchantUrl?: string | null;
   officialCheckoutUrl?: string | null;
+  providerVerification?: "corroborated" | "unverified";
   features?: Array<{ text: string; sourceUrl: string }>;
   billingEvidence?: { period: OfferBillingPeriod; sourceUrl: string } | null;
   pricingDetails?: VerifiedOfferPricingDetails | null;
@@ -235,6 +238,8 @@ export interface OfferDiscoveryResult {
   retrievedAt: string;
   targetMerchantDomain?: string;
   officialProviders?: DiscoveredOfficialProvider[];
+  /** Relevant research links without independently corroborated identity. */
+  providerCandidates?: DiscoveredOfficialProvider[];
   offers: DiscoveredOffer[];
   /** Index into offers for human review only. Never an authorized proposal. */
   reviewRecommendation: number | null;

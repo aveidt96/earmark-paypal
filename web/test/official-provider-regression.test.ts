@@ -42,7 +42,7 @@ const badSources = [
   source(
     "https://openai.com/api/pricing/",
     "API pricing | OpenAI",
-    "OpenAI develops our own language models. Chinese language support and China token pricing region.",
+    "OpenAI is an American AI company. OpenAI develops language models. Chinese language support and China token pricing region.",
   ),
   source(
     "https://credits.example/pricing",
@@ -126,6 +126,278 @@ function offlineTransport(
 }
 
 describe("official provider identity and relevance regression", () => {
+  const reference = (name: string, website: string, facts: string) =>
+    source(
+      `https://en.wikipedia.org/wiki/${name.replaceAll(" ", "_")}`,
+      name,
+      `${facts} Official API platform: ${website}`,
+    );
+
+  it.each([
+    [
+      "Qwen",
+      "Alibaba Cloud",
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/",
+    ],
+    [
+      "GLM",
+      "Zhipu AI",
+      "https://open.bigmodel.cn/pricing",
+      "https://open.bigmodel.cn/",
+    ],
+    [
+      "Nimbus",
+      "AuroraForge",
+      "https://tessera-cloud.example/docs/pricing",
+      "https://tessera-cloud.example/",
+    ],
+  ])(
+    "retains sparse %s docs and corroborates their corporate alias independently",
+    async (product, company, url, website) => {
+      const document = source(
+        url,
+        `${product} API pricing`,
+        `${product}: input USD 0.10 per 1M tokens; output USD 0.30 per 1M tokens.`,
+      );
+      const identity = reference(
+        company,
+        website,
+        `${company} is a Chinese AI company that develops ${product} language models.`,
+      );
+      expect(classifyProviderSource(document, instruction)).toBe("candidate");
+      expect(
+        classifyProviderSource(document, instruction, [document, identity]),
+      ).toBe("first-party");
+      expect(
+        classifyProviderSource(
+          { ...document, title: `${product} Official API pricing` },
+          instruction,
+          [document, identity],
+        ),
+      ).toBe("first-party");
+      const result = await discoverOffers(
+        instruction,
+        env,
+        offlineTransport([document, identity], []),
+        2000,
+      );
+      expect(result.offers).toEqual([]);
+      expect(result.officialProviders?.map((provider) => provider.url)).toEqual(
+        [url],
+      );
+      expect(result.officialProviders?.[0]?.verificationSources).toEqual([
+        identity.url,
+      ]);
+      const html = renderToStaticMarkup(
+        createElement(OfferDiscovery, { result }),
+      );
+      expect(html).toContain(`href="${url}"`);
+      expect(html).toContain(`href="${identity.url}"`);
+    },
+  );
+
+  it("does not verify arbitrary self-assertions, cloned claims, or unrelated references", () => {
+    const claimed = source(
+      "https://fabricated.example/pricing",
+      "Fabricated API pricing",
+      "Fabricated is a Chinese AI company. We develop our own language models. Model API token plans.",
+    );
+    const identity = reference(
+      "Fabricated",
+      "https://fabricated.example/",
+      "Fabricated is a Chinese AI company that develops language models.",
+    );
+    expect(classifyProviderSource(claimed, instruction)).toBe("candidate");
+    for (const invalid of [
+      { ...identity, url: "https://arbitrary.example/about" },
+      {
+        ...identity,
+        url: "https://en.wikipedia.org.evil.example/wiki/Fabricated",
+      },
+      { ...identity, url: "https://en.wikipedia.org/wiki/User:Fabricated" },
+      {
+        ...identity,
+        snippet: identity.snippet.replace(
+          "fabricated.example",
+          "another.example",
+        ),
+      },
+      { ...identity, snippet: "Fabricated develops Chinese language models." },
+    ])
+      expect(
+        classifyProviderSource(claimed, instruction, [claimed, invalid]),
+      ).toBe("candidate");
+  });
+
+  it("does not borrow relevance from another product on the same corporate domain", () => {
+    const model = source(
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "Qwen model API pricing",
+      "Qwen language model API token rates.",
+    );
+    const compute = source(
+      "https://www.alibabacloud.com/product/ecs/pricing",
+      "Alibaba Cloud ECS pricing",
+      "Elastic compute virtual machine pricing and server API access.",
+    );
+    const identity = reference(
+      "Alibaba Cloud",
+      "https://www.alibabacloud.com/",
+      "Alibaba Cloud is a Chinese AI company that develops Qwen language models.",
+    );
+    expect(
+      classifyProviderSource(model, "Research Alibaba Qwen model API pricing", [
+        model,
+        compute,
+        identity,
+      ]),
+    ).toBe("first-party");
+    expect(
+      classifyProviderSource(
+        compute,
+        "Research Alibaba Qwen model API pricing",
+        [model, compute, identity],
+      ),
+    ).toBe("irrelevant");
+  });
+
+  it("corroborates unrelated corporate aliases without assuming the product name equals its domain", async () => {
+    const document = source(
+      "https://postmarkapp.com/pricing",
+      "Postmark transactional email pricing",
+      "SMTP and transactional email API plans.",
+    );
+    const identity = reference(
+      "Postmark",
+      "https://postmarkapp.com/",
+      "Postmark provides transactional email services.",
+    );
+    const request =
+      "Could you help me find a service that sends transactional emails under $20?";
+    expect(
+      classifyProviderSource(document, request, [document, identity]),
+    ).toBe("first-party");
+    const result = await discoverOffers(
+      request,
+      env,
+      offlineTransport([document, identity], []),
+      2000,
+    );
+    expect(result.officialProviders?.map((provider) => provider.url)).toEqual([
+      document.url,
+    ]);
+  });
+
+  it.each([
+    [
+      "Could you please help me find a reliable service that sends transactional emails under $20?",
+      "https://resend.com/pricing",
+      "Resend pricing",
+      "Resend provides a transactional email API.",
+    ],
+    [
+      "I would like a tool with weather forecasts for my app below $20",
+      "https://climate.example/docs/pricing",
+      "Climate API pricing",
+      "Weather forecast API pricing and billing plans.",
+    ],
+    [
+      "Can you suggest cloud object storage API plans under $20?",
+      "https://storage.example/pricing",
+      "Storage pricing",
+      "Cloud object storage API billing plans.",
+    ],
+  ])(
+    "retains relevant documentation for natural requests: %s",
+    (request, url, title, snippet) => {
+      const document = source(url, title, snippet);
+      expect(classifyProviderSource(document, request)).toBe("candidate");
+      const unrelated = source(
+        "https://resend.com/pricing",
+        "Resend pricing",
+        "Transactional email API pricing.",
+      );
+      if (!request.includes("email"))
+        expect(classifyProviderSource(unrelated, request)).toBe("irrelevant");
+    },
+  );
+
+  it("keeps sparse undocumented identities visible without official or checkout claims", async () => {
+    const document = source(
+      "https://sparse.example/docs/pricing",
+      "Nimbus API pricing",
+      "Nimbus language model API token pricing.",
+    );
+    const result = await discoverOffers(
+      instruction,
+      env,
+      offlineTransport([document], []),
+      2000,
+    );
+    expect(result.officialProviders).toEqual([]);
+    expect(result.providerCandidates?.map((provider) => provider.url)).toEqual([
+      document.url,
+    ]);
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, { result, assistedCheckout: true }),
+    );
+    expect(html).toContain("identity unverified");
+    expect(html).toContain(`href="${document.url}"`);
+    expect(html).not.toContain("Verified official providers");
+    expect(html).not.toContain("Approve for manual checkout");
+    expect(html).not.toContain("Continue to merchant checkout");
+  });
+
+  it("never recommends or exposes checkout from an uncorroborated provider even with an exact price and retrieved checkout", async () => {
+    const document = source(
+      "https://fabricated.example/pricing",
+      "Fabricated API pricing",
+      "Fabricated is a China-based AI company. We develop our own language models. Starter costs USD 20 per month for our model API.",
+    );
+    const checkout = source(
+      "https://fabricated.example/checkout/starter",
+      "Starter checkout",
+      "Complete your purchase.",
+    );
+    const result = await discoverOffers(
+      instruction,
+      env,
+      offlineTransport(
+        [document, checkout],
+        [],
+        [
+          {
+            provider: "Fabricated",
+            service: "Starter",
+            priceMinor: "2000",
+            currency: "USD",
+            billing: "per month",
+            availability: null,
+            delivery: null,
+            slaMinutes: null,
+            paypal: "unknown",
+            paypalEvidence: null,
+            sourceUrls: [document.url],
+          },
+        ],
+      ),
+      2000,
+    );
+    expect(result.officialProviders).toEqual([]);
+    expect(result.offers[0]).toMatchObject({
+      providerVerification: "unverified",
+      officialMerchantUrl: null,
+      officialCheckoutUrl: null,
+      reviewFit: "needs-evidence",
+      policy: {
+        eligible: false,
+        reasons: expect.arrayContaining(["PROVIDER_IDENTITY_UNVERIFIED"]),
+      },
+    });
+    expect(result.reviewRecommendation).toBeNull();
+  });
+
   it.each(badSources)(
     "rejects $url as an official Chinese model provider",
     (item) => {
@@ -189,7 +461,8 @@ describe("official provider identity and relevance regression", () => {
       expect(transport).toHaveBeenCalledTimes(4); // Existing search -> provider search -> collector -> payment search.
       expect(result.evidence.searchRequests).toBe(3);
       expect(result.offers).toEqual([]);
-      expect(result.officialProviders?.map((item) => item.url)).toEqual(
+      expect(result.officialProviders).toEqual([]);
+      expect(result.providerCandidates?.map((item) => item.url)).toEqual(
         goodSources.map((item) => item.url),
       );
       expect(result).toMatchObject({
@@ -198,7 +471,7 @@ describe("official provider identity and relevance regression", () => {
         persisted: false,
         fundsReserved: false,
       });
-      for (const item of result.officialProviders ?? []) {
+      for (const item of result.providerCandidates ?? []) {
         expect(item).toMatchObject({
           pricingStatus: "unknown",
           paypal: "unknown",
@@ -225,7 +498,7 @@ describe("official provider identity and relevance regression", () => {
       "Haihe API pricing",
       "Haihe is a China-based AI provider. Haihe develops its own AI models and provides model API usage billing.",
     );
-    expect(classifyProviderSource(novel, instruction)).toBe("first-party");
+    expect(classifyProviderSource(novel, instruction)).toBe("candidate");
     expect(
       classifyProviderSource(
         { ...novel, url: "https://haihe-discounts.example/pricing" },
@@ -249,7 +522,7 @@ describe("official provider identity and relevance regression", () => {
         { ...novel, snippet: "Haihe sells access to Chinese AI model APIs." },
         instruction,
       ),
-    ).toBe("irrelevant");
+    ).not.toBe("first-party");
     expect(
       classifyProviderSource(
         {
@@ -259,10 +532,10 @@ describe("official provider identity and relevance regression", () => {
         },
         instruction,
       ),
-    ).toBe("irrelevant");
+    ).not.toBe("first-party");
     expect(
       classifyProviderSource({ ...novel, title: "Pricing" }, instruction),
-    ).toBe("unverified");
+    ).toBe("candidate");
   });
 
   it("does not borrow relevance or origin from another domain or a same-domain blog", () => {
@@ -283,7 +556,7 @@ describe("official provider identity and relevance regression", () => {
         article,
         ...goodSources.slice(1),
       ]),
-    ).toBe("irrelevant");
+    ).toBe("candidate");
     expect(
       classifyProviderSource(
         {
@@ -293,13 +566,13 @@ describe("official provider identity and relevance regression", () => {
         },
         instruction,
       ),
-    ).toBe("irrelevant");
+    ).not.toBe("first-party");
     expect(
       classifyProviderSource(
         { ...sparse, snippet: "We develop Chinese language models." },
         instruction,
       ),
-    ).toBe("irrelevant");
+    ).not.toBe("first-party");
   });
 
   it("returns a clear empty state when no suitable first-party source is verified", async () => {
@@ -359,7 +632,7 @@ describe("official provider identity and relevance regression", () => {
       url: article.url,
       cited: false,
     });
-    expect(result.officialProviders?.map((item) => item.url)).toEqual([
+    expect(result.providerCandidates?.map((item) => item.url)).toEqual([
       deepseek.url,
     ]);
   });
@@ -390,7 +663,7 @@ describe("official provider identity and relevance regression", () => {
     const transport = offlineTransport([...email, ...irrelevant], []);
     const result = await discoverOffers(request, env, transport, 2000);
     expect(transport).toHaveBeenCalledTimes(3);
-    expect(result.officialProviders?.map((item) => item.url)).toEqual(
+    expect(result.providerCandidates?.map((item) => item.url)).toEqual(
       email.map((item) => item.url),
     );
     for (const item of email)
