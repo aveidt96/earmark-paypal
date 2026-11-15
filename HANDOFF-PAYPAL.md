@@ -11,8 +11,9 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 - **2026-11-15: Incomplete-comparison relevance fix verified offline on latest
   fetched `origin/main` (`7457b75`, merged PR #3).** Local branch
   `fix/research-relevance-fallback` filters purchasing evidence before Gemini and
-  in the server/client fallback; unrelated-only searches fail concisely. Prepared
-  for draft PR review; no merge or deployment is authorized. Production runtime logs at 06:43 UTC
+  in the server/client fallback; unrelated-only searches fail concisely. Published
+  for draft review in [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4);
+  no merge or deployment is authorized. Production runtime logs at 06:43 UTC
   remain inaccessible (HTTP 403); the live collector error is unconfirmed.
 
 - **2026-11-15: PR #3 final-review corrections distinguish corroborated identity
@@ -8033,13 +8034,13 @@ Root causes identified in `web/src/server/paypal/offer-discovery.ts` and
 `web/src/components/offer-discovery.tsx`:
 
 - `buildOfferSearchQuery` biased Tavily results toward `"named tiers, currency,
-  and billing periods"` without `exclude_domains`, causing aggregator blogs and
+and billing periods"` without `exclude_domains`, causing aggregator blogs and
   comparison directories to crowd out official vendor usage/prepaid credit docs.
 - `discoverOffers` ran targeted follow-up search only after Gemini (`offers`)
   already returned an offer; when Gemini returned `offers: []` or missed
   vendors, zero official provider websites survived into `OfferDiscoveryResult`
   and `OfferDiscovery` showed `"No sufficiently structured offer evidence was
-  returned."`.
+returned."`.
 - `PREPAID_CREDIT_RE` did not match common credit top-up phrasing such as
   `top-ups` or `credit balances`.
 
@@ -8082,7 +8083,7 @@ Verification in `.tools/task09-quota` (Node `22`, offline fixtures only, after c
   all modified code/test files: `0` errors, `0` warnings.
 - `npm run typecheck`: passed across workspaces and `api/src/tsconfig.json`.
 - `VERCEL=1 npm run build --workspace @flint/web`: passed (`16/16` static routes
-  + dynamic routes compiled).
+  - dynamic routes compiled).
 - `node scripts/check-web-boundary.mjs`: passed (`48` compiled JS chunks checked).
 - Focused Vitest (`offer-discovery` `90/90`, `judge-sandbox` `19/19`,
   `paypal-gemini-agent` `16/16`, `paypal-gemini-boundary` `20/20`, `hosted`
@@ -8432,3 +8433,28 @@ actual live collector model/error/status/timeout remain unknown. Publication
 results and GitHub checks are verified externally after the normal push and
 recorded in the PR/final report. Live relevance requires a separately authorized
 post-deployment retest; draft publication does not establish Production accuracy.
+
+### 2026-11-15 — Draft PR #4 publication verification and handoff formatting
+
+Normal push published application commit
+`311e0eacd0c3a6d694cce479a10bf7b317844f14` on
+`fix/research-relevance-fallback`; [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4)
+is open as a draft targeting `main`. GitHub verifies both author and committer
+are `aveidt96` (ID `189458132`); the commit metadata uses the requested noreply
+address. Remote `main` remains `7457b75`, and the reviewed tree matches the
+published application commit exactly. The working tree was clean after commit.
+
+Initial GitHub Actions Ubuntu verification passed installation, high-severity
+dependency audit and pinned Forge setup, then stopped at the whole-repository
+Prettier check solely for `HANDOFF-PAYPAL.md`. Its three historical formatting
+differences were already recorded above. This follow-up changes only
+`HANDOFF-PAYPAL.md`: normalize those formatting differences, update publication
+state and record the observed CI outcome. Historical results are preserved;
+application/test/configuration files remain identical to `311e0ea`.
+
+Follow-up handoff Prettier and whitespace checks pass. Only a
+normal follow-up push is authorized; no amend or force-push. Both Vercel automatic
+branch checks were building at the first inspection, with Windows CI still
+running. Final checks are inspected on the new head and reported in the PR/final
+report. No Production deployment, provider/API research, payment or financial
+database operation was performed.
