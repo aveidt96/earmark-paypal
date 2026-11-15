@@ -1,3 +1,4 @@
+import { privateCheckoutOrigin } from "../lib/private-checkout-profile";
 import type { Metadata } from "next";
 import { PublicPayPalNavigation } from "../components/public-paypal-pages";
 import { Brand } from "../components/glass";
@@ -42,6 +43,19 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  if (privateCheckoutOrigin())
+    return (
+      <html lang="en" data-theme="norway" suppressHydrationWarning>
+        <body>
+          <ThemeProvider>
+            <header className="page-shell">
+              Earmark · Private PayPal Sandbox
+            </header>
+            {children}
+          </ThemeProvider>
+        </body>
+      </html>
+    );
   const legacy = publicMode
     ? null
     : await import("../components/legacy-web-profile");

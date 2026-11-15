@@ -1,3 +1,4 @@
+import { privateCheckoutOrigin } from "../web/src/lib/private-checkout-profile";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
@@ -74,6 +75,23 @@ async function main() {
   )
     throw new PaymentError("INVALID_TEST_SERVER_ARGUMENTS");
   loadPayPalEnvironment();
+  const privateOrigin = privateCheckoutOrigin();
+  if (privateOrigin && process.argv.some((arg) => arg.startsWith("--us-")))
+    throw new PaymentError("PRIVATE_CHECKOUT_FRESH_CAMPAIGN_REQUIRED");
+  const buildPath = new URL(
+    "../web/.next/required-server-files.json",
+    import.meta.url,
+  );
+  if (!existsSync(buildPath))
+    throw new PaymentError("PRODUCTION_BUILD_REQUIRED");
+  const built = JSON.parse(readFileSync(buildPath, "utf8")) as {
+    config?: { env?: { EARMARK_PRIVATE_CHECKOUT_BUILD?: string } };
+  };
+  if (
+    (built.config?.env?.EARMARK_PRIVATE_CHECKOUT_BUILD === "true") !==
+    Boolean(privateOrigin)
+  )
+    throw new PaymentError("CHECKOUT_BUILD_PROFILE_MISMATCH");
   const oauth = paypalOAuthSettings(),
     merchant = parse(paypalMerchantSchema, process.env.PAYPAL_MERCHANT_ID);
   const target = approvedPayPalTarget(),
@@ -111,7 +129,8 @@ async function main() {
     throw new PaymentError("CONFLICTING_PAYMENT_PERMISSIONS");
   const us = args.includes("--us-prepare") || oneOrder || oneCapture;
   const port = us ? 3031 : 3030;
-  const origin = `http://127.0.0.1:${port}`;
+  const listenerOrigin = `http://127.0.0.1:${port}`;
+  const origin = privateOrigin ?? listenerOrigin;
   if (!existsSync(new URL("../web/.next/BUILD_ID", import.meta.url)))
     throw new PaymentError("PRODUCTION_BUILD_REQUIRED");
   const probe = createServer();
@@ -291,7 +310,11 @@ async function main() {
       throw new PaymentError("TEST_SERVER_START_FAILED");
     }
     try {
-      const response = await fetch(`${origin}/api/paypal/test`);
+      const response = await fetch(`${listenerOrigin}/api/paypal/test`, {
+        headers: { Host: new URL(origin).host },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      });
       const info = (await response.json().catch(() => ({}))) as {
         error?: unknown;
       };

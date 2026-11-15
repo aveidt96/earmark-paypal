@@ -47,8 +47,10 @@ export class TestOwnerAuth<
   origin(request: Request, mutating = false) {
     const url = new URL(request.url),
       host = request.headers.get("host");
+    if (this.config.origin.startsWith("https:") && !host)
+      throw new PaymentError("UNTRUSTED_REQUEST_ORIGIN");
     // Next may normalize request.url to its internal hostname. Host is the incoming
-    // authority; pin it to the server-configured loopback origin (DNS rebinding guard).
+    // authority; pin it to the server-configured origin (DNS rebinding guard).
     if (
       host
         ? host !== new URL(this.config.origin).host
@@ -60,7 +62,9 @@ export class TestOwnerAuth<
   }
   private sign(payload: string) {
     return createHmac("sha256", this.config.sessionSecret)
-      .update(`${this.config.sessionEpoch}\0${payload}`)
+      .update(
+        `${this.config.origin.startsWith("https:") ? this.config.origin + "\0" : ""}${this.config.sessionEpoch}\0${payload}`,
+      )
       .digest("base64url");
   }
   private cookie(value: string, age: number) {

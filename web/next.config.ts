@@ -9,12 +9,18 @@ const publicDemoOnly =
     ? process.env.NEXT_PUBLIC_DEMO_ONLY !== "false"
     : process.env.NEXT_PUBLIC_DEMO_ONLY === "true");
 
+const privateCheckout =
+  process.env.PAYPAL_TEST_HOSTING_PROFILE === "private-https";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  env: { NEXT_PUBLIC_DEMO_ONLY: String(publicDemoOnly) },
+  env: {
+    NEXT_PUBLIC_DEMO_ONLY: String(publicDemoOnly),
+    EARMARK_PRIVATE_CHECKOUT_BUILD: privateCheckout ? "true" : "false",
+  },
   webpack(config, { webpack }) {
-    if (publicDemoOnly) {
+    if (publicDemoOnly || privateCheckout) {
       // Exclude the legacy client graph before the App Router collects client references.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
