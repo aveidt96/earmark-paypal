@@ -90,6 +90,7 @@ export async function checkoutFixture(
       {
         method: action ? "POST" : "GET",
         headers: {
+          Host: new URL(origin).host,
           Origin: origin,
           ...(action ? { "Content-Type": "application/json" } : {}),
           ...(cookie ? { Cookie: cookie } : {}),

@@ -1,4 +1,6 @@
-function unavailable(): never {
+function unavailable() {
+  // Private builds prerender empty legacy pages; the request proxy rejects them.
+  if (process.env.EARMARK_PRIVATE_CHECKOUT_BUILD === "true") return null;
   throw new Error("LEGACY_WEB_PROFILE_DISABLED");
 }
 

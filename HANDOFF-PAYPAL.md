@@ -1,12 +1,31 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-14**
+Last updated: **2026-11-15**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **Private HTTPS integration, 2026-11-15: integrated and verified locally.**
+  Based on latest fetched `origin/main` (`6182306`), preserving the official-provider
+  discovery, pricing, quota, research reliability and public-production guards.
+  Only the 13-file HTTPS milestone is applied; no main merge or remote push.
+
+- **Private HTTPS Sandbox profile, 2026-11-14: implemented locally, hosting pending.**
+  Explicit private-https origin/gateway acknowledgement, private route allowlist,
+  secure origin-bound owner sessions and loopback launcher support are prepared.
+  Public demo restrictions and payment policy are unchanged. No live API call,
+  financial database change, deployment, commit or push is authorized/performed.
+
+- **Secure Sandbox demonstration audit, 2026-11-14: private procedure prepared.**
+  Existing fixed checkout can be demonstrated on a separate loopback instance
+  behind individually authenticated SSH forwarding plus existing owner login.
+  Public research configuration and payment guards remain unchanged. See
+  `docs/secure-sandbox-checkout-demo.md`. No deployment, transaction, database
+  mutation, commit or push was performed.
+
 
 - **Task: Official provider discovery fix verified locally in `.tools/task09-quota` (stacked on `origin/main` commit `4c6ed86`), 2026-11-14; ready for review before commit/push/deployment.**
   Separates first-class verified official provider website and documentation
@@ -8064,3 +8083,219 @@ Unverified / pending:
 
 - No live Tavily, Gemini, or PayPal calls, no database mutations, and no commit,
   push, or Vercel deployment occurred. Root checkout remains untouched.
+
+
+### 2026-11-14 — Secure authenticated Sandbox checkout demonstration audit
+
+User requested the smallest secure path to demonstrate existing Orders v2
+checkout to authorized testers while retaining public read-only research,
+mandate/owner/buyer controls, merchant restrictions, idempotency and ledger.
+Inspected test/agent checkout configuration, route wrappers, owner session/CSRF
+authentication, runtime/service/client, repository database guards, private
+launcher, public research profile and Next/Render deployment configuration.
+
+- Added `docs/secure-sandbox-checkout-demo.md`: implementation inventory and
+  minimal private-loopback/SSH procedure, separate Sandbox database/build/state,
+  environment matrix, explicit execution-authorization checkpoints, merchant-app
+  ownership confirmation, manual buyer approval, recovery and shutdown. Documents
+  that the existing login is a single-owner local interface, not hosted SSO;
+  Vercel/Lambda rejection and public restrictions must remain. No infrastructure
+  or payment-code change is necessary for this supervised private procedure.
+- Added `web/test/paypal-demo-isolation.test.ts`: actual route-wrapper regression
+  tests proving both public flags independently block test checkout, agent
+  checkout and webhook dispatch, including mutations and login, even when
+  private enable/payment flags are accidentally true. Mocked downstream handlers
+  must remain uncalled. No real credentials, network or database are used.
+- Updated this handoff current-state summary and log. No runtime environment
+  templates, application files, financial data, dependencies or lockfiles changed.
+  Historical US permissions remain consumed; no old campaign/owner was reset.
+
+Fresh offline checks: 13 selected Vitest files, **246 tests passed**, covering
+public/private isolation, owner auth/CSRF/Host/session, fixed checkout, policy,
+service, PayPal client/config, mocked PostgreSQL, capture, agent payments,
+webhooks, offer discovery and Judge isolation. Agent TypeScript compilation
+passed. New-test Biome lint and initial whitespace checks passed. Remaining
+web typecheck/final formatting results are recorded below.
+
+Setup: initial npm ci failed because default Node24 does not meet the pinned
+Node22 engine. Installed dependencies from the unchanged lockfile with scripts
+disabled under a task-local Node22.23.5 executable; no dependency changes.
+Invoking npm exec without network stalled on package resolution; direct cached
+Node22 was used for actual offline checks. No test restriction was weakened.
+No PayPal API call, database connection/financial write, server startup,
+deployment, commit or push occurred. Production browser build/boundary scans
+and live merchant/credential verification are not claimed for this audit.
+
+Final checks: web TypeScript no-emit check, new-test Biome lint, changed
+runbook/test Prettier and git whitespace checks passed. Historical handoff
+formatting was preserved to avoid unrelated changes. No production build or
+live API/database check was run.
+
+
+### 2026-11-14 — Implement private HTTPS Sandbox hosting profile
+
+User authorized minimal implementation and offline validation only. Read root
+and web instructions, the deployment runbook, current handoff and installed
+Next.js proxy guide. Earlier SSH-only assessment is superseded: the opt-in
+HTTPS adapter below is now implemented, while loopback remains the default.
+
+Changed files:
+- `web/src/lib/private-checkout-profile.ts` (new): shared exact canonical HTTPS
+  origin/profile validation, explicit gateway acknowledgement, rejection of
+  public research/demo conflicts, unsupported serverless runtimes and disabled
+  TLS verification; allowlisted private paths/methods and build-marker fail-closed.
+- `web/src/proxy.ts` (new): checks every private request/asset, pins Host without
+  trusting forwarding headers, returns 404 for unrelated routes, 403 for wrong
+  Host, 503 for invalid profile, no-store/frame/referrer protections. Normal
+  loopback/public routing passes through unchanged.
+- `web/src/server/paypal/test-config.ts`: opt-in external HTTPS origin feeds the
+  existing PayPal return/cancel URLs; historical US permissions are rejected in
+  this profile. All existing seller binding, Sandbox and owner guards retained.
+- `web/src/server/paypal/test-auth.ts`: HTTPS requires actual Host and binds signed
+  sessions to that origin plus epoch. Existing owner login, CSRF, cookie flags,
+  expiry, logout and server-derived identity retained; loopback signing unchanged.
+- `scripts/paypal-test-serve.ts`: validates private profile/build marker before
+  database access; still binds loopback, probes readiness using exact external
+  Host, and keeps existing child-only execution flags and DB/merchant checks.
+- `web/next.config.ts`, `web/src/app/layout.tsx`,
+  `web/src/components/disabled-legacy-web-profile.ts`: private build marker,
+  exclusion of legacy client graph, private shell without legacy providers or
+  navigation, and empty legacy prerenders (requests remain blocked by proxy).
+- `web/test/paypal-private-https.test.ts` (new) and
+  `web/test/fixtures/paypal-checkout.ts`: hosted origin/Host validation, gateway
+  headers cannot replace owner auth, Secure signed sessions, expiry/logout/epoch,
+  CSRF, callback safety and public/private route isolation; fixture sends Host.
+- `docs/secure-sandbox-checkout-demo.md`: exact build/runtime variables, gateway
+  perimeter and non-bypass prerequisites, listener/Host/callback requirements,
+  single-process lifecycle, existing financial safeguards and authorization steps.
+- This handoff: current summary, change inventory, actual checks/limitations.
+
+No payment service, policy, mandate/idempotency, merchant/accounting logic,
+financial schema, dependencies, lockfile or public deployment setting changed.
+The gateway-protected flag is an operator acknowledgement, not proof or a
+substitute for verified external gateway protection. One process only; no SSO
+subject-to-owner mapping or distributed session system was introduced.
+
+Validation and failures: initial build subprocess could not execute under the
+restricted sandbox (EPERM causing empty tsc --showConfig); verification used
+sandboxed additional permissions. A config TypeScript import was removed in
+favor of the build-profile boolean; the normal web workspace directory is
+required by existing webpack resolution. Private prerender initially hit the
+intentional disabled-legacy exception; the private-only empty placeholder fixed
+this without routing those pages. No checks/guards were disabled. First local
+smoke used an invalid synthetic merchant containing forbidden I; corrected the
+fixture to a valid synthetic merchant, without any provider or database call.
+
+Private production build passed, including Next TypeScript and prerendering.
+Production HTTP smoke passed: private callback page, route isolation, Host
+spoofing, unauthenticated API, owner login Secure/HttpOnly/SameSite cookie, CSRF
+and logout. Synthetic credentials only, PAYPAL_PAYMENTS_ENABLED=false, no DB URL;
+the real payment launcher was not run. Compiled private browser-secret boundary
+scan passed for 46 JS chunks. Launcher strict standalone TypeScript and web
+no-emit check passed. Biome lint passed (informational style suggestions remain).
+Further final test/public build results follow.
+
+Local-only artifacts: `.tools/private-https-smoke.py`,
+`.tools/public-checkout-smoke.py` and `.tools/public-profile-build/`; build/test
+logs reside in `/tmp`. Existing historical financial artifacts were not touched.
+
+Remaining hosting prerequisites: separate isolated Sandbox database/approved
+schema, verified seller/app and distinct buyer, protected persistent owner state,
+one Node22 process, exact HTTPS hostname/certificate, gateway allowlist over all
+paths and direct-origin denial, and authorized hosted callback/session checks.
+Separate approval still required for provisioning, deployment, instance execution
+enablement and any bounded payment. No PayPal call, DB connection/write, commit,
+push or deployment was performed in this implementation session.
+
+Final validation: **274/274 tests passed in 14 suites**. Private and public
+production builds passed. Public production HTTP smoke confirms homepage200
+and test/agent checkout403. Both compiled browser boundary scans passed for
+46 chunks each. A production private-build smoke confirms profile loss returns
+503 for both checkout and unrelated routes. Restored the private artifact under
+`web/.next`; retained the public verification build only in ignored `.tools`.
+Changed-file Prettier, Biome lint and whitespace checks passed. All runtime
+smokes used synthetic secrets, payment execution false and no financial DB URL.
+No hosted gateway, real credentials, financial database or PayPal transaction
+was accessed. Work remains uncommitted and unpushed; no deployment occurred.
+
+
+### 2026-11-15 — Integrate private HTTPS milestone onto current origin/main
+
+User authorized a focused local integration and local commit only after all
+required checks pass. No push, PR, main merge, deployment, PayPal call, financial
+DB changes or secrets changes are authorized. Read root/web instructions and
+current handoff; used the installed Next proxy guide for the retained boundary.
+
+Before changes, verified the exact 13-file milestone (8 tracked edits and 5 new
+files), empty index and original HEAD fc3b3e48ad2dd2cbf485a1cbf760778b0cb5d636.
+Created and hash-verified a complete recoverable snapshot under
+`.git/private-https-integration/20261115T003150Z/`: all 13 original files, tar
+archive, SHA256 manifest, tracked patch, status and recovery instructions.
+Recorded a local backup ref for the original base. No original user work was lost.
+
+Fetched origin/main at 6182306161f2ffc4f015a79efd2703f359eb89cc and created
+`feat/private-https-paypal-20261115` directly from it. Applied only the 13 allowed
+paths; the five added files had no upstream collisions. Resolved overlaps:
+
+- `web/next.config.ts`: retained upstream publicDemoOnly production/Vercel rules;
+  one combined env object exports both the public flag and private build marker;
+  legacy client exclusion uses publicDemoOnly OR privateCheckout.
+- `web/src/app/layout.tsx`: retained upstream public research UI, metadata,
+  publicMode and footer; inserted only the private shell branch/import.
+- `HANDOFF-PAYPAL.md`: kept upstream's entire research history and status, added
+  the two earlier private milestone logs/statuses and this integration record.
+
+Remaining milestone paths: `scripts/paypal-test-serve.ts`,
+`web/src/components/disabled-legacy-web-profile.ts`,
+`web/src/server/paypal/test-auth.ts`, `web/src/server/paypal/test-config.ts`,
+`web/test/fixtures/paypal-checkout.ts`, `docs/secure-sandbox-checkout-demo.md`,
+`web/src/lib/private-checkout-profile.ts`, `web/src/proxy.ts`,
+`web/test/paypal-demo-isolation.test.ts`, `web/test/paypal-private-https.test.ts`.
+All have the same focused purpose described in the prior implementation entry.
+The runbook now names integration base `6182306`; added three config regression
+cases to the HTTPS test file to protect default production-public mode,
+forced-public Vercel Production mode and explicit private non-Vercel builds.
+
+Verified that all 23 other paths changed upstream since fc3b3e4 are byte-identical
+to origin/main, including official-provider discovery/pricing, research UI,
+reliability, quota and security changes. No dependency, lockfile, Lambda code,
+financial schema or payment service was added/changed. Work stayed in the Cloud
+checkout; the Windows root checkout/paused AWS work were not accessed.
+
+Fresh integration validation: first combined run passed 315 tests; after the
+three production-default regression cases, **318 tests passed in 14 suites**,
+including all current upstream offer-discovery tests. Agent compilation, web
+no-emit check, strict launcher typecheck and changed-code Biome lint passed
+(informational style suggestions only). The private production build passed;
+private production HTTP smoke passed with synthetic credentials, payments false,
+no database URL: route isolation, callback page, Host spoofing, unauthenticated
+API, secure owner login, CSRF, logout and profile-loss fail-closed 503. Private
+compiled browser boundary scan passed for 46 chunks. Final public-build and
+formatting/commit outcomes are recorded below.
+
+Snapshot and validation artifacts are local only. Existing `.tools` smoke
+scripts were reused without expanding the Git scope; the integration's private
+build is temporarily held under `.tools/integration-private-build/`. No real
+payment launcher was started. Current gateway, credentials, database or live
+PayPal behavior are not verified by offline tests. Hosting prerequisites and
+separate execution/deployment approval requirements in the runbook still apply.
+
+Final integration gates: public production build passed, public HTTP smoke
+passed (homepage 200; checkout/agent APIs 403), and its browser-secret boundary
+scan passed for 46 chunks. Private and public scans both passed. The security
+regression tests explicitly enable payment/backend flags inside isolated tests
+and prove both public flags independently prevent checkout handler dispatch.
+The three new config cases preserve upstream's default-public production build
+and forced-public Vercel Production even with an explicit false public flag.
+Web and launcher strict typechecks, changed-code lint, changed-file formatting
+and whitespace checks passed. Both production HTTP smokes used synthetic
+credentials, payments false and no financial DB URL. No required check failed.
+
+The 13-path allowlist and recoverable snapshot were reverified; all 23 other
+upstream-changed files remain byte-identical. Restored the private integration
+build under web/.next and retained the public test artifact only under ignored
+.tools/integration-public-build. The earlier 274-test result remains historical;
+the integrated result is 318 tests on base `6182306`. All required gates are passed
+for the user-authorized local integration commit. No remote push, PR, main merge
+or deployment is authorized/performed; deployment readiness remains conditional
+on the runbook's gateway, database/seller and hosted verification prerequisites.

@@ -1,4 +1,5 @@
 import "server-only";
+import { privateCheckoutOrigin } from "../../lib/private-checkout-profile";
 import { createHash } from "node:crypto";
 import { paypalCheckoutSettings, type PayPalCheckoutSettings } from "./config";
 import { identitySchema, parse, PaymentError } from "./domain";
@@ -32,6 +33,12 @@ export function testCheckoutConfig(
     env.AWS_LAMBDA_FUNCTION_NAME
   )
     throw new PaymentError("PAYPAL_TEST_CHECKOUT_DISABLED");
+  let privateOrigin: string | undefined;
+  try {
+    privateOrigin = privateCheckoutOrigin(env);
+  } catch (error) {
+    throw new PaymentError((error as Error).message);
+  }
   let origin: URL;
   try {
     origin = new URL(env.PAYPAL_TEST_ORIGIN ?? "");
@@ -40,7 +47,8 @@ export function testCheckoutConfig(
   }
   if (
     !["http:", "https:"].includes(origin.protocol) ||
-    !["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname) ||
+    (!privateOrigin &&
+      !["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname)) ||
     origin.username ||
     origin.password ||
     origin.pathname !== "/" ||
@@ -52,6 +60,13 @@ export function testCheckoutConfig(
   const campaign = env.PAYPAL_TEST_CAMPAIGN ?? "legacy";
   if (!["legacy", "us-v1"].includes(campaign))
     throw new PaymentError("INVALID_TEST_CAMPAIGN");
+  if (
+    privateOrigin &&
+    (campaign !== "legacy" ||
+      env.PAYPAL_TEST_US_ORDER_ONCE ||
+      env.PAYPAL_TEST_US_CAPTURE_ONCE)
+  )
+    throw new PaymentError("PRIVATE_CHECKOUT_FRESH_CAMPAIGN_REQUIRED");
   const preparationOnly = campaign === "us-v1";
   const usOrderOnce =
     env.PAYPAL_TEST_US_ORDER_ONCE === "task03e-existing-us-attempt";
