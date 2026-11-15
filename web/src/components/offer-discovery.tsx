@@ -10,6 +10,7 @@ import {
   type OfferDiscoveryResult,
 } from "../lib/offer-discovery";
 import { Badge, Button } from "./glass";
+import { isRelevantPurchasingSource } from "../lib/research-relevance";
 
 const reasonLabels: Record<string, string> = {
   PROVIDER_IDENTITY_UNVERIFIED:
@@ -57,19 +58,14 @@ export function IncompleteOfferComparison({
 }: {
   result: IncompleteComparison;
 }) {
-  const retrievedItems = (
-    result.results?.length
-      ? result.results
-      : result.sources.map((url) => ({
-          title: url.replace(/^https:\/\//, ""),
-          url,
-          snippet: "",
-          category: "web" as const,
-        }))
-  ).flatMap((item) => {
-    const safeUrl = safeExternalOfferUrl(item.url);
-    return safeUrl ? [{ ...item, url: safeUrl }] : [];
-  });
+  const retrievedItems = (result.results ?? [])
+    .filter((item) =>
+      isRelevantPurchasingSource(item, result.instruction ?? ""),
+    )
+    .flatMap((item) => {
+      const safeUrl = safeExternalOfferUrl(item.url);
+      return safeUrl ? [{ ...item, url: safeUrl }] : [];
+    });
 
   return (
     <section className="offer-research" aria-label="Comparison incomplete">
@@ -79,7 +75,9 @@ export function IncompleteOfferComparison({
           {result.reason === "timeout"
             ? "Earmark AI ran out of time to compare offers."
             : "Earmark AI couldn’t complete the offer comparison right now."}{" "}
-          Preserved search results are shown below as unverified excerpts.
+          {retrievedItems.length
+            ? "Relevant sources are preserved below; the comparison remains unverified."
+            : "No relevant product or pricing sources could be preserved for this request. Try a more specific product or service."}
         </p>
       </header>
       <div className="offer-research-sources">
@@ -115,26 +113,31 @@ export function IncompleteOfferComparison({
           })}
         </ul>
       </div>
-      <section
-        className="offer-research-unknowns"
-        aria-label="What remains unknown"
-      >
-        <strong>What remains unknown</strong>
-        <ul>
-          <li>
-            Exact plan pricing, currency, billing period, and budget fit still
-            require confirmation on the merchant site.
-          </li>
-          <li>
-            Plan availability, API quotas, and SLA or delivery terms are
-            unverified.
-          </li>
-          <li>PayPal acceptance has not been verified for these merchants.</li>
-          <li>
-            No merchant is approved and automated payment execution is disabled.
-          </li>
-        </ul>
-      </section>
+      {retrievedItems.length > 0 && (
+        <section
+          className="offer-research-unknowns"
+          aria-label="What remains unknown"
+        >
+          <strong>What remains unknown</strong>
+          <ul>
+            <li>
+              Exact plan pricing, currency, billing period, and budget fit still
+              require confirmation on the merchant site.
+            </li>
+            <li>
+              Plan availability, API quotas, and SLA or delivery terms are
+              unverified.
+            </li>
+            <li>
+              PayPal acceptance has not been verified for these merchants.
+            </li>
+            <li>
+              No merchant is approved and automated payment execution is
+              disabled.
+            </li>
+          </ul>
+        </section>
+      )}
     </section>
   );
 }

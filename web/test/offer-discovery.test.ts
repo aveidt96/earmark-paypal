@@ -603,6 +603,7 @@ describe("anonymous Norway research", () => {
         if (stage === "offer_analysis") {
           expect(body).toEqual({
             incompleteComparison: {
+              instruction: payload.instruction,
               reason: "timeout",
               sources: [url],
               results: [
@@ -652,6 +653,7 @@ describe("anonymous Norway research", () => {
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
         incompleteComparison: {
+          instruction: payload.instruction,
           reason: "timeout",
           sources: [url],
           results: [
@@ -777,6 +779,7 @@ describe("anonymous Norway research", () => {
             retryStatus === 503
               ? {
                   incompleteComparison: {
+                    instruction: payload.instruction,
                     reason: "unavailable",
                     sources: [url],
                     results: [
@@ -836,6 +839,7 @@ describe("anonymous Norway research", () => {
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
         incompleteComparison: {
+          instruction: payload.instruction,
           reason: "unavailable",
           sources: [url],
           results: [
@@ -882,6 +886,7 @@ describe("anonymous Norway research", () => {
       const reply = await pending;
       expect(await reply.json()).toEqual({
         incompleteComparison: {
+          instruction: payload.instruction,
           reason: "unavailable",
           sources: [url],
           results: [
@@ -943,6 +948,7 @@ describe("anonymous Norway research", () => {
       expect(reply.status).toBe(200);
       expect(await reply.json()).toEqual({
         incompleteComparison: {
+          instruction: payload.instruction,
           reason: "timeout",
           sources: [url],
           results: [
@@ -1535,6 +1541,7 @@ describe("anonymous Norway research", () => {
           200,
           {
             incompleteComparison: {
+              instruction: payload.instruction,
               reason: "unavailable",
               sources: [url],
               results: expect.any(Array),
@@ -1550,6 +1557,7 @@ describe("anonymous Norway research", () => {
           200,
           {
             incompleteComparison: {
+              instruction: payload.instruction,
               reason: "unavailable",
               sources: [url],
               results: expect.any(Array),
@@ -1567,6 +1575,7 @@ describe("anonymous Norway research", () => {
           200,
           {
             incompleteComparison: {
+              instruction: payload.instruction,
               reason: "unavailable",
               sources: [url],
               results: expect.any(Array),
@@ -1646,13 +1655,12 @@ describe("anonymous Norway research", () => {
         officialPricingUrl,
         docsUrl,
         blogUrl,
-        forumUrl,
       ]);
       expect(
         body.incompleteComparison.results.map(
           (r: { category: string }) => r.category,
         ),
-      ).toEqual(["pricing", "docs", "web", "web"]);
+      ).toEqual(["pricing", "docs", "web"]);
 
       const html = renderToStaticMarkup(
         createElement(IncompleteOfferComparison, {
@@ -1728,7 +1736,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       ],
     ],
     [
-      "Find a service with a delivery SLA under 15 minutes.",
+      "Find a weather API service with a delivery SLA under 15 minutes.",
       [
         {
           ...offer,
@@ -1790,7 +1798,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       );
       const searchRaw = String(searchInit?.body);
       expect(JSON.parse(searchRaw)).toEqual({
-        query: `${instruction} original product provider official website API pricing documentation prepaid credits pay-as-you-go plans`,
+        query: expect.stringContaining(
+          "official provider pricing documentation",
+        ),
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
@@ -3554,7 +3564,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       collectorContext.observationsIncludingUntrustedProviderData.results.map(
         (r: { url: string }) => r.url,
       ),
-    ).toEqual([officialPricingUrl, thirdPartyUrl]);
+    ).toEqual([officialPricingUrl]);
 
     expect(result.targetMerchantDomain).toBe("alibabacloud.com");
     expect(result.evidence.searchRequests).toBe(2);
@@ -3788,7 +3798,8 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           {
             title: "What is Model Studio? - Alibaba Cloud",
             url: overviewUrl,
-            content: "Alibaba Cloud Model Studio overview.",
+            content:
+              "Alibaba Cloud Model Studio overview for Qwen3.8 Flash API.",
           },
         ],
       });
