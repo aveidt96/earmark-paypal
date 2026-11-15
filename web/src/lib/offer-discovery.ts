@@ -31,6 +31,21 @@ export type PartialSearchSource = {
   category?: SearchSourceCategory | undefined;
 };
 
+/** Small plain-text excerpts only; search markdown is never product copy. */
+export function conciseResearchDescription(value: string): string {
+  const plain = (value.split("|")[0] ?? "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[|#*_`>]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return "";
+  const sentences = plain.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [plain];
+  const short = sentences.slice(0, 2).join("").trim();
+  return short.length <= 240 ? short : `${short.slice(0, 237).trimEnd()}…`;
+}
+
 export type IncompleteComparison = {
   reason: "timeout" | "unavailable";
   sources: string[];
@@ -174,6 +189,7 @@ export function selectVerifiedOfferSourceUrl(
 export interface DiscoveredOfficialProvider {
   id: string;
   provider: string;
+  service?: string;
   domain: string;
   url: string;
   title: string;

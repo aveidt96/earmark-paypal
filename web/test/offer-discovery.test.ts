@@ -56,7 +56,7 @@ const env = {
 };
 const url = "https://example.com/weather/pricing";
 const faqUrl = "https://example.com/faq/billing";
-const costlyUrl = "https://costly.example.net/weather/pricing";
+const costlyUrl = "https://costly.example/weather/pricing";
 const offer = {
   provider: "Example",
   service: "Weather API monthly plan",
@@ -104,7 +104,7 @@ function transport(
         query: "fixture weather API pricing",
         results: options.tavilyResults ?? [
           {
-            title: "Fixture pricing",
+            title: "Example Weather API pricing",
             url,
             content:
               options.snippet ??
@@ -151,7 +151,7 @@ function transport(
       query: buildTargetedPayPalQuery("example.com"),
       results: options.paymentResults ?? [
         {
-          title: "Fixture Billing FAQ",
+          title: "Example Billing FAQ",
           url: faqUrl,
           content:
             options.paymentSnippet ??
@@ -183,7 +183,7 @@ it("applies the selected public budget independently and only exposes a merchant
     env,
     transport([{ ...offer, provider: "Unrelated Merchant" }]),
   );
-  expect(unrelated.offers[0]?.officialMerchantUrl).toBeNull();
+  expect(unrelated.offers).toEqual([]);
   expect(
     renderToStaticMarkup(
       createElement(OfferDiscovery, {
@@ -191,7 +191,7 @@ it("applies the selected public budget independently and only exposes a merchant
         assistedCheckout: true,
       }),
     ),
-  ).toContain("Review for manual checkout");
+  ).not.toContain("Review for manual checkout");
 });
 
 it("does not borrow another tier's billing period when the price is ambiguous", async () => {
@@ -246,7 +246,7 @@ it.each([
         tavilyResults: [
           {
             url,
-            title: "API pricing",
+            title: "Example Weather API pricing",
             content:
               "Starter costs USD 5 per month. Starter includes current weather and hourly forecasts. Pro includes historical data.",
           },
@@ -583,7 +583,7 @@ describe("anonymous Norway research", () => {
               sources: [url],
               results: [
                 {
-                  title: "Fixture pricing",
+                  title: "Example Weather API pricing",
                   url,
                   snippet:
                     "Weather API monthly plan listed at $5.00 USD per month.",
@@ -632,7 +632,7 @@ describe("anonymous Norway research", () => {
           sources: [url],
           results: [
             {
-              title: "Fixture pricing",
+              title: "Example Weather API pricing",
               url,
               snippet:
                 "Weather API monthly plan listed at $5.00 USD per month.",
@@ -669,7 +669,11 @@ describe("anonymous Norway research", () => {
       const info = vi.spyOn(console, "info").mockImplementation(() => {});
       const fixture = transport([offer], {
         tavilyResults: [
-          { title: "Pricing", url, content: "A weather API plan." },
+          {
+            title: "Example Weather API pricing",
+            url,
+            content: "A weather API plan.",
+          },
           {
             title: "Unsafe",
             url: "https://example.com/?next=https://elsewhere.example.com/",
@@ -753,7 +757,7 @@ describe("anonymous Norway research", () => {
                     sources: [url],
                     results: [
                       {
-                        title: "Pricing",
+                        title: "Example Weather API pricing",
                         url,
                         snippet: "A weather API plan.",
                         category: "pricing",
@@ -812,7 +816,7 @@ describe("anonymous Norway research", () => {
           sources: [url],
           results: [
             {
-              title: "Fixture pricing",
+              title: "Example Weather API pricing",
               url,
               snippet:
                 "Weather API monthly plan listed at $5.00 USD per month.",
@@ -858,7 +862,7 @@ describe("anonymous Norway research", () => {
           sources: [url],
           results: [
             {
-              title: "Fixture pricing",
+              title: "Example Weather API pricing",
               url,
               snippet:
                 "Weather API monthly plan listed at $5.00 USD per month.",
@@ -919,7 +923,7 @@ describe("anonymous Norway research", () => {
           sources: [url],
           results: [
             {
-              title: "Fixture pricing",
+              title: "Example Weather API pricing",
               url,
               snippet:
                 "Weather API monthly plan listed at $5.00 USD per month.",
@@ -1477,7 +1481,7 @@ describe("anonymous Norway research", () => {
       retrievedAt: "2026-11-13T00:00:00.000Z",
       results: [
         {
-          title: "Pricing",
+          title: "Example Weather API pricing",
           url,
           snippet: "$5/month",
           retrievedAt: "2026-11-13T00:00:00.000Z",
@@ -1577,8 +1581,8 @@ describe("anonymous Norway research", () => {
       const blogUrl =
         "https://blog.aggregator.example/best-weather-apis-ranked";
       const forumUrl = "https://www.reddit.com/r/webdev/comments/weather_apis";
-      const docsUrl = "https://vendor.example/docs/api-plans";
-      const officialPricingUrl = "https://vendor.example/pricing";
+      const docsUrl = "https://acme.example/docs/api-plans";
+      const officialPricingUrl = "https://acme.example/pricing";
       const fetcher = transport([offer], {
         geminiStatus: 503,
         tavilyResults: [
@@ -1593,12 +1597,12 @@ describe("anonymous Norway research", () => {
             content: "Forum post.",
           },
           {
-            title: "API Plans Documentation",
+            title: "Weather API Plans Documentation | Acme",
             url: docsUrl,
             content: "Metered tiers documented.",
           },
           {
-            title: "Official Vendor Pricing",
+            title: "Weather API Pricing | Acme",
             url: officialPricingUrl,
             content: "Starter $9 USD monthly.",
           },
@@ -1632,7 +1636,7 @@ describe("anonymous Norway research", () => {
         }),
       );
       expect(html).toContain("Comparison incomplete");
-      expect(html).toContain("Official Vendor Pricing");
+      expect(html).toContain("Weather API Pricing | Acme");
       expect(html).toContain("Pricing page excerpt");
       expect(html).toContain("API &amp; billing docs");
       expect(html).toContain("What remains unknown");
@@ -1721,7 +1725,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           ? {
               tavilyResults: [
                 {
-                  title: "Fixture pricing",
+                  title: "Example Weather API pricing",
                   url,
                   content:
                     "Weather API monthly plan listed at $5.00 USD per month.",
@@ -1762,7 +1766,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       );
       const searchRaw = String(searchInit?.body);
       expect(JSON.parse(searchRaw)).toEqual({
-        query: `${instruction} official vendor website API pricing documentation prepaid credits pay-as-you-go plans`,
+        query: `${instruction} original product provider official website API pricing documentation prepaid credits pay-as-you-go plans`,
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
@@ -1793,7 +1797,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         retrievedAt: result.retrievedAt,
         results: [
           {
-            title: "Fixture pricing",
+            title: "Example Weather API pricing",
             url,
             snippet: "Weather API monthly plan listed at $5.00 USD per month.",
             retrievedAt: result.retrievedAt,
@@ -2086,32 +2090,16 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
     // Turn 1 returns blog-only articles, triggering a pre-Gemini official provider_search (4 calls total).
     expect(f).toHaveBeenCalledTimes(4);
-    expect(result.offers[0]).toMatchObject({
-      paypal: "unknown",
-      paypalEvidence: null,
-      paypalSourceUrl: null,
-      priceMinor: null,
-      pricing: { status: "unknown" },
-      policy: { eligible: false },
-    });
-    expect(result.offers[0]?.sources).toContainEqual({
-      url: changelog,
-      cited: true,
-    });
-    expect(result.offers[1]).toMatchObject({
-      paypal: "unknown",
-      priceMinor: null,
-      pricing: { status: "unknown" },
-      policy: { eligible: false },
-    });
+    // Editorial evidence cannot become a merchant merely because Gemini names it.
+    expect(result.offers).toEqual([]);
+    expect(result.officialProviders).toEqual([]);
     expect(result.reviewRecommendation).toBeNull();
     const html = renderToStaticMarkup(
       createElement(OfferDiscovery, { result }),
     );
-    expect(html).toContain("unknown (insufficient evidence)");
-    expect(html).toContain("Listed price: Unknown");
-    expect(html).toContain("More evidence needed");
-    expect(html).not.toContain("Ineligible for Earmark payment");
+    expect(html).toContain("No suitable first-party provider was verified");
+    expect(html).not.toContain("Verified official providers");
+    expect(html).not.toContain("Approve for manual checkout");
   });
 
   it("reproduces the Task 07P-L3 AccuWeather Free/Starter table defect, withholds unsupported availability, and targets AccuWeather for payment-method search", async () => {
@@ -2232,7 +2220,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         {
           tavilyResults: [
             {
-              title: "AccuWeather Pricing",
+              title: "AccuWeather Weather API Pricing",
               url: accuweatherOverview,
               content: accuweatherTable,
             },
@@ -2389,12 +2377,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       {
         tavilyResults: [
           {
-            title: "WeatherAPI Pricing",
+            title: "WeatherAPI Weather API Pricing",
             url: weatherApiPricing,
             content: "Pro costs USD 9 per month.",
           },
           {
-            title: "AccuWeather Pricing",
+            title: "AccuWeather Weather API Pricing",
             url: accuweatherPricing,
             content: "Starter costs USD 2 per month.",
           },
@@ -2443,7 +2431,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           content: "Example weather API plans start at $5 per month.",
         },
         {
-          title: "Example pricing",
+          title: "Example Weather API pricing",
           url,
           content: "Starter costs USD 5 per month.",
         },
@@ -2550,12 +2538,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         {
           tavilyResults: [
             {
-              title: "Pricing",
+              title: "Example Weather API pricing",
               url,
               content: "Weather API monthly plan is $5 USD per month.",
             },
             {
-              title: "Plans",
+              title: "Example Weather API plans",
               url: second,
               content: "Weather API monthly plan is $8 USD per month.",
             },
@@ -2793,7 +2781,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const f = transport([], {
       tavilyResults: [
         {
-          title: `${"t".repeat(199)} tail`,
+          title: `${"Example Weather API pricing ".padEnd(199, "t")} tail`,
           url,
           content: `${"a".repeat(599)} tail`,
         },
@@ -2827,7 +2815,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       retrievedAt: result.retrievedAt,
       results: [
         {
-          title: "t".repeat(199),
+          title: "Example Weather API pricing ".padEnd(199, "t"),
           url,
           snippet: "a".repeat(599),
           retrievedAt: result.retrievedAt,
@@ -2948,7 +2936,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       retrievedAt: res.retrievedAt,
       results: [
         {
-          title: " Fixture pricing ",
+          title: " Example Weather API pricing ",
           url,
           snippet: "Weather API monthly plan listed at $5.00 USD per month. ",
           retrievedAt: res.retrievedAt,
@@ -3110,13 +3098,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ]),
     );
-    expect(result.offers[0]?.sources).toEqual([
-      { url: "https://uncited.example.com/price", cited: false },
-    ]);
-    expect(result.offers[0]?.paypal).toBe("unknown");
-    expect(result.offers[0]?.policy.reasons).toContain(
-      "GROUNDED_SOURCE_NOT_LINKED",
-    );
+    expect(result.offers).toEqual([]);
+    expect(result.reviewRecommendation).toBeNull();
+    expect(result.proposal).toBeNull();
     await expect(
       discoverOffers(
         "Find weather API",
@@ -3418,7 +3402,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         {
           tavilyResults: [
             {
-              title: "AccuWeather API Packages",
+              title: "AccuWeather Weather API Packages",
               url: accuUrl,
               content:
                 "| Plan | Price | Calls |\n| --- | --- | --- |\n| Starter | $2/month | 15,000 monthly calls |",
@@ -3939,7 +3923,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     });
 
     const result = await discoverOffers(
-      "Compare NovaML API Echo-7B usage rates and prepaid credit packs",
+      "Compare NovaML API Echo-7B pricing and prepaid credit packs",
       env,
       fetcher,
     );
@@ -4089,7 +4073,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
                   title: "Models & Pricing | DeepSeek API Docs",
                   url: deepseekPricing,
                   content:
-                    "DeepSeek API supports pay-as-you-go prepaid top-up credits with usage billed per 1M tokens.",
+                    "DeepSeek is a China-based AI provider. DeepSeek develops its own AI models. DeepSeek API supports pay-as-you-go prepaid top-up credits with usage billed per 1M tokens.",
                 },
               ],
             });
@@ -4103,13 +4087,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
                   title: "Model pricing - Alibaba Cloud Model Studio",
                   url: alibabaPricing,
                   content:
-                    "Alibaba Cloud Model Studio offers pay-as-you-go token pricing and coding packages.",
+                    "Alibaba Cloud is a China-based AI provider. Alibaba develops its own AI models including Qwen. Model Studio offers pay-as-you-go token pricing and coding packages.",
                 },
                 {
                   title: "Pricing | Zhipu AI BigModel",
                   url: zhipuPricing,
                   content:
-                    "Zhipu AI BigModel API offers prepaid token packages and pay-as-you-go API access.",
+                    "Zhipu AI is a China-based AI provider. We develop our own language models including GLM. BigModel API offers prepaid token packages and pay-as-you-go API access.",
                 },
                 {
                   title: "DeepSeek Official Pricing",
@@ -4282,13 +4266,14 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           {
             title: "Pricing · Resend",
             url: resendPricing,
-            content: "Pro starts at $20 (currency omitted in bare cell).",
+            content:
+              "Resend transactional email API Pro starts at $20 (currency omitted in bare cell).",
           },
           {
-            title: "Pricing | Postmark",
+            title: "Pricing | Postmark (postmarkapp.com)",
             url: postmarkPricing,
             content:
-              "Prepaid email credit packages and transactional billing plans.",
+              "Postmark transactional email API credit packages and billing plans.",
           },
           {
             title: "Postmark Checkout",
@@ -4299,7 +4284,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
             title: "Billing & Credits Guide | Mailjet Developer Docs",
             url: mailjetDocs,
             content:
-              "Pay-as-you-go API usage and prepaid top-up credits available.",
+              "Mailjet transactional email API usage and prepaid top-up credits available.",
           },
         ],
         paymentResults: [],
@@ -4307,7 +4292,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
 
     const result = await discoverOffers(
-      "Compare $20 European transactional email API plans",
+      "Compare $20 transactional email API plans",
       env,
       f,
       2000,

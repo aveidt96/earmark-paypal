@@ -376,12 +376,12 @@ export function buildExcludedDomains(
 }
 
 function buildOfferSearchQuery(instruction: string) {
-  const query = `${instruction} official vendor website API pricing documentation prepaid credits pay-as-you-go plans`;
+  const query = `${instruction} original product provider official website API pricing documentation prepaid credits pay-as-you-go plans`;
   return query.length <= 1000 ? query : instruction;
 }
 
 function buildOfficialProviderDiscoveryQuery(instruction: string) {
-  const query = `${instruction} official website documentation pricing rate card billing prepaid credits API account`;
+  const query = `${instruction} original developer provider official website product documentation pricing rate card billing`;
   return query.length <= 1000 ? query : instruction;
 }
 
@@ -480,13 +480,177 @@ function isOfficialPricingPath(pathname: string) {
 }
 
 function hostMatchesBrandToken(hostname: string, token: string): boolean {
-  const cleanHost = hostname.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cleanHost = (rootDomain(hostname).split(".")[0] ?? "").replace(
+    /[^a-z0-9]/g,
+    "",
+  );
   const cleanToken = token.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (cleanToken.length < 4) return false;
-  if (cleanHost.includes(cleanToken)) return true;
-  if (cleanToken.length >= 6 && cleanHost.includes(cleanToken.slice(0, 5)))
+  return cleanHost === cleanToken;
+}
+
+type ProviderSource = ValidatedResearchResults["results"][number];
+
+const RESELLER_RE =
+  /\b(?:resell(?:er|ing)?|aggregat(?:or|ion)|multi[- ](?:model|provider)|third[- ]party|unified\s+access\s+to\s+(?:multiple|third[- ]party)|access\s+to\s+other\s+providers'|all[- ]in[- ]one\s+AI)\b/i;
+const MODEL_REQUEST_RE =
+  /\b(?:AI\s+models?|LLMs?|language\s+models?|foundation\s+models?|model\s+APIs?)\b/i;
+const INTENT_FILLER = new Set(
+  "a an the find research compare show discover get me for of to my our your affordable cheap best fast reliable approved allowlisted authorized official original direct first party verified provider providers vendor vendors plan plans pricing price prices api apis service services product products model models ai llm llms costing cost costs less than at most budget monthly yearly annual per month year usd eur gbp dollars prepaid credit credits pay go subscription subscriptions".split(
+    " ",
+  ),
+);
+
+function requestSubjectWords(instruction: string): string[] {
+  // Payment, budget and delivery constraints have separate evidence validators.
+  const subject =
+    instruction.split(
+      /\b(?:under|below|within|with|that|and|where|accepting|offering|up to|less than)\b|[;!]/i,
+    )[0] ?? instruction;
+  return normalized(subject)
+    .split(" ")
+    .filter(
+      (word) =>
+        word.length > 1 && !/^\d+$/.test(word) && !INTENT_FILLER.has(word),
+    )
+    .map((word) => word.replace(/s$/, ""));
+}
+
+function sourceProviderBrand(source: ProviderSource): string | null {
+  // Positive brand evidence is required. A safe URL and absence of blog markers
+  // do not establish ownership. Never match subdomain text or a fuzzy prefix.
+  const domain = rootDomain(new URL(source.url).hostname);
+  const words = normalized(source.title).split(" ");
+  for (let start = 0; start < words.length; start += 1) {
+    for (let count = 1; count <= 4; count += 1) {
+      const brandWords = words.slice(start, start + count);
+      if (
+        brandWords.some(
+          (word) => word !== "cloud" && GENERIC_BRAND_WORDS.has(word),
+        )
+      )
+        continue;
+      const phrase = brandWords.join("");
+      if (GENERIC_BRAND_WORDS.has(phrase)) continue;
+      if (hostMatchesBrandToken(domain, phrase))
+        return words.slice(start, start + count).join(" ");
+    }
+  }
+  return null;
+}
+
+function sourceHasProviderIdentity(source: ProviderSource): boolean {
+  return sourceProviderBrand(source) !== null;
+}
+
+function matchesProviderSource(
+  provider: string,
+  source: ProviderSource,
+): boolean {
+  const brand = sourceProviderBrand(source);
+  if (!brand) return false;
+  const domain = rootDomain(new URL(source.url).hostname);
+  if (
+    matchesMerchantDomain(provider, domain) ||
+    containsPhrase(source.title, provider)
+  )
     return true;
-  return false;
+  // An alias must also occur in the retrieved canonical brand (e.g. a company
+  // name followed by its Cloud product). Never infer aliases from a URL prefix.
+  const firstWord = normalized(provider).split(" ")[0] ?? "";
+  return (
+    firstWord.length >= 4 &&
+    !GENERIC_BRAND_WORDS.has(firstWord) &&
+    containsPhrase(brand, firstWord)
+  );
+}
+
+function matchesProviderRequest(
+  source: ProviderSource,
+  instruction: string,
+  results: readonly ProviderSource[],
+): boolean {
+  const domain = rootDomain(new URL(source.url).hostname);
+  // Product context may span retrieved documents from this verified brand.
+  // A comparison article or a different merchant cannot supply that context.
+  const context = results.filter(
+    (item) =>
+      rootDomain(new URL(item.url).hostname) === domain &&
+      sourceHasProviderIdentity(item) &&
+      !isSpoofedOrThirdPartyProvider(item, instruction),
+  );
+  const evidence = context
+    .map((item) => `${item.title} ${item.snippet}`)
+    .join(" ");
+  const modelRequest = MODEL_REQUEST_RE.test(instruction);
+  if (modelRequest) {
+    if (!/\b(?:models?|LLMs?|inference)\b/i.test(evidence)) return false;
+    if (!/\b(?:APIs?|inference|tokens?)\b/i.test(evidence)) return false;
+    if (
+      !/\b(?:AI|LLMs?|language|foundation|inference|tokens?)\b/i.test(evidence)
+    )
+      return false;
+    // Selling access to a model does not establish that the seller made it.
+    const ownsModels = context.some((item) => {
+      const brand = sourceProviderBrand(item) ?? "";
+      const company = brand.split(" ")[0] ?? "";
+      const developer = `(?:${brand.replaceAll(" ", "\\s+")}|${company.length >= 4 && !GENERIC_BRAND_WORDS.has(company) ? company : "we"}|we)`;
+      return (
+        new RegExp(
+          `\\b${developer}\\s+(?:(?:AI|Cloud)\\s+)?(?:develops?|developed|trains?|trained|creates?|created|builds?|built)\\b[^.!?]{0,100}\\b(?:models?|LLMs?)\\b`,
+          "i",
+        ).test(item.snippet) ||
+        /\bour\s+(?:own\s+)?(?:\w+\s+){0,3}(?:models?|LLMs?)\b/i.test(
+          item.snippet,
+        )
+      );
+    });
+    if (!ownsModels) return false;
+  }
+  if (/\bChinese\b/i.test(instruction)) {
+    // Language support, a China price region, or a .cn suffix is not origin.
+    const origin =
+      /\b(?:Chinese\s+(?:AI\s+|language\s+|foundation\s+|model\s+)*(?:developers?|providers?|company|organization|startup)|(?:China|Beijing|Shanghai|Hangzhou)[- ]based|based\s+in\s+China)\b/i;
+    const hasOrigin = context.some((item) => {
+      for (const sentence of item.snippet.split(/(?<=[.!?])\s+/)) {
+        if (!origin.test(sentence)) continue;
+        const subject = sentence.match(
+          /^([A-Za-z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*){0,3})\s+(?:is|are)\s+/,
+        )?.[1];
+        if (
+          subject &&
+          (subject === "We" || containsPhrase(item.title, subject))
+        )
+          return true;
+      }
+      return false;
+    });
+    if (!hasOrigin) return false;
+  }
+  const words = requestSubjectWords(instruction).filter(
+    (word) => word !== "chinese",
+  );
+  const normalizedEvidence = normalized(evidence);
+  return words.every((word) =>
+    normalizedEvidence
+      .split(" ")
+      .some((candidate) => candidate.replace(/s$/, "") === word),
+  );
+}
+
+/** Relationship and intent are separate from price and payment verification. */
+export function classifyProviderSource(
+  source: ProviderSource,
+  instruction: string,
+  results: readonly ProviderSource[] = [source],
+): "first-party" | "reseller" | "editorial" | "unverified" | "irrelevant" {
+  if (!discoverySource(source.url)) return "unverified";
+  if (RESELLER_RE.test(`${source.title} ${source.snippet}`)) return "reseller";
+  if (isSpoofedOrThirdPartyProvider(source, instruction)) return "editorial";
+  if (!sourceHasProviderIdentity(source)) return "unverified";
+  if (!matchesProviderRequest(source, instruction, results))
+    return "irrelevant";
+  return "first-party";
 }
 
 function isSpoofedOrThirdPartyProvider(
@@ -514,6 +678,7 @@ function isSpoofedOrThirdPartyProvider(
     SPOOF_OR_THIRD_PARTY_HOST_LABEL_RE.test(hostname) ||
     EMBEDDED_TLD_SUBDOMAIN_RE.test(hostname) ||
     COMPARISON_TITLE_RE.test(title) ||
+    RESELLER_RE.test(`${title} ${snippet}`) ||
     CHANGELOG_RE.test(`${pathname} ${title}`)
   )
     return true;
@@ -646,7 +811,8 @@ function extractOfficialProviders(
     if (!safeUrl) continue;
     const { hostname, pathname } = new URL(safeUrl);
     if (CHECKOUT_ONLY_PATH_RE.test(pathname)) continue;
-    if (isSpoofedOrThirdPartyProvider(source, instruction)) continue;
+    if (classifyProviderSource(source, instruction, results) !== "first-party")
+      continue;
 
     const domain = rootDomain(hostname);
     const kind = classifyOfficialProviderKind(safeUrl, source.title);
@@ -659,13 +825,21 @@ function extractOfficialProviders(
       item: {
         id: `provider-${byDomain.size + 1}-${domain.replace(/[^a-z0-9]/gi, "-")}`,
         provider: deriveOfficialProviderName(source.title, domain),
+        service: MODEL_REQUEST_RE.test(instruction)
+          ? "Model API"
+          : source.title,
         domain,
         url: safeUrl,
         title: source.title,
-        snippet: source.snippet,
+        // Do not turn search excerpts or markdown tables into product copy.
+        snippet: "",
         kind,
         pricingStatus: "unknown",
-        billingModel: "unknown",
+        billingModel: PREPAID_CREDIT_RE.test(source.snippet)
+          ? "prepaid-credits"
+          : USAGE_MODEL_RE.test(source.snippet)
+            ? "usage-based"
+            : "unknown",
         paypal: "unknown",
         checkoutUrl: null,
       },
@@ -686,8 +860,10 @@ function reconcileOfficialProviders(
   paymentResults: ValidatedPaymentResults,
 ): DiscoveredOfficialProvider[] {
   return providers.map((provider) => {
-    const matchedOffers = offers.filter((offer) =>
-      offer.sources.some((s) => isSameMerchantDomain(s.url, provider.domain)),
+    const matchedOffers = offers.filter(
+      (offer) =>
+        matchesMerchantDomain(offer.provider, provider.domain) &&
+        offer.sources.some((s) => s.cited && s.url === provider.url),
     );
     let pricingStatus: DiscoveredOfficialProvider["pricingStatus"] = "unknown";
     if (matchedOffers.some((o) => o.pricing.status === "source-matched")) {
@@ -704,7 +880,7 @@ function reconcileOfficialProviders(
           o.pricing.status === "source-matched" && o.pricing.period !== null,
       )
         ? "subscription"
-        : "unknown");
+        : provider.billingModel);
 
     const verifiedPayPalStates = new Set(
       matchedOffers.map((o) => o.paypal).filter((state) => state !== "unknown"),
@@ -747,7 +923,8 @@ function rankOfficialFirstDiverse(
   const seenPrimaryDomain = new Set<string>();
   const annotated = results.map((source, index) => {
     const basePriority = offerSourcePriority(source);
-    const thirdParty = isSpoofedOrThirdPartyProvider(source, instruction);
+    const thirdParty =
+      classifyProviderSource(source, instruction, results) !== "first-party";
     const domain = rootDomain(new URL(source.url).hostname);
     return { source, index, basePriority, thirdParty, domain };
   });
@@ -863,11 +1040,8 @@ function matchesMerchantDomain(provider: string, domain: string) {
   const domainLabel = (domain.split(".")[0] ?? "").replaceAll("-", "");
   if (!domainLabel) return false;
   if (compact === domainLabel) return true;
-  if (domainLabel.length >= 4 && compact.startsWith(domainLabel)) return true;
-  if (
-    firstToken.length >= 4 &&
-    (domainLabel === firstToken || domainLabel.startsWith(firstToken))
-  )
+  if (stripped.split(" ").includes(domainLabel)) return true;
+  if (firstToken.length >= 4 && hostMatchesBrandToken(domain, firstToken))
     return true;
   return false;
 }
@@ -881,10 +1055,16 @@ function offerMerchantDomain(
       .map(discoverySource)
       .filter((u): u is string => u !== null),
   );
-  const domains = initialResults.flatMap(({ url }) => {
+  const domains = initialResults.flatMap((source) => {
+    const { url } = source;
     if (!citedUrls.has(url)) return [];
+    if (
+      !sourceHasProviderIdentity(source) ||
+      isSpoofedOrThirdPartyProvider(source, "")
+    )
+      return [];
     const domain = rootDomain(new URL(url).hostname);
-    return matchesMerchantDomain(offer.provider, domain) ? [domain] : [];
+    return matchesProviderSource(offer.provider, source) ? [domain] : [];
   });
   const unique = [...new Set(domains)];
   return unique.length === 1 ? (unique[0] ?? null) : null;
@@ -2628,7 +2808,11 @@ export async function discoverOffers(
   const needsProviderSearch =
     initialOfficialProviders.length === 0 ||
     (initialOfficialProviders.length < 2 &&
-      initialThirdPartyHosts.length >= 2 &&
+      offerResults.filter(
+        (source) =>
+          classifyProviderSource(source, instruction, offerResults) !==
+          "first-party",
+      ).length >= 2 &&
       offerResults.length >= TAVILY_MAX_RESULTS);
   const remainingBeforeProviderMs = timing
     ? Math.floor(timing.deadlineAt - performance.now())
@@ -2901,6 +3085,23 @@ export async function discoverOffers(
   ) =>
     [...grouped.entries()].flatMap(([id, [offer, ...competing]]) => {
       if (!offer) return [];
+      const providerContext = [...activeResults, ...discoveredSeedResults];
+      // The collector cannot promote a reseller, unrelated service or uncited
+      // model claim into a first-party offer. Empty output never gates discovery.
+      const verifiedCitations = activeResults.filter(
+        (source) =>
+          offer.sourceUrls.includes(source.url) &&
+          classifyProviderSource(source, instruction, providerContext) ===
+            "first-party" &&
+          matchesProviderSource(offer.provider, source),
+      );
+      if (!verifiedCitations.length) return [];
+      const providerDomains = new Set(
+        verifiedCitations.map((source) =>
+          rootDomain(new URL(source.url).hostname),
+        ),
+      );
+      if (providerDomains.size !== 1) return [];
       const rawUrls = [
         ...new Set(
           [
@@ -2921,13 +3122,13 @@ export async function discoverOffers(
       );
       const domain =
         citedDomain ?? (pricingDomain === lookupDomain ? pricingDomain : null);
-      const citedInitial = activeResults.filter((source) =>
-        validUrls.includes(source.url),
-      );
+      const citedInitial = verifiedCitations;
       const domainPricingMatches = (
         source: ValidatedResearchResults["results"][number],
       ) =>
         pricingSearchUrls.has(source.url) &&
+        classifyProviderSource(source, instruction, providerContext) ===
+          "first-party" &&
         lookupDomain !== null &&
         isSameMerchantDomain(source.url, lookupDomain) &&
         (containsPhrase(source.snippet, offer.service) ||
@@ -2970,6 +3171,8 @@ export async function discoverOffers(
             const { hostname, pathname } = new URL(source.url);
             return (
               isSameMerchantDomain(source.url, lookupDomain) &&
+              classifyProviderSource(source, instruction, providerContext) ===
+                "first-party" &&
               !LOW_SIGNAL_HOST_OR_PATH_RE.test(hostname) &&
               !LOW_SIGNAL_HOST_OR_PATH_RE.test(pathname) &&
               (citedInitial.some((s) => s.url === source.url) ||
@@ -3200,7 +3403,7 @@ export async function discoverOffers(
     const sources = urls.flatMap((url) => {
       if (!url) return [];
       const isCited =
-        initialUrls.has(url) ||
+        citedInitial.some((source) => source.url === url) ||
         (paymentUrls.has(url) &&
           domain !== null &&
           isSameMerchantDomain(url, domain));
@@ -3396,9 +3599,11 @@ export async function discoverOffers(
     offers,
     reviewRecommendation,
     summary:
-      offers.length === 0 && officialProviders.length > 0
-        ? "Verified official provider websites or pricing documentation were found, though structured tier comparison was limited. Confirm current pricing directly on the official provider pages; external merchants require a separate approved merchant binding before Earmark can consider payment."
-        : "Compare retrieved public offers for review. External merchants need a separate approved merchant binding before Earmark can consider payment.",
+      offers.length === 0 && officialProviders.length === 0
+        ? "No suitable first-party provider was verified for this request."
+        : offers.length === 0 && officialProviders.length > 0
+          ? "Verified official provider websites or pricing documentation were found, though structured tier comparison was limited. Confirm current pricing directly on the official provider pages; external merchants require a separate approved merchant binding before Earmark can consider payment."
+          : "Compare retrieved public offers for review. External merchants need a separate approved merchant binding before Earmark can consider payment.",
     searchSuggestions: "",
     evidence: {
       httpStatus,

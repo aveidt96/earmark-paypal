@@ -2,6 +2,7 @@
 import { useState } from "react";
 import {
   formatResearchBudget,
+  conciseResearchDescription,
   safeExternalOfferUrl,
   safePlanCheckoutUrl,
   type IncompleteComparison,
@@ -104,7 +105,9 @@ export function IncompleteOfferComparison({
                 <small className="offer-research-reasons">
                   {item.url.replace(/^https:\/\//, "")}
                 </small>
-                {item.snippet ? <p>{item.snippet}</p> : null}
+                {conciseResearchDescription(item.snippet) ? (
+                  <p>{conciseResearchDescription(item.snippet)}</p>
+                ) : null}
               </li>
             );
           })}
@@ -174,7 +177,7 @@ export function OfferDiscovery({
     result.offers.flatMap((offer) => {
       const urls = [
         ...(offer.officialMerchantUrl ? [offer.officialMerchantUrl] : []),
-        ...offer.sources.filter((s) => s.cited).map((s) => s.url),
+        ...(offer.pricing.sourceUrl ? [offer.pricing.sourceUrl] : []),
       ];
       return urls.flatMap((raw) => {
         const safe = safeExternalOfferUrl(raw);
@@ -263,13 +266,9 @@ export function OfferDiscovery({
                   ? billingModelLabels[provider.billingModel]
                   : null;
               const priceLabel =
-                provider.pricingStatus === "source-matched"
-                  ? billingLabel
-                    ? `Source-matched (${billingLabel})`
-                    : "Source-matched"
-                  : provider.pricingStatus === "conflicting"
-                    ? "Unknown · conflicting evidence"
-                    : "Unknown";
+                provider.pricingStatus === "conflicting"
+                  ? "Unknown · conflicting evidence"
+                  : "Unknown";
               return (
                 <li
                   key={provider.id}
@@ -278,6 +277,11 @@ export function OfferDiscovery({
                   <div className="norway-card-heading">
                     <div>
                       <h4>{provider.provider}</h4>
+                      <p>
+                        {conciseResearchDescription(
+                          provider.service ?? provider.title,
+                        )}
+                      </p>
                       <span className="offer-research-reasons">
                         {provider.domain}
                       </span>
@@ -293,21 +297,19 @@ export function OfferDiscovery({
                       rel="noopener noreferrer"
                       referrerPolicy="no-referrer"
                     >
-                      {provider.title}
+                      {conciseResearchDescription(provider.title)}
                     </a>{" "}
                     · Research link only (not a checkout destination)
                   </p>
                   <p className="offer-research-payment">
-                    Price: {priceLabel} · PayPal:{" "}
+                    Price: {priceLabel} · Billing model:{" "}
+                    {billingLabel ?? "Unknown"} · PayPal:{" "}
                     {provider.paypal === "claimed"
                       ? "claimed in merchant docs (checkout unverified)"
                       : provider.paypal === "not-listed"
                         ? "not listed in accepted methods"
                         : "unknown"}
                   </p>
-                  {result.offers.length === 0 && provider.snippet ? (
-                    <p>{provider.snippet}</p>
-                  ) : null}
                 </li>
               );
             })}
@@ -427,7 +429,7 @@ export function OfferDiscovery({
                     <p>
                       Billing model: {billingModelLabel}
                       {pricingDetails.billingTerms
-                        ? ` · Terms: ${pricingDetails.billingTerms}`
+                        ? ` · Terms: ${conciseResearchDescription(pricingDetails.billingTerms)}`
                         : ""}
                     </p>
                     {(pricingDetails.modelName ||
@@ -478,15 +480,37 @@ export function OfferDiscovery({
                         "Unknown"
                       )}
                     </p>
+                    <p>
+                      Billing model:{" "}
+                      {billingPeriod === "Unknown"
+                        ? "Unknown"
+                        : billingPeriod === "one-time"
+                          ? "One-time"
+                          : "Fixed subscription"}
+                    </p>
                     <p>Billing period: {billingPeriod}</p>
                   </>
                 )}
               </div>
+              {!pricingDetails && planUrl && citedUrls.includes(planUrl) && (
+                <p>
+                  <a
+                    href={planUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                  >
+                    Official product/pricing page
+                  </a>
+                </p>
+              )}
               <div className="offer-research-facts">
                 <p>
                   Features:{" "}
                   {featureClaims.length
-                    ? featureClaims.map(({ text }) => text).join(" · ")
+                    ? conciseResearchDescription(
+                        featureClaims.map(({ text }) => text).join(" · "),
+                      )
                     : "Unknown"}
                 </p>
               </div>
@@ -509,7 +533,10 @@ export function OfferDiscovery({
                   : offer.paypal === "not-listed"
                     ? "omitted from the merchant’s accepted-method list"
                     : "insufficient evidence"}
-                ){offer.paypalEvidence ? ` · ${offer.paypalEvidence}` : ""}
+                )
+                {offer.paypalEvidence
+                  ? ` · ${conciseResearchDescription(offer.paypalEvidence)}`
+                  : ""}
                 {verifiedPaypalUrl ? (
                   <>
                     {" "}
@@ -691,7 +718,7 @@ export function OfferDiscovery({
         })}
       </ul>
       {result.offers.length === 0 && verifiedProviders.length === 0 && (
-        <p>No sufficiently structured offer evidence was returned.</p>
+        <p>No suitable first-party provider was verified for this request.</p>
       )}
       {result.offers.length === 0 && verifiedProviders.length > 0 && (
         <p>
