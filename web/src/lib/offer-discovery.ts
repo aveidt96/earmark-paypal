@@ -31,6 +31,21 @@ export type PartialSearchSource = {
   category?: SearchSourceCategory | undefined;
 };
 
+/** Small plain-text excerpts only; search markdown is never product copy. */
+export function conciseResearchDescription(value: string): string {
+  const plain = (value.split("|")[0] ?? "")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[|#*_`>]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return "";
+  const sentences = plain.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [plain];
+  const short = sentences.slice(0, 2).join("").trim();
+  return short.length <= 240 ? short : `${short.slice(0, 237).trimEnd()}…`;
+}
+
 export type IncompleteComparison = {
   reason: "timeout" | "unavailable";
   sources: string[];
@@ -174,6 +189,7 @@ export function selectVerifiedOfferSourceUrl(
 export interface DiscoveredOfficialProvider {
   id: string;
   provider: string;
+  service?: string;
   domain: string;
   url: string;
   title: string;
@@ -183,6 +199,8 @@ export interface DiscoveredOfficialProvider {
   billingModel: OfferBillingModel | "unknown";
   paypal: "claimed" | "unknown" | "not-listed";
   checkoutUrl: null;
+  /** Independently retrieved identity references; never checkout evidence. */
+  verificationSources?: string[];
 }
 export interface DiscoveredOffer {
   id: string;
@@ -200,6 +218,7 @@ export interface DiscoveredOffer {
   sources: Array<{ url: string; cited: boolean }>;
   officialMerchantUrl?: string | null;
   officialCheckoutUrl?: string | null;
+  providerVerification?: "corroborated" | "unverified";
   features?: Array<{ text: string; sourceUrl: string }>;
   billingEvidence?: { period: OfferBillingPeriod; sourceUrl: string } | null;
   pricingDetails?: VerifiedOfferPricingDetails | null;
@@ -219,6 +238,8 @@ export interface OfferDiscoveryResult {
   retrievedAt: string;
   targetMerchantDomain?: string;
   officialProviders?: DiscoveredOfficialProvider[];
+  /** Relevant research links without independently corroborated identity. */
+  providerCandidates?: DiscoveredOfficialProvider[];
   offers: DiscoveredOffer[];
   /** Index into offers for human review only. Never an authorized proposal. */
   reviewRecommendation: number | null;

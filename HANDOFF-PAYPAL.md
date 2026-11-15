@@ -1,12 +1,33 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-14**
+Last updated: **2026-11-15**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **2026-11-15: PR #3 final-review corrections distinguish corroborated identity
+  from unverified research links.** Sparse product docs and corporate aliases
+  survive without self-asserted verification; request relevance is per product
+  page with natural-language/alternative matching. Offline checks pass. Both
+  Vercel projects are blocked by commit-author/team access; hosted builds and live
+  relevance remain unverified. No merge or deployment is authorized.
+
+- **2026-11-15: Draft-review branch `fix/official-provider-verification` targets
+  `main` baseline `6182306`.** Carries the verified provider-identity/relevance
+  fix and its offline regressions; publication is authorized as a draft PR only.
+  No merge or Production deployment is authorized. Live relevance remains pending
+  a separately authorized post-deployment check.
+
+- **2026-11-15: Official-provider classification corrected locally in the Cloud
+  checkout on `main` baseline `6182306`; offline checks pass, live relevance
+  remains unverified.** Requires positive canonical brand, product relevance,
+  model ownership and requested origin evidence; rejects unrelated/editorial/
+  reseller sources in both provider discovery and collector offers. Independent
+  valid links survive empty Gemini offers. This supersedes the earlier
+  permissive provider-verification claim; no deployment or publication occurred.
 
 - **Task: Official provider discovery fix verified locally in `.tools/task09-quota` (stacked on `origin/main` commit `4c6ed86`), 2026-11-14; ready for review before commit/push/deployment.**
   Separates first-class verified official provider website and documentation
@@ -8064,3 +8085,173 @@ Unverified / pending:
 
 - No live Tavily, Gemini, or PayPal calls, no database mutations, and no commit,
   push, or Vercel deployment occurred. Root checkout remains untouched.
+
+### 2026-11-15 — Official provider identity and relevance regression (Cloud)
+
+Worked in `/workspace/earmark-paypal`, starting from a clean clone of
+`aveidt96/earmark-paypal` `main` at `6182306`. No earlier checkout was mounted.
+
+Confirmed defect: `extractOfficialProviders` promoted every safe URL that escaped
+its negative blog/spoof filter; `instruction` did not establish product relevance.
+Brand checks accepted arbitrary substring/five-character prefixes, and collector
+citations could contribute third-party prices. Norway trusted that provider list
+and printed raw snippets. Earlier survival tests did not establish correct identity.
+
+Changed paths:
+
+- `web/src/server/paypal/offer-discovery.ts`: Positive title/canonical-domain
+  association, explicit reseller/editorial/unverified/irrelevant classification,
+  request subject matching, and original-model/API and company-origin evidence
+  for Chinese model requests. Canonical brand aliases require retrieved evidence;
+  arbitrary prefixes and appended generic API/pricing words do not prove identity.
+  Reuses existing ranking and deadline-gated provider search; applies the same
+  gate to Gemini offers and pricing citations. Keeps independently discovered
+  links separate from price extraction and prevents unrelated citation status
+  transfer. No provider roster or new search stage.
+- `web/src/lib/offer-discovery.ts`, `web/src/components/offer-discovery.tsx`:
+  Optional provider service label, concise plain-text excerpts (two sentences,
+  240 characters; tables omitted), explicit billing/unknown prices and payments,
+  visible official research links and clear no-suitable-provider state. Existing
+  independently verified checkout-link restrictions remain.
+- `web/test/official-provider-regression.test.ts` (new),
+  `web/test/offer-discovery.test.ts`: Exact reported domains, poisoned collector
+  output, empty Gemini offers, ownership/origin/language distinctions, domain
+  spoofing, blog-price contamination, UI and transactional-email regressions.
+  Replaced identity-free fixtures and expectations that displayed uncited/blog
+  offers with explicit first-party evidence or rejection assertions.
+- `HANDOFF-PAYPAL.md`: Updated current state and this record.
+
+Constructed offline fixtures (not captured live responses): accepted
+`https://api-docs.deepseek.com/quick_start/pricing`,
+`https://www.alibabacloud.com/help/en/model-studio/model-pricing`, and
+`https://open.bigmodel.cn/pricing` with explicit ownership/origin evidence despite
+`offers: []`. Rejected `https://aicodewith.ai/`, `https://glbgpt.com/`,
+`https://toolgrowthhq.com/`, unrelated OpenAI/credit plans, spoof domains and
+`https://glbgpt.com/blog/deepseek-pricing` as pricing evidence. Email fixtures
+accepted `https://resend.com/pricing`, `https://postmarkapp.com/pricing` and
+`https://dev.mailjet.com/email/guides/billing`; AI plans, reviews and resellers
+were rejected for that category. Novel synthetic brands also pass with evidence.
+
+Fresh final checks (Node 22.14.0; locked dependencies, no dependency changes):
+
+- 16 focused web/security files: **312/312 passed**, including 104 discovery tests.
+- Eight focused agent/security files: **150/150 passed**, zero skips.
+- Root `npm run typecheck`, root `npm run lint` (including pinned Forge fmt),
+  changed-code Prettier check and `git diff --check`: passed. Biome reported only
+  pre-existing informational suggestions; changed files had no warnings/errors.
+- Public production web build: passed; all provider/payment switches disabled.
+- Browser boundary: **46 chunks passed**; source PEM/Google/GitHub credential
+  pattern scan returned no matches. No real credentials were available to scan.
+- Existing offline production browser smoke, using installed Chromium: passed
+  eight pages, both themes and five viewports; zero external requests, browser
+  exceptions, legacy API requests or wallet probes.
+
+Initial root lint lacked the existing pinned Forge; installed it using the
+repository's checksum-verified setup. Four mocked hosted HTTP tests timed out
+under network isolation and Next's TypeScript subprocess produced empty config
+output under process isolation; both passed outside that isolation. No application
+changes were made to bypass those checks. Full legacy EVM/DB integration suites
+were not run; focused PostgreSQL tests use offline doubles.
+
+Limits / next step: classification uses bounded retrieved evidence, not an
+ownership registry or live page inspection. Sparse titles, domain aliases,
+non-English text or absent company-origin evidence can suppress genuine providers;
+unknown evidence fails closed. No live Tavily/Gemini/PayPal calls, payment
+operations, database changes, commits, pushes or deployments occurred. Quotas,
+deadlines, privacy/outbound guards and PayPal checkout are unchanged. A separately
+authorized post-deployment live check of the exact Chinese-model query and an
+unrelated category is required before claiming production relevance is fixed.
+
+### 2026-11-15 — Prepare verified research-accuracy fix for draft PR review
+
+User explicitly authorized branch creation, commit, push and a draft PR targeting
+`main`, without merge, deployment, live provider calls or financial operations.
+Fetched `origin/main`: `6182306161f2ffc4f015a79efd2703f359eb89cc`, identical to the
+verified implementation baseline (zero commits of divergence). Created
+`fix/official-provider-verification` from that baseline, preserving all existing
+research improvements and unrelated main work without rebase or merge.
+
+The intended review payload is exactly `HANDOFF-PAYPAL.md`,
+`web/src/server/paypal/offer-discovery.ts`, `web/src/lib/offer-discovery.ts`,
+`web/src/components/offer-discovery.tsx`, `web/test/offer-discovery.test.ts` and
+`web/test/official-provider-regression.test.ts`. Application and test contents
+remain the previously verified implementation; only this handoff record and its
+current-state summary were added during publication preparation. The commit
+message is `fix: validate provider identity and search relevance`.
+
+Retained verification artifacts confirm 312/312 focused web/security tests and
+150/150 agent tests, with no failures or skips; prior typecheck, root lint,
+production build, browser smoke and boundary results remain applicable because
+no implementation changed. Fresh publication checks passed: six-file scope,
+whitespace, changed-code formatting and zero credential-pattern matches. PR description
+must distinguish constructed offline fixtures from live evidence and document
+conservative rejection when identity/product/origin evidence is sparse.
+
+Next step is human draft-PR review. Production relevance still requires a
+separately authorized deployment and live retest. No payment backend, checkout,
+quota/deadline/privacy guard or financial database change is included.
+
+### 2026-11-15 — Final review of draft PR #3 (`c70f37f`)
+
+Confirmed four defects in the submitted diff: product-only titles could fail the
+exact corporate-domain check; own-page ownership/origin statements were mandatory
+in short snippets; every request keyword was required (and `that`/`with` could
+truncate the actual product); fabricated own-page company/model/origin claims
+could nevertheless pass as official. Earlier passing fixtures did not prove
+independent identity verification. These findings supersede that assurance.
+
+Narrow corrections on the existing `fix/official-provider-verification` branch:
+
+- `web/src/server/paypal/offer-discovery.ts`: Separate plausible candidates from
+  corroborated first-party sources. A verified association requires an explicitly
+  labeled official HTTPS host in a separately retrieved Wikipedia/Wikidata article
+  excerpt, with model ownership and requested Chinese company origin supported
+  there. Exact safe host/subdomain association supports corporate/product aliases;
+  candidates' self-assertions, arbitrary publishers, spoof hosts and user pages
+  do not establish identity. Wikipedia is now eligible as identity context, while
+  both reference publishers remain excluded as merchants. Reuse the existing
+  searches and bounds; no embedded reference URL is fetched. Missing identity
+  evidence retains relevant links as unverified. Match page-specific topic terms,
+  polite phrasing, email/SMTP aliases and comparison alternatives; recognize sparse
+  input/output token-rate snippets. Another corporate product cannot supply
+  relevance. Uncorroborated offers cannot be recommended or expose official
+  merchant/checkout URLs.
+- `web/src/lib/offer-discovery.ts`, `web/src/components/offer-discovery.tsx`:
+  Optional candidate/identity provenance fields, visibly separate unverified
+  research cards, linked corroboration and source-claim labeling. No raw snippets
+  or payment authority added; actual PayPal checkout/backend remain untouched.
+- `web/test/official-provider-regression.test.ts`,
+  `web/test/offer-discovery.test.ts`: Sparse Qwen/Alibaba Cloud, GLM/Zhipu and novel
+  corporate aliases; empty Gemini retention; fabricated claims/reference spoofing;
+  same-company unrelated-product rejection; natural email/weather/storage requests;
+  uncorroborated checkout/recommendation denial. Positive checkout fixtures now
+  provide independent identity evidence. All fixtures are constructed offline.
+- `HANDOFF-PAYPAL.md`: Record this review, corrections and external blockers.
+
+Fresh validation: **323/323** focused web/security tests (including **115**
+discovery tests), **150/150** agent tests, zero failures/skips. Root lint (including
+pinned Forge), typecheck, public production build, changed-code Prettier and
+whitespace checks passed. Browser boundary passed **46** chunks. Existing offline
+browser smoke passed eight pages, both themes and five viewports; focused new-card
+browser checks passed at 375px/1440px with safe links, no checkout or overflow,
+zero external requests and zero browser errors. All provider/payment execution
+switches were disabled; PostgreSQL checks used doubles, not a live database.
+
+Vercel evidence: GitHub combined statuses for `c70f37f` report failures for both
+`earmark-paypal` and `earmark-paypal-i2bk`; the bot table marks both `BLOCKED`.
+[The bot explanation](https://github.com/aveidt96/earmark-paypal/pull/3#issuecomment-6887532978)
+says commit author `samuel0604-byte` is not a member of `samuelid22's projects`.
+This establishes an account/team-access gate, not a demonstrated compiler failure.
+No hosted build execution or build logs are established by the available evidence.
+No account access, authorship, visibility, deployment or CI configuration changed.
+
+Limits: corroboration is bounded retrieved public-reference evidence, not
+universal ownership authentication. Missing/malformed reference statements and
+unrecognized language/topic synonyms can leave genuine sources unverified or
+missed. Geographic fit is explicitly unknown without corroborating origin data.
+Controlled deployment review must assess this trust/recall tradeoff; actual
+execution is blocked on owner resolution of Vercel membership/GitHub connection.
+Live relevance still needs a separately authorized post-deployment check. Quotas,
+deadlines, privacy/outbound guards, unrelated main work and financial restrictions
+are preserved. Only a normal update of the existing PR branch is authorized;
+no merge, deployment, live provider API calls, payment or financial DB operations.

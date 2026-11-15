@@ -2,6 +2,7 @@
 import { useState } from "react";
 import {
   formatResearchBudget,
+  conciseResearchDescription,
   safeExternalOfferUrl,
   safePlanCheckoutUrl,
   type IncompleteComparison,
@@ -11,6 +12,8 @@ import {
 import { Badge, Button } from "./glass";
 
 const reasonLabels: Record<string, string> = {
+  PROVIDER_IDENTITY_UNVERIFIED:
+    "Provider identity needs independent corroboration",
   APPROVED_MERCHANT_REQUIRED: "The request requires an approved merchant",
   GROUNDED_SOURCE_NOT_LINKED: "No retrieved offer source matched the citation",
   CONFLICTING_PRICE_EVIDENCE: "Price evidence conflicts or is ambiguous",
@@ -104,7 +107,9 @@ export function IncompleteOfferComparison({
                 <small className="offer-research-reasons">
                   {item.url.replace(/^https:\/\//, "")}
                 </small>
-                {item.snippet ? <p>{item.snippet}</p> : null}
+                {conciseResearchDescription(item.snippet) ? (
+                  <p>{conciseResearchDescription(item.snippet)}</p>
+                ) : null}
               </li>
             );
           })}
@@ -174,7 +179,7 @@ export function OfferDiscovery({
     result.offers.flatMap((offer) => {
       const urls = [
         ...(offer.officialMerchantUrl ? [offer.officialMerchantUrl] : []),
-        ...offer.sources.filter((s) => s.cited).map((s) => s.url),
+        ...(offer.pricing.sourceUrl ? [offer.pricing.sourceUrl] : []),
       ];
       return urls.flatMap((raw) => {
         const safe = safeExternalOfferUrl(raw);
@@ -201,6 +206,12 @@ export function OfferDiscovery({
         );
       if (coveredByOffer) return [];
       return [{ ...provider, safeUrl }];
+    },
+  );
+  const providerCandidates = (result.providerCandidates ?? []).flatMap(
+    (provider) => {
+      const safeUrl = safeExternalOfferUrl(provider.url);
+      return safeUrl ? [{ ...provider, safeUrl }] : [];
     },
   );
 
@@ -263,13 +274,9 @@ export function OfferDiscovery({
                   ? billingModelLabels[provider.billingModel]
                   : null;
               const priceLabel =
-                provider.pricingStatus === "source-matched"
-                  ? billingLabel
-                    ? `Source-matched (${billingLabel})`
-                    : "Source-matched"
-                  : provider.pricingStatus === "conflicting"
-                    ? "Unknown · conflicting evidence"
-                    : "Unknown";
+                provider.pricingStatus === "conflicting"
+                  ? "Unknown · conflicting evidence"
+                  : "Unknown";
               return (
                 <li
                   key={provider.id}
@@ -278,6 +285,11 @@ export function OfferDiscovery({
                   <div className="norway-card-heading">
                     <div>
                       <h4>{provider.provider}</h4>
+                      <p>
+                        {conciseResearchDescription(
+                          provider.service ?? provider.title,
+                        )}
+                      </p>
                       <span className="offer-research-reasons">
                         {provider.domain}
                       </span>
@@ -293,24 +305,73 @@ export function OfferDiscovery({
                       rel="noopener noreferrer"
                       referrerPolicy="no-referrer"
                     >
-                      {provider.title}
+                      {conciseResearchDescription(provider.title)}
                     </a>{" "}
                     · Research link only (not a checkout destination)
                   </p>
                   <p className="offer-research-payment">
-                    Price: {priceLabel} · PayPal:{" "}
+                    Price: {priceLabel} · Billing model:{" "}
+                    {billingLabel ?? "Unknown"} · PayPal:{" "}
                     {provider.paypal === "claimed"
                       ? "claimed in merchant docs (checkout unverified)"
                       : provider.paypal === "not-listed"
                         ? "not listed in accepted methods"
                         : "unknown"}
                   </p>
-                  {result.offers.length === 0 && provider.snippet ? (
-                    <p>{provider.snippet}</p>
-                  ) : null}
+                  {provider.verificationSources?.map((url) => {
+                    const safe = safeExternalOfferUrl(url);
+                    return safe ? (
+                      <a
+                        key={safe}
+                        href={safe}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        referrerPolicy="no-referrer"
+                      >
+                        Identity reference
+                      </a>
+                    ) : null;
+                  })}
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+      {providerCandidates.length > 0 && (
+        <section
+          className="offer-research-providers"
+          aria-label="Provider research links"
+        >
+          <strong>Provider research links · identity unverified</strong>
+          <p>
+            Relevant product documentation was found, but independent provider
+            identity or requested origin evidence is incomplete.
+          </p>
+          <ul className="offer-research-list">
+            {providerCandidates.map((provider) => (
+              <li key={provider.id} className="offer-research-card">
+                <h4>{provider.provider}</h4>
+                <a
+                  href={provider.safeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  referrerPolicy="no-referrer"
+                >
+                  {conciseResearchDescription(
+                    provider.service ?? provider.title,
+                  )}
+                </a>
+                <p>
+                  Price: Unknown · Billing model:{" "}
+                  {provider.billingModel === "unknown"
+                    ? "Unknown"
+                    : billingModelLabels[provider.billingModel]}{" "}
+                  · PayPal: Unknown
+                </p>
+                <p>Research link only (not a checkout destination)</p>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -409,6 +470,9 @@ export function OfferDiscovery({
                   {suitability[offer.reviewFit]}
                 </Badge>
               </div>
+              {offer.providerVerification === "unverified" && (
+                <p>Provider identity unverified · source claims only</p>
+              )}
               {result.reviewRecommendation === index && (
                 <p className="offer-research-recommendation">
                   Recommended for review
@@ -427,7 +491,7 @@ export function OfferDiscovery({
                     <p>
                       Billing model: {billingModelLabel}
                       {pricingDetails.billingTerms
-                        ? ` · Terms: ${pricingDetails.billingTerms}`
+                        ? ` · Terms: ${conciseResearchDescription(pricingDetails.billingTerms)}`
                         : ""}
                     </p>
                     {(pricingDetails.modelName ||
@@ -435,7 +499,7 @@ export function OfferDiscovery({
                       pricingDetails.currency) && (
                       <p>
                         {pricingDetails.modelName
-                          ? `Verified model: ${pricingDetails.modelName}`
+                          ? `${offer.providerVerification === "corroborated" ? "Verified" : "Listed"} model: ${pricingDetails.modelName}`
                           : "Model: Unknown"}
                         {pricingDetails.region
                           ? ` · Region: ${pricingDetails.region}`
@@ -447,8 +511,10 @@ export function OfferDiscovery({
                     )}
                     {safePricingUrl && citedUrls.includes(safePricingUrl) && (
                       <p>
-                        Official pricing documentation (research only · not
-                        checkout):{" "}
+                        {offer.providerVerification === "unverified"
+                          ? "Pricing documentation"
+                          : "Official pricing documentation"}{" "}
+                        (research only · not checkout):{" "}
                         <a
                           href={safePricingUrl}
                           target="_blank"
@@ -478,15 +544,37 @@ export function OfferDiscovery({
                         "Unknown"
                       )}
                     </p>
+                    <p>
+                      Billing model:{" "}
+                      {billingPeriod === "Unknown"
+                        ? "Unknown"
+                        : billingPeriod === "one-time"
+                          ? "One-time"
+                          : "Fixed subscription"}
+                    </p>
                     <p>Billing period: {billingPeriod}</p>
                   </>
                 )}
               </div>
+              {!pricingDetails && planUrl && citedUrls.includes(planUrl) && (
+                <p>
+                  <a
+                    href={planUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    referrerPolicy="no-referrer"
+                  >
+                    Official product/pricing page
+                  </a>
+                </p>
+              )}
               <div className="offer-research-facts">
                 <p>
                   Features:{" "}
                   {featureClaims.length
-                    ? featureClaims.map(({ text }) => text).join(" · ")
+                    ? conciseResearchDescription(
+                        featureClaims.map(({ text }) => text).join(" · "),
+                      )
                     : "Unknown"}
                 </p>
               </div>
@@ -509,7 +597,10 @@ export function OfferDiscovery({
                   : offer.paypal === "not-listed"
                     ? "omitted from the merchant’s accepted-method list"
                     : "insufficient evidence"}
-                ){offer.paypalEvidence ? ` · ${offer.paypalEvidence}` : ""}
+                )
+                {offer.paypalEvidence
+                  ? ` · ${conciseResearchDescription(offer.paypalEvidence)}`
+                  : ""}
                 {verifiedPaypalUrl ? (
                   <>
                     {" "}
@@ -690,9 +781,11 @@ export function OfferDiscovery({
           );
         })}
       </ul>
-      {result.offers.length === 0 && verifiedProviders.length === 0 && (
-        <p>No sufficiently structured offer evidence was returned.</p>
-      )}
+      {result.offers.length === 0 &&
+        verifiedProviders.length === 0 &&
+        providerCandidates.length === 0 && (
+          <p>No suitable first-party provider was verified for this request.</p>
+        )}
       {result.offers.length === 0 && verifiedProviders.length > 0 && (
         <p>
           Structured offer comparison could not extract full tier pricing from
