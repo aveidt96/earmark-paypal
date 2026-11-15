@@ -12,8 +12,9 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
   fetched `origin/main` (`7457b75`, merged PR #3).** Local branch
   `fix/research-relevance-fallback` filters purchasing evidence before Gemini and
   in the server/client fallback; unrelated-only searches fail concisely. Published
-  for draft review in [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4);
-  no merge or deployment is authorized. Production runtime logs at 06:43 UTC
+  in [PR #4](https://github.com/aveidt96/earmark-paypal/pull/4). The user now
+  authorizes publication to `main` for Production testing through the existing
+  Vercel integration. Production runtime logs at 06:43 UTC
   remain inaccessible (HTTP 403); the live collector error is unconfirmed.
 
 - **2026-11-15: PR #3 final-review corrections distinguish corroborated identity
@@ -8458,3 +8459,28 @@ branch checks were building at the first inspection, with Windows CI still
 running. Final checks are inspected on the new head and reported in the PR/final
 report. No Production deployment, provider/API research, payment or financial
 database operation was performed.
+
+### 2026-11-15 — User-authorized publication of PR #4 to main
+
+The user explicitly requested pushing the research relevance fix to `main`
+because Preview cannot be tested adequately. This supersedes the earlier
+draft-only/no-merge restriction for PR #4 and authorizes the existing automatic
+Vercel Production release triggered by updating `main`. It does not authorize
+live provider research calls, payment or financial database operations, or
+changes to Vercel configuration.
+
+Before publication, verify the clean PR branch at `ed15e16` against freshly
+fetched `main` (`7457b75`). GitHub CI run `43708316243` completed successfully on
+both Ubuntu and Windows, including the complete `npm run check` pipeline,
+dependency audit and pinned Forge setup. Primary `Vercel – earmark-paypal` passed;
+secondary `Vercel – earmark-paypal-i2bk` failed without an exposed underlying
+reason. Do not claim the secondary check passed or infer its failure category.
+
+Only `HANDOFF-PAYPAL.md` changes in this authorization record. Application/test/
+configuration content remains identical to the tested `ed15e16` tree. Check its
+formatting and whitespace, commit with the verified aveidt96 identity and push
+normally to the PR branch, then mark PR #4 ready and merge with an expected-head
+SHA check. Preserve unrelated main work; do not force-push or bypass protection.
+Final remote main SHA and automatic release status are verified after the merge
+and reported to the user. Production availability and the live query's accuracy
+must be verified separately; offline/CI success alone does not establish either.
