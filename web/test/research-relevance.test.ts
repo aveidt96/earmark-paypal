@@ -253,8 +253,8 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
       error: "PUBLIC_RESEARCH_NO_VERIFIED_REGIONAL_PROVIDERS",
     });
     expect(f.queries).toEqual([
-      "Chinese model API plans original model developers official pricing",
-      "Chinese model API plans China original model developers official website pricing Wikipedia Wikidata",
+      "Chinese model API plans official provider pricing documentation",
+      "Chinese model API plans original provider official website company ownership pricing documentation",
     ]);
     expect(f.collectorPayloads).toEqual([]);
     expect(f.fetcher).toHaveBeenCalledTimes(2);

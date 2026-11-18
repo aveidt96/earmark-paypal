@@ -1,3 +1,4 @@
+import { providerOriginRequest } from "./research-geography";
 import {
   safeExternalOfferUrl,
   type PartialSearchSource,
@@ -85,46 +86,8 @@ export const GENERIC_BRAND_WORDS = new Set([
 export const MODEL_REQUEST_RE =
   /\b(?:AI\s+models?|LLMs?|language\s+models?|foundation\s+models?|model\s+APIs?)\b/i;
 
-const modelProviderRegions = [
-  {
-    country: "China",
-    pattern:
-      /\b(?:Chinese(?![- ]language\b)|China[- ]based)\b|\bfrom\s+China\b/gi,
-  },
-  {
-    country: "United States",
-    pattern:
-      /\b(?:American|(?:U\.?S\.?(?:A\.?)?|United States)[- ]based)\b|\b(?:U\.?S\.?(?:A\.?)?|United States)(?=\s+(?:AI\b|LLMs?\b|(?:language\s+|foundation\s+)?models?\b))|\bfrom\s+(?:the\s+)?(?:United States|U\.?S\.?(?:A\.?)?)(?!\w)/gi,
-  },
-] as const;
-
-export function requestedModelRegion(instruction: string) {
-  if (!MODEL_REQUEST_RE.test(instruction)) return null;
-  const topic = withoutUsPronoun(instruction);
-  const regions = modelProviderRegions.filter(
-    ({ pattern }) => topic.replace(pattern, "") !== topic,
-  );
-  return regions.length === 1 ? (regions[0] ?? null) : null;
-}
-
-function withoutUsPronoun(instruction: string) {
-  return instruction.replace(
-    /\b(find|show|get|give|help)\s+(us)\b/gi,
-    (match, verb: string, us: string) => (us === "us" ? verb : match),
-  );
-}
-
-function modelSubject(instruction: string): string {
-  if (!MODEL_REQUEST_RE.test(instruction)) return instruction;
-  const region = requestedModelRegion(instruction);
-  const subject = withoutUsPronoun(instruction).replace(
-    MODEL_REQUEST_RE,
-    "model",
-  );
-  return region ? subject.replace(region.pattern, " ") : subject;
-}
 const INTENT_FILLER = new Set(
-  "a an the i d we you this that with and where supports support accepts accept accepted paypal payment billing period periods sla delivery minute minutes activation can could would please help need want like looking look suggest recommend tool tools inexpensive scalable low find research compare show discover get me for of to my our your from in about suitable option options sending send offering affordable cheap best fast reliable approved allowlisted authorized official original direct first party verified provider providers vendor vendors plan plans pricing price prices api apis service services product products model models ai llm llms costing cost costs less than at most budget monthly yearly annual per month year usd eur gbp dollars prepaid credit credits pay go subscription subscriptions".split(
+  "a an the i d we you this that with and where supports support accepts accept accepted paypal payment billing period periods sla delivery minute minutes activation can could would please help need want like looking look suggest recommend tool tools inexpensive scalable low find research compare show discover get me for of to my our your from in about suitable option options sending send offering affordable cheap best fast reliable approved allowlisted authorized official original direct directly first party sources source links link manufacturers manufacturer verified provider providers vendor vendors plan plans pricing price prices api apis service services product products model models ai llm llms costing cost costs less than at most budget monthly yearly annual per month year usd eur gbp dollars prepaid credit credits pay go subscription subscriptions".split(
     " ",
   ),
 );
@@ -172,7 +135,7 @@ export function isRelevantPurchasingSource(
   // model API pricing.
   const evidence = `${source.title} ${source.snippet} ${new URL(source.url).pathname}`;
   if (
-    !/\b(?:APIs?|pricing|prices?|plans?|billing|subscriptions?|packages?|credits?|rates?|documentation|docs|developers?|quickstart|models?|inference|products?|services?)\b|[$€£]\s*\d|\b(?:USD|EUR|GBP)\s*\d/i.test(
+    !/\b(?:APIs?|pricing|prices?|plans?|billing|subscriptions?|packages?|credits?|rates?|documentation|docs|developers?|quickstart|models?|inference|products?|services?|buy|shop|warranty|specifications?)\b|[$€£]\s*\d|\b(?:USD|EUR|GBP)\s*\d/i.test(
       evidence,
     )
   )
@@ -195,14 +158,8 @@ export function isRelevantPurchasingSource(
     )
       return false;
   }
-  if (
-    requestedModelRegion(instruction)?.country === "China" &&
-    /\bis (?:an? )?(?:American|US-based|United States-based|French|Canadian|British) (?:AI |model )?company\b/i.test(
-      evidence,
-    )
-  )
-    return false;
-  const subject = modelSubject(instruction);
+  const { subject: productRequest } = providerOriginRequest(instruction);
+  const subject = productRequest.replace(MODEL_REQUEST_RE, "model");
   const words = requestSubjectWords(subject).filter(
     (word) => !GENERIC_BRAND_WORDS.has(word),
   );

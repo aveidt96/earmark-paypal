@@ -30,7 +30,9 @@ const judgeErrors: Record<string, string> = {
   DISCOVERY_RELEVANT_SOURCES_REQUIRED:
     "No relevant product or pricing sources were found. Try a more specific product or service.",
   DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED:
-    "No official model provider could be verified for the requested country.",
+    "No official provider could be verified for the requested country.",
+  DISCOVERY_OFFICIAL_PROVIDERS_UNVERIFIED:
+    "No official provider could be verified for this request.",
   DISCOVERY_DISABLED: "Online research is unavailable in this profile",
   DISCOVERY_INSTRUCTION_REQUIRED:
     "Describe the product, plan or service to research",
@@ -80,7 +82,9 @@ const publicResearchErrors: Record<string, string> = {
   PUBLIC_RESEARCH_NO_RELEVANT_SOURCES:
     "No relevant product or pricing sources were found. Try a more specific product or service.",
   PUBLIC_RESEARCH_NO_VERIFIED_REGIONAL_PROVIDERS:
-    "No official model provider could be verified for the requested country.",
+    "No official provider could be verified for the requested country.",
+  PUBLIC_RESEARCH_NO_VERIFIED_OFFICIAL_PROVIDERS:
+    "No official provider could be verified for this request.",
   PUBLIC_RESEARCH_TIMEOUT:
     "Live research did not finish in time. Try again in a moment.",
   PUBLIC_RESEARCH_SEARCH_TIMEOUT:

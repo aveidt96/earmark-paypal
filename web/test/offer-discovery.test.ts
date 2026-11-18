@@ -1783,10 +1783,15 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
         fetcher,
       );
-      expect(fetcher).toHaveBeenCalledTimes(3);
+      expect(fetcher).toHaveBeenCalledTimes(costly ? 4 : 3);
       const [searchUrl, searchInit] = fetcher.mock.calls[0] ?? [];
-      const [collectorUrl, collectorInit] = fetcher.mock.calls[1] ?? [];
-      const [paymentSearchUrl, paymentSearchInit] = fetcher.mock.calls[2] ?? [];
+      const [collectorUrl, collectorInit] = fetcher.mock.calls.at(-2) ?? [];
+      const [paymentSearchUrl, paymentSearchInit] =
+        fetcher.mock.calls.at(-1) ?? [];
+      if (costly)
+        expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain(
+          "company ownership official website",
+        );
       expect(String(searchUrl)).toBe(TAVILY_SEARCH_URL);
       expect(String(collectorUrl)).toContain(
         `/models/${env.GEMINI_MODEL}:generateContent`,
@@ -1880,7 +1885,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           httpStatus: 200,
           modelTurns: 1,
           searchProvider: "tavily",
-          searchRequests: 2,
+          searchRequests: costly ? 3 : 2,
           searchResultsCount: costly ? 2 : 1,
           paymentSearchResultsCount: 1,
           collectorModel: "gemini-3.8-flash",
@@ -2183,9 +2188,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       env,
       f,
     );
-    expect(f).toHaveBeenCalledTimes(3);
-    const [, collectorInit] = f.mock.calls[1] ?? [];
-    const [paymentSearchUrl, paymentSearchInit] = f.mock.calls[2] ?? [];
+    expect(f).toHaveBeenCalledTimes(4);
+    const [, collectorInit] = f.mock.calls[2] ?? [];
+    const [paymentSearchUrl, paymentSearchInit] = f.mock.calls[3] ?? [];
     expect(String(collectorInit?.body)).toContain("accuweather.com");
     expect(String(paymentSearchUrl)).toBe(TAVILY_SEARCH_URL);
     expect(JSON.parse(String(paymentSearchInit?.body))).toMatchObject({

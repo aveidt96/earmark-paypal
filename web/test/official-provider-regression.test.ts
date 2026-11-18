@@ -6,6 +6,7 @@ import {
   IncompleteOfferComparison,
 } from "../src/components/offer-discovery";
 import { conciseResearchDescription } from "../src/lib/offer-discovery";
+import { providerOriginRequest } from "../src/lib/research-geography";
 vi.mock("server-only", () => ({}));
 import {
   classifyProviderSource,
@@ -133,6 +134,117 @@ describe("official provider identity and relevance regression", () => {
       name,
       `${facts} Official API platform: ${website}`,
     );
+
+  it.each([
+    [
+      "Find $20 Canadian transactional email API plans",
+      "Transactional email API pricing",
+      "Transactional email API monthly billing.",
+      "Northwind is a Canadian email service provider.",
+    ],
+    [
+      "Find photo backup plans from providers based in Germany",
+      "Photo backup subscription",
+      "Photo backup pricing and storage plans.",
+      "Northwind is headquartered in Berlin, Germany.",
+    ],
+    [
+      "Buy solar lanterns from Kenya under $20",
+      "Solar lantern store",
+      "Buy Northwind solar lanterns. Product warranty included.",
+      "Northwind is based in Nairobi, Kenya.",
+    ],
+  ])(
+    "verifies official sources for non-AI searches with an origin: %s",
+    async (request, title, snippet, origin) => {
+      const correct = source(
+        "https://northwind.example/products/offer",
+        title,
+        snippet,
+      );
+      const wrong = source(
+        "https://southwind.example/products/offer",
+        title,
+        `${snippet} Available worldwide.`,
+      );
+      const possible = source("https://other.example/pricing", title, snippet);
+      const fetcher = offlineTransport(
+        [wrong, possible, correct],
+        [
+          reference("Northwind", "https://northwind.example/", origin),
+          reference(
+            "Southwind",
+            "https://southwind.example/",
+            "Southwind is based in Sweden and sells worldwide.",
+          ),
+        ],
+      );
+      const result = await discoverOffers(request, env, fetcher, 2000);
+      expect(result.officialProviders?.map(({ url }) => url)).toEqual([
+        correct.url,
+      ]);
+      expect(result.providerCandidates).toEqual([]);
+      expect(fetcher).toHaveBeenCalledTimes(3);
+      const html = renderToStaticMarkup(
+        createElement(OfferDiscovery, { result }),
+      );
+      expect(html).toContain(correct.url);
+      expect(html).not.toContain(wrong.url);
+      expect(html).not.toContain(possible.url);
+      const collector = String(fetcher.mock.calls[2]?.[1]?.body);
+      expect(collector).toContain(correct.url);
+      expect(collector).not.toContain(wrong.url);
+      expect(collector).not.toContain(possible.url);
+    },
+  );
+
+  it("distinguishes country of origin from language, service availability and 'us' as a pronoun", () => {
+    for (const request of [
+      "Find us running shoes",
+      "Find French translation providers",
+      "Find backup services available in the UK",
+      "Find plans that accept American Express",
+      "Find cloud storage plans under US$20",
+    ]) {
+      expect(providerOriginRequest(request).countries).toEqual([]);
+    }
+    expect(
+      providerOriginRequest("Find $20 US cloud storage").countries,
+    ).toEqual(["United States"]);
+    expect(
+      providerOriginRequest("Find garden tools from New Zealand").countries,
+    ).toEqual(["New Zealand"]);
+  });
+
+  it("seeks independent evidence for an explicit official-links request without a country", async () => {
+    const docs = source(
+      "https://northwind.example/docs",
+      "Northwind weather API",
+      "Weather forecast API documentation.",
+    );
+    const unaffiliated = source(
+      "https://southwind.example/pricing",
+      "Southwind weather API",
+      "Weather forecast API pricing.",
+    );
+    const result = await discoverOffers(
+      "Find official links for weather API plans",
+      env,
+      offlineTransport(
+        [unaffiliated, docs],
+        [
+          reference(
+            "Northwind",
+            "https://northwind.example/",
+            "Northwind provides weather data.",
+          ),
+        ],
+      ),
+      2000,
+    );
+    expect(result.officialProviders?.map(({ url }) => url)).toEqual([docs.url]);
+    expect(result.providerCandidates).toEqual([]);
+  });
 
   const chineseProviders = [
     [
@@ -883,12 +995,27 @@ describe("official provider identity and relevance regression", () => {
       ),
     ];
     const request = "Research $20 transactional email API plans";
-    const transport = offlineTransport([...email, ...irrelevant], []);
-    const result = await discoverOffers(request, env, transport, 2000);
-    expect(transport).toHaveBeenCalledTimes(3);
-    expect(result.providerCandidates?.map((item) => item.url)).toEqual(
-      email.map((item) => item.url),
+    const transport = offlineTransport(
+      [...email, ...irrelevant],
+      [
+        reference(
+          "Resend",
+          "https://resend.com/",
+          "Resend provides transactional email infrastructure.",
+        ),
+      ],
     );
+    const result = await discoverOffers(request, env, transport, 2000);
+    expect(transport).toHaveBeenCalledTimes(4);
+    expect(String(transport.mock.calls[1]?.[1]?.body)).toContain(
+      "resend.com OR postmarkapp.com",
+    );
+    expect(result.officialProviders?.map((item) => item.url)).toEqual([
+      email[0]?.url,
+    ]);
+    expect(result.providerCandidates?.map((item) => item.url)).toEqual([
+      email[1]?.url,
+    ]);
     for (const item of email)
       expect(classifyProviderSource(item, instruction)).toBe("irrelevant");
   });

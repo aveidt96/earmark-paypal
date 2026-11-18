@@ -3,8 +3,11 @@ import {
   GENERIC_BRAND_WORDS,
   MODEL_REQUEST_RE,
   isRelevantPurchasingSource,
-  requestedModelRegion,
 } from "../../lib/research-relevance";
+import {
+  providerOriginRequest,
+  referencedProviderCountries,
+} from "../../lib/research-geography";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -395,9 +398,7 @@ function purchasingSearchTopic(instruction: string) {
 
 function buildOfferSearchQuery(instruction: string) {
   const topic = purchasingSearchTopic(instruction);
-  const query = requestedModelRegion(instruction)
-    ? `${topic} original model developers official pricing`
-    : `${topic} official provider pricing documentation`;
+  const query = `${topic} official provider pricing documentation`;
   return query.length <= 1000 ? query : topic;
 }
 
@@ -406,12 +407,10 @@ function buildOfficialProviderDiscoveryQuery(
   candidateDomains: readonly string[] = [],
 ) {
   const topic = purchasingSearchTopic(instruction);
-  const region = requestedModelRegion(instruction);
-  const query = region
-    ? candidateDomains.length
-      ? `${candidateDomains.join(" OR ")} ${region.country} AI model developer official website Wikipedia Wikidata`
-      : `${topic} ${region.country} original model developers official website pricing Wikipedia Wikidata`
-    : `${topic} original developer provider official website company ownership country product documentation pricing`;
+  const countries = providerOriginRequest(instruction).countries.join(" or ");
+  const query = candidateDomains.length
+    ? `${candidateDomains.join(" OR ")} ${countries ? `${countries} ` : ""}company ownership official website Wikipedia Wikidata`
+    : `${topic} original provider official website company ownership pricing documentation`;
   return query.length <= 1000 ? query : topic;
 }
 
@@ -572,29 +571,27 @@ function hasCorroboratedProviderIdentity(
   results: readonly ProviderSource[],
 ): boolean {
   const references = providerIdentityReferences(source, results);
-  if (!MODEL_REQUEST_RE.test(instruction)) return references.length > 0;
-  const region = requestedModelRegion(instruction);
-  const originPatterns = {
-    China:
-      /\b(?:Chinese\s+(?:(?:AI|artificial intelligence|model|technology)\s+)*(?:company|developer|provider|startup|corporation|organization)|(?:China|Beijing|Shanghai|Hangzhou)[- ]based|(?:based|headquartered)\s+in\s+(?:China|Beijing|Shanghai|Hangzhou))\b/i,
-    "United States":
-      /\b(?:American\s+(?:(?:AI|artificial intelligence|model|multinational|technology|research)\s+)*(?:company|developer|provider|startup|corporation|organization|laboratory)|(?:U\.?S\.?(?:A\.?)?|United States)[- ]based|(?:based|headquartered)\s+in\s+(?:the\s+)?(?:[\w ,'-]{0,75},\s*)?(?:United States|U\.?S\.?(?:A\.?)?|California))\b/i,
-  };
+  const { countries: requestedCountries } = providerOriginRequest(instruction);
+  const isModelRequest = MODEL_REQUEST_RE.test(instruction);
   const developsModels =
     /\b(?:develop(?:s|ed|ing|er\s+of)|trains?|trained|creates?|created|builds?|built)\b[^.!?]{0,120}\b(?:models?|LLMs?|AI\s+chatbots?)|\b(?:models?|LLMs?|AI\s+chatbots?)\b[^.!?]{0,80}\b(?:developed|trained|created|built)\s+by\b/i;
-  if (region) {
-    const otherCountry = region.country === "China" ? "United States" : "China";
-    if (
-      references.some(({ snippet }) =>
-        originPatterns[otherCountry].test(snippet),
-      )
-    )
-      return false;
-  }
+  if (!requestedCountries.length)
+    return references.some(
+      ({ snippet }) => !isModelRequest || developsModels.test(snippet),
+    );
+  const countriesByReference = references.map(({ snippet }) =>
+    referencedProviderCountries(snippet),
+  );
+  if (
+    countriesByReference
+      .flat()
+      .some((country) => !requestedCountries.includes(country))
+  )
+    return false;
   return references.some(
-    ({ snippet }) =>
-      developsModels.test(snippet) &&
-      (!region || originPatterns[region.country].test(snippet)),
+    ({ snippet }, index) =>
+      !!countriesByReference[index]?.length &&
+      (!isModelRequest || developsModels.test(snippet)),
   );
 }
 
@@ -928,13 +925,19 @@ function rankOfficialFirstDiverse(
   const seenPrimaryDomain = new Set<string>();
   const annotated = results.map((source, index) => {
     const basePriority = offerSourcePriority(source);
-    const thirdParty = !isRetainedProvider(source, instruction, results);
+    const classification = classifyProviderSource(source, instruction, results);
+    const identityPriority =
+      classification === "first-party"
+        ? 0
+        : classification === "candidate"
+          ? 1
+          : 2;
     const domain = rootDomain(new URL(source.url).hostname);
-    return { source, index, basePriority, thirdParty, domain };
+    return { source, index, basePriority, identityPriority, domain };
   });
   annotated.sort(
     (a, b) =>
-      Number(a.thirdParty) - Number(b.thirdParty) ||
+      a.identityPriority - b.identityPriority ||
       a.basePriority - b.basePriority ||
       a.index - b.index,
   );
@@ -942,7 +945,7 @@ function rankOfficialFirstDiverse(
   const remainingOfficial: typeof annotated = [];
   const nonOfficial: typeof annotated = [];
   for (const item of annotated) {
-    if (item.thirdParty || item.basePriority >= 3) {
+    if (item.identityPriority === 2 || item.basePriority >= 3) {
       nonOfficial.push(item);
       continue;
     }
@@ -2818,8 +2821,13 @@ export async function discoverOffers(
     return out;
   };
   const offerResults = sanitizeOfferItems(initialSearch.data.results);
-  const region = requestedModelRegion(instruction);
-  if (!offerResults.length && !region)
+  const { countries } = providerOriginRequest(instruction);
+  const officialOnly =
+    countries.length > 0 ||
+    /\b(?:first[- ]party|official\s+(?:providers?|manufacturers?|developers?|vendors?|sources?|sites?|websites?|links?|stores?)|directly from (?:the )?(?:provider|manufacturer|developer|vendor))\b/i.test(
+      instruction,
+    );
+  if (!offerResults.length && !officialOnly)
     throw new PaymentError("DISCOVERY_GROUNDING_REQUIRED");
 
   assertUntrustedResultsSafe(offerResults, allSecrets);
@@ -2833,18 +2841,20 @@ export async function discoverOffers(
     instruction,
     "candidate",
   );
-  const candidateDomains = region
-    ? initialCandidates.map(({ domain }) => domain).slice(0, TAVILY_MAX_RESULTS)
-    : [];
+  const candidateDomains = initialCandidates
+    .map(({ domain }) => domain)
+    .slice(0, TAVILY_MAX_RESULTS);
   const initialThirdPartyHosts = collectThirdPartyHostnames(
     offerResults,
     instruction,
   );
   const retainedCount =
     initialOfficialProviders.length + initialCandidates.length;
-  const needsProviderSearch = region
+  const needsProviderSearch = officialOnly
     ? initialOfficialProviders.length < 3
     : retainedCount === 0 ||
+      (initialOfficialProviders.length === 0 &&
+        initialCandidates.length >= 2) ||
       (retainedCount < 2 &&
         offerResults.filter(
           (source) => !isRetainedProvider(source, instruction, offerResults),
@@ -2916,21 +2926,23 @@ export async function discoverOffers(
     source: ProviderSource,
     context: readonly ProviderSource[],
   ) =>
-    region
+    officialOnly
       ? classifyProviderSource(source, instruction, context) === "first-party"
       : isRetainedProvider(source, instruction, context);
   const sanitizedResults = rankOfficialFirstDiverse(offerResults, instruction)
     .filter((source) =>
-      region
+      officialOnly
         ? isPurchasingEvidence(source, offerResults)
         : isRelevantPurchasingSource(source, instruction),
     )
     .slice(0, TAVILY_MAX_RESULTS);
   if (!sanitizedResults.length)
     throw new PaymentError(
-      region
+      countries.length
         ? "DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED"
-        : "DISCOVERY_RELEVANT_SOURCES_REQUIRED",
+        : officialOnly
+          ? "DISCOVERY_OFFICIAL_PROVIDERS_UNVERIFIED"
+          : "DISCOVERY_RELEVANT_SOURCES_REQUIRED",
     );
 
   const researchResults = boundary.allowCollector({
@@ -3166,7 +3178,7 @@ export async function discoverOffers(
       const citedDomain = offerMerchantDomain(
         {
           provider: offer.provider,
-          sourceUrls: region
+          sourceUrls: officialOnly
             ? verifiedCitations.map(({ url }) => url)
             : validUrls,
         },
@@ -3409,8 +3421,8 @@ export async function discoverOffers(
     })),
   );
   let sanitizedPaymentResults: ValidatedPaymentResults = [];
-  // A link-only regional result has no plan to check for payment acceptance.
-  if (!region || preparedGroups.length || requiresPayPal) {
+  // A link-only official-provider result has no plan to check for payment acceptance.
+  if (!officialOnly || preparedGroups.length || requiresPayPal) {
     boundary.allowPaymentSearch(targetMerchantDomain);
     if (paymentSearchAccepted)
       throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
@@ -3471,7 +3483,7 @@ export async function discoverOffers(
         (paymentUrls.has(url) &&
           domain !== null &&
           isSameMerchantDomain(url, domain));
-      return region && !isCited ? [] : [{ url, cited: isCited }];
+      return officialOnly && !isCited ? [] : [{ url, cited: isCited }];
     });
     if (pricingDetails) {
       claims.priceMinor = null;
@@ -3664,7 +3676,7 @@ export async function discoverOffers(
     retrievedAt,
     targetMerchantDomain,
     officialProviders,
-    providerCandidates: region
+    providerCandidates: officialOnly
       ? []
       : extractOfficialProviders(
           [...allOfferResults, ...discoveredSeedResults],

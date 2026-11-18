@@ -8,13 +8,16 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
-- **2026-11-18: China and US model-plan discovery ready for the requested main
-  release.** Branch `fix/regional-model-provider-discovery` starts from
-  `origin/main` at `ab19c8a`.
-  Country-scoped searches preserve independently corroborated first-party links
-  for the requested country, covering subscriptions and usage-based API pages.
-  The exact China and US prompts pass offline with constructed evidence.
-  Deployment and live retrieval for this change remain unverified.
+- **2026-11-18: General provider discovery verified locally.** Branch
+  `fix/general-provider-search` starts at `origin/main` commit `bf90406`.
+  The same relevance and first-party verification flow applies to products,
+  subscriptions and APIs. Country of provider origin is optional and separate
+  from the requested product and budget. Live retrieval remains unverified.
+
+- **2026-11-18: China and US model-plan discovery published on main.** Commit
+  `bf90406` passed the primary `earmark-paypal` Vercel check and failed the
+  secondary `earmark-paypal-i2bk` check. Both exact AI prompts passed offline
+  with constructed evidence. Their live result quality remains unverified.
 
 - **2026-11-15: Incomplete-comparison relevance fix verified offline on latest
   fetched `origin/main` (`7457b75`, merged PR #3).** Local branch
@@ -8556,3 +8559,61 @@ whitespace, handoff formatting, and credential signatures before committing and
 pushing the single commit normally to `main`. Verify the remote SHA and report
 the existing Vercel integrations' observed statuses after publication.
 Live retrieval for both prompts still requires Production verification.
+
+### 2026-11-18 — Apply verification to purchasing research across categories
+
+The user clarified that the fix should apply to search generally. Fetched latest
+`origin/main` at `bf90406` and created local branch `fix/general-provider-search`.
+The previous main release's primary Vercel check completed successfully; the
+secondary `earmark-paypal-i2bk` check failed. This does not verify live search.
+
+- `web/src/lib/research-geography.ts` adds optional provider-origin parsing from
+  explicit country names using `Intl.DisplayNames`, plus common English demonyms
+  and abbreviations. Scope applies across products, services and subscriptions.
+  Authority excerpts need ownership information such as headquarters or a
+  company-origin statement. Currency markers, language requests and marketing
+  availability do not establish provider origin.
+- `web/src/lib/research-relevance.ts` separates origin from the product being
+  matched and accepts shopping and specification evidence for physical goods.
+  Model/API requests still use product-specific evidence checks.
+- `web/src/server/paypal/offer-discovery.ts` uses product-neutral search wording
+  and seeks corroboration through the existing bounded follow-up when ordinary
+  searches surface multiple plausible providers without verification. Verified
+  providers rank before candidates. Requests scoped to official sources or a
+  provider's country show only corroborated results. General results can retain
+  explicitly labelled candidates. All cited offers are still evaluated against
+  the original budget, evidence and existing payment restrictions. No new
+  search stage or dependency was needed.
+- `web/src/server/paypal/public-research.ts` and
+  `web/src/components/purchasing-chat.tsx` explain when verification yields no
+  official provider for either scope without tying the message to AI models.
+- `web/test/official-provider-regression.test.ts`,
+  `web/test/offer-discovery.test.ts` and `web/test/research-relevance.test.ts`
+  cover transactional email, photo backup and solar lanterns across Canada,
+  Germany and Kenya, the prior China and US AI queries, official-only requests
+  without geography, and ordinary follow-up searches. They also cover rejecting
+  wrong-country and unproven providers and distinguishing currency, language and
+  service regions from company origin. Existing request-count assertions now
+  include the bounded corroboration search where applicable.
+- `HANDOFF-PAYPAL.md` records the clarified scope and verification.
+
+225 targeted offline tests passed, covering discovery, provider guards and
+policy. An initial run exposed expected request-count changes in older fixtures;
+their assertions now verify the additional bounded follow-up. Formatting, lint,
+typecheck, the public production web build, whitespace and browser boundary
+checks passed. The browser scan covered 46 chunks, and the staged-content-style
+credential signature scan found zero matches in the local diff and new file.
+Evidence remains bounded by retrieved snippets. Unfamiliar demonyms
+may require writing the provider's country name explicitly, and product origin,
+availability and budget fit require their own evidence. This change remains
+local. No live provider calls, financial operations or release were performed.
+
+### 2026-11-18 — Release the generalized search fix to main
+
+The user requested a push to `main`. Fetched `origin/main` and verified the local
+baseline and remote branch both point to `bf90406`. The release includes the
+eight application and test paths listed in the preceding entry and this handoff
+update. The previously validated code is unchanged. Review the staged path set,
+formatting, whitespace and credential signatures before publishing one normal
+fast-forward commit. Verify the remote SHA and report the automatic deployment
+status separately. Live research and financial operations are outside this release.
