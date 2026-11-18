@@ -3,6 +3,7 @@ import {
   GENERIC_BRAND_WORDS,
   MODEL_REQUEST_RE,
   isRelevantPurchasingSource,
+  requestedModelRegion,
 } from "../../lib/research-relevance";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
@@ -393,13 +394,25 @@ function purchasingSearchTopic(instruction: string) {
 }
 
 function buildOfferSearchQuery(instruction: string) {
-  const query = `${purchasingSearchTopic(instruction)} official provider pricing documentation`;
-  return query.length <= 1000 ? query : purchasingSearchTopic(instruction);
+  const topic = purchasingSearchTopic(instruction);
+  const query = requestedModelRegion(instruction)
+    ? `${topic} original model developers official pricing`
+    : `${topic} official provider pricing documentation`;
+  return query.length <= 1000 ? query : topic;
 }
 
-function buildOfficialProviderDiscoveryQuery(instruction: string) {
-  const query = `${purchasingSearchTopic(instruction)} original developer provider official website company ownership country product documentation pricing`;
-  return query.length <= 1000 ? query : purchasingSearchTopic(instruction);
+function buildOfficialProviderDiscoveryQuery(
+  instruction: string,
+  candidateDomains: readonly string[] = [],
+) {
+  const topic = purchasingSearchTopic(instruction);
+  const region = requestedModelRegion(instruction);
+  const query = region
+    ? candidateDomains.length
+      ? `${candidateDomains.join(" OR ")} ${region.country} AI model developer official website Wikipedia Wikidata`
+      : `${topic} ${region.country} original model developers official website pricing Wikipedia Wikidata`
+    : `${topic} original developer provider official website company ownership country product documentation pricing`;
+  return query.length <= 1000 ? query : topic;
 }
 
 const LOW_SIGNAL_HOST_OR_PATH_RE =
@@ -438,7 +451,7 @@ function hostMatchesBrandToken(hostname: string, token: string): boolean {
 type ProviderSource = ValidatedResearchResults["results"][number];
 
 const RESELLER_RE =
-  /\b(?:resell(?:er|ing)?|aggregat(?:or|ion)|multi[- ](?:model|provider)|third[- ]party|unified\s+access\s+to\s+(?:multiple|third[- ]party)|access\s+to\s+other\s+providers'|all[- ]in[- ]one\s+AI)\b/i;
+  /\b(?:resell(?:er|ing)?|aggregat(?:or|ion)|multi[- ](?:model|provider)|third[- ]party|unified\s+access\s+to\s+(?:multiple|third[- ]party)|access\s+to\s+other\s+providers'|all[- ]in[- ]one\s+AI|(?:credits?|(?:one|single)\s+balance)\b[^.!?]{0,100}\bacross\s+(?:all|multiple|\d+\+?)\s+(?:AI\s+)?models?)\b/i;
 
 function sourceProviderBrand(source: ProviderSource): string | null {
   // Positive brand evidence is required. A safe URL and absence of blog markers
@@ -488,10 +501,18 @@ function providerIdentityReferences(
     )
       return false;
     const links = reference.snippet.matchAll(
-      /\b(?:official\s+(?:(?:web)?site|website|API(?:\s+platform)?|platform)|website)\s*:\s*(https:\/\/[^\s<>]+)/gi,
+      /\b(?:official\s+(?:site|website|API(?:\s+platform)?|platform)|website)(?:\s*[:|]\s*|\s+)(?:\[[^\]\n]+\]\()?([^\s<>|]+)/gi,
     );
     return [...links].some((match) => {
-      const safe = discoverySource((match[1] ?? "").replace(/[.,;)]+$/, ""));
+      const link = (match[1] ?? "").replace(/[.,;)]+$/, "");
+      if (
+        !/^https:\/\//i.test(link) &&
+        !/^(?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\/[^\s<>|]*)?$/i.test(link)
+      )
+        return false;
+      const safe = discoverySource(
+        /^https:\/\//i.test(link) ? link : `https://${link}`,
+      );
       if (!safe) return false;
       const host = new URL(safe).hostname.replace(/^www\./, "");
       return sourceHost === host || sourceHost.endsWith(`.${host}`);
@@ -551,23 +572,30 @@ function hasCorroboratedProviderIdentity(
   results: readonly ProviderSource[],
 ): boolean {
   const references = providerIdentityReferences(source, results);
-  if (!references.length) return false;
-  const evidence = references.map((item) => item.snippet).join(" ");
-  if (
-    MODEL_REQUEST_RE.test(instruction) &&
-    !/\b(?:develops?|developed|trains?|trained|creates?|created|builds?|built)\b[^.!?]{0,120}\b(?:models?|LLMs?)|\b(?:models?|LLMs?)\b[^.!?]{0,80}\b(?:developed|trained|created|built)\s+by\b/i.test(
-      evidence,
+  if (!MODEL_REQUEST_RE.test(instruction)) return references.length > 0;
+  const region = requestedModelRegion(instruction);
+  const originPatterns = {
+    China:
+      /\b(?:Chinese\s+(?:(?:AI|artificial intelligence|model|technology)\s+)*(?:company|developer|provider|startup|corporation|organization)|(?:China|Beijing|Shanghai|Hangzhou)[- ]based|(?:based|headquartered)\s+in\s+(?:China|Beijing|Shanghai|Hangzhou))\b/i,
+    "United States":
+      /\b(?:American\s+(?:(?:AI|artificial intelligence|model|multinational|technology|research)\s+)*(?:company|developer|provider|startup|corporation|organization|laboratory)|(?:U\.?S\.?(?:A\.?)?|United States)[- ]based|(?:based|headquartered)\s+in\s+(?:the\s+)?(?:[\w ,'-]{0,75},\s*)?(?:United States|U\.?S\.?(?:A\.?)?|California))\b/i,
+  };
+  const developsModels =
+    /\b(?:develop(?:s|ed|ing|er\s+of)|trains?|trained|creates?|created|builds?|built)\b[^.!?]{0,120}\b(?:models?|LLMs?|AI\s+chatbots?)|\b(?:models?|LLMs?|AI\s+chatbots?)\b[^.!?]{0,80}\b(?:developed|trained|created|built)\s+by\b/i;
+  if (region) {
+    const otherCountry = region.country === "China" ? "United States" : "China";
+    if (
+      references.some(({ snippet }) =>
+        originPatterns[otherCountry].test(snippet),
+      )
     )
-  )
-    return false;
-  if (
-    /\bChinese\b/i.test(instruction) &&
-    !/\b(?:Chinese\s+(?:(?:AI|artificial intelligence|model)\s+)*(?:company|developer|provider|startup)|(?:China|Beijing|Shanghai|Hangzhou)[- ]based|based\s+in\s+China)\b/i.test(
-      evidence,
-    )
-  )
-    return false;
-  return true;
+      return false;
+  }
+  return references.some(
+    ({ snippet }) =>
+      developsModels.test(snippet) &&
+      (!region || originPatterns[region.country].test(snippet)),
+  );
 }
 
 /** Verification and plausibility are separate from price/payment extraction. */
@@ -1234,7 +1262,10 @@ export function createDiscoveryBoundary(
     task,
     collectorModel,
     fallbackCollectorModel: allowedFallbackModel,
-    allowProviderSearch(extraExcludedHosts: readonly string[] = []) {
+    allowProviderSearch(
+      extraExcludedHosts: readonly string[] = [],
+      candidateDomains: readonly string[] = [],
+    ) {
       if (
         expectedCollector !== null ||
         providerSearchDone ||
@@ -1243,10 +1274,23 @@ export function createDiscoveryBoundary(
         expectedPaymentSearch !== null
       )
         throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
-      assertNoSensitiveMaterialInAgentPayload(extraExcludedHosts, allSecrets);
+      assertNoSensitiveMaterialInAgentPayload(
+        [extraExcludedHosts, candidateDomains],
+        allSecrets,
+      );
+      if (
+        candidateDomains.length > TAVILY_MAX_RESULTS ||
+        candidateDomains.some(
+          (domain) => !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(domain),
+        )
+      )
+        throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
       const domains = buildExcludedDomains(instruction, extraExcludedHosts);
       expectedProviderSearch = JSON.stringify({
-        query: buildOfficialProviderDiscoveryQuery(instruction),
+        query: buildOfficialProviderDiscoveryQuery(
+          instruction,
+          candidateDomains,
+        ),
         search_depth: "basic",
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
@@ -2774,7 +2818,8 @@ export async function discoverOffers(
     return out;
   };
   const offerResults = sanitizeOfferItems(initialSearch.data.results);
-  if (!offerResults.length)
+  const region = requestedModelRegion(instruction);
+  if (!offerResults.length && !region)
     throw new PaymentError("DISCOVERY_GROUNDING_REQUIRED");
 
   assertUntrustedResultsSafe(offerResults, allSecrets);
@@ -2783,22 +2828,28 @@ export async function discoverOffers(
     offerResults,
     instruction,
   );
+  const initialCandidates = extractOfficialProviders(
+    offerResults,
+    instruction,
+    "candidate",
+  );
+  const candidateDomains = region
+    ? initialCandidates.map(({ domain }) => domain).slice(0, TAVILY_MAX_RESULTS)
+    : [];
   const initialThirdPartyHosts = collectThirdPartyHostnames(
     offerResults,
     instruction,
   );
-  const needsProviderSearch =
-    initialOfficialProviders.length +
-      extractOfficialProviders(offerResults, instruction, "candidate")
-        .length ===
-      0 ||
-    (initialOfficialProviders.length +
-      extractOfficialProviders(offerResults, instruction, "candidate").length <
-      2 &&
-      offerResults.filter(
-        (source) => !isRetainedProvider(source, instruction, offerResults),
-      ).length >= 2 &&
-      offerResults.length >= TAVILY_MAX_RESULTS);
+  const retainedCount =
+    initialOfficialProviders.length + initialCandidates.length;
+  const needsProviderSearch = region
+    ? initialOfficialProviders.length < 3
+    : retainedCount === 0 ||
+      (retainedCount < 2 &&
+        offerResults.filter(
+          (source) => !isRetainedProvider(source, instruction, offerResults),
+        ).length >= 2 &&
+        offerResults.length >= TAVILY_MAX_RESULTS);
   const remainingBeforeProviderMs = timing
     ? Math.floor(timing.deadlineAt - performance.now())
     : timeout;
@@ -2816,14 +2867,17 @@ export async function discoverOffers(
       instruction,
       initialThirdPartyHosts,
     );
-    boundary.allowProviderSearch(initialThirdPartyHosts);
+    boundary.allowProviderSearch(initialThirdPartyHosts, candidateDomains);
     try {
       const providerSearch = await runStage(
         "provider_search",
         (stageTimeout, transport) =>
           runTavilySearch(
             JSON.stringify({
-              query: buildOfficialProviderDiscoveryQuery(instruction),
+              query: buildOfficialProviderDiscoveryQuery(
+                instruction,
+                candidateDomains,
+              ),
               search_depth: "basic",
               max_results: TAVILY_MAX_RESULTS,
               include_answer: false,
@@ -2858,11 +2912,26 @@ export async function discoverOffers(
   }
 
   const discoveredSeedResults = [...offerResults];
+  const isPurchasingEvidence = (
+    source: ProviderSource,
+    context: readonly ProviderSource[],
+  ) =>
+    region
+      ? classifyProviderSource(source, instruction, context) === "first-party"
+      : isRetainedProvider(source, instruction, context);
   const sanitizedResults = rankOfficialFirstDiverse(offerResults, instruction)
-    .filter((source) => isRelevantPurchasingSource(source, instruction))
+    .filter((source) =>
+      region
+        ? isPurchasingEvidence(source, offerResults)
+        : isRelevantPurchasingSource(source, instruction),
+    )
     .slice(0, TAVILY_MAX_RESULTS);
   if (!sanitizedResults.length)
-    throw new PaymentError("DISCOVERY_RELEVANT_SOURCES_REQUIRED");
+    throw new PaymentError(
+      region
+        ? "DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED"
+        : "DISCOVERY_RELEVANT_SOURCES_REQUIRED",
+    );
 
   const researchResults = boundary.allowCollector({
     searchProvider: "tavily",
@@ -3075,7 +3144,7 @@ export async function discoverOffers(
       const verifiedCitations = activeResults.filter(
         (source) =>
           offer.sourceUrls.includes(source.url) &&
-          isRetainedProvider(source, instruction, providerContext) &&
+          isPurchasingEvidence(source, providerContext) &&
           matchesProviderSource(offer.provider, source, providerContext),
       );
       if (!verifiedCitations.length) return [];
@@ -3095,7 +3164,12 @@ export async function discoverOffers(
       ];
       const validUrls = rawUrls.filter((u): u is string => u !== null);
       const citedDomain = offerMerchantDomain(
-        { provider: offer.provider, sourceUrls: validUrls },
+        {
+          provider: offer.provider,
+          sourceUrls: region
+            ? verifiedCitations.map(({ url }) => url)
+            : validUrls,
+        },
         providerContext,
       );
       const lookupDomain = lookupMerchantDomain(
@@ -3110,7 +3184,7 @@ export async function discoverOffers(
         source: ValidatedResearchResults["results"][number],
       ) =>
         pricingSearchUrls.has(source.url) &&
-        isRetainedProvider(source, instruction, providerContext) &&
+        isPurchasingEvidence(source, providerContext) &&
         lookupDomain !== null &&
         isSameMerchantDomain(source.url, lookupDomain) &&
         (containsPhrase(source.snippet, offer.service) ||
@@ -3153,7 +3227,7 @@ export async function discoverOffers(
             const { hostname, pathname } = new URL(source.url);
             return (
               isSameMerchantDomain(source.url, lookupDomain) &&
-              isRetainedProvider(source, instruction, providerContext) &&
+              isPurchasingEvidence(source, providerContext) &&
               !LOW_SIGNAL_HOST_OR_PATH_RE.test(hostname) &&
               !LOW_SIGNAL_HOST_OR_PATH_RE.test(pathname) &&
               (citedInitial.some((s) => s.url === source.url) ||
@@ -3334,38 +3408,41 @@ export async function discoverOffers(
       priceMinor: g.offer.priceMinor,
     })),
   );
-  boundary.allowPaymentSearch(targetMerchantDomain);
-  if (paymentSearchAccepted)
-    throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
-  paymentSearchAccepted = true;
-  bumpSearchRequests();
-  const paymentSearch = await runStage(
-    "payment_evidence",
-    (timeout, transport) =>
-      runTavilySearch(
-        JSON.stringify({
-          query: buildTargetedPayPalQuery(targetMerchantDomain),
-          search_depth: "basic",
-          max_results: TAVILY_PAYMENT_MAX_RESULTS,
-          include_answer: false,
-          include_raw_content: false,
-          include_images: false,
-        }),
-        tavilyKey,
-        timeout,
-        boundary.guard,
-        transport,
+  let sanitizedPaymentResults: ValidatedPaymentResults = [];
+  // A link-only regional result has no plan to check for payment acceptance.
+  if (!region || preparedGroups.length || requiresPayPal) {
+    boundary.allowPaymentSearch(targetMerchantDomain);
+    if (paymentSearchAccepted)
+      throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
+    paymentSearchAccepted = true;
+    bumpSearchRequests();
+    const paymentSearch = await runStage(
+      "payment_evidence",
+      (timeout, transport) =>
+        runTavilySearch(
+          JSON.stringify({
+            query: buildTargetedPayPalQuery(targetMerchantDomain),
+            search_depth: "basic",
+            max_results: TAVILY_PAYMENT_MAX_RESULTS,
+            include_answer: false,
+            include_raw_content: false,
+            include_images: false,
+          }),
+          tavilyKey,
+          timeout,
+          boundary.guard,
+          transport,
+        ),
+    );
+    httpStatus = paymentSearch.status;
+    sanitizedPaymentResults = boundary.allowPaymentResults(
+      prioritizePaymentResults(
+        paymentSearch.data.results,
+        targetMerchantDomain,
+        retrievedAt,
       ),
-  );
-  httpStatus = paymentSearch.status;
-
-  const sanitizedPaymentResults = boundary.allowPaymentResults(
-    prioritizePaymentResults(
-      paymentSearch.data.results,
-      targetMerchantDomain,
-      retrievedAt,
-    ),
-  );
+    );
+  }
 
   const initialUrls = new Set(allOfferResults.map((r) => r.url));
   const paymentUrls = new Set(sanitizedPaymentResults.map((r) => r.url));
@@ -3394,7 +3471,7 @@ export async function discoverOffers(
         (paymentUrls.has(url) &&
           domain !== null &&
           isSameMerchantDomain(url, domain));
-      return [{ url, cited: isCited }];
+      return region && !isCited ? [] : [{ url, cited: isCited }];
     });
     if (pricingDetails) {
       claims.priceMinor = null;
@@ -3587,11 +3664,13 @@ export async function discoverOffers(
     retrievedAt,
     targetMerchantDomain,
     officialProviders,
-    providerCandidates: extractOfficialProviders(
-      [...allOfferResults, ...discoveredSeedResults],
-      instruction,
-      "candidate",
-    ),
+    providerCandidates: region
+      ? []
+      : extractOfficialProviders(
+          [...allOfferResults, ...discoveredSeedResults],
+          instruction,
+          "candidate",
+        ),
     offers,
     reviewRecommendation,
     summary:

@@ -63,6 +63,12 @@ const requests = [
     },
   },
 ];
+const modelReference = {
+  title: "DeepSeek",
+  url: "https://en.wikipedia.org/wiki/DeepSeek",
+  snippet:
+    "DeepSeek is a Chinese AI company that develops language models. Official website: https://deepseek.com/",
+};
 const env = {
   EARMARK_OFFER_DISCOVERY_ENABLED: "true",
   EARMARK_GEMINI_ENABLED: "true",
@@ -150,23 +156,17 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
   it("retains an independently corroborated official document when the collector fails", async () => {
     const entry = requests[0];
     if (!entry) throw Error("Missing offline fixture");
-    const reference = {
-      title: "DeepSeek",
-      url: "https://en.wikipedia.org/wiki/DeepSeek",
-      snippet:
-        "DeepSeek is a Chinese AI company that develops language models. Official website: https://deepseek.com/",
-    };
     expect(
       classifyProviderSource(
         { ...entry.source, retrievedAt: "2026-11-15T06:43:00.000Z" },
         entry.instruction,
-        [entry.source, reference].map((item) => ({
+        [entry.source, modelReference].map((item) => ({
           ...item,
           retrievedAt: "2026-11-15T06:43:00.000Z",
         })),
       ),
     ).toBe("first-party");
-    const f = fixture([entry.source, reference], true);
+    const f = fixture([entry.source, modelReference], true);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const response = await handlePublicResearch(
@@ -211,7 +211,12 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
   it.each(requests)(
     "keeps useful sources out of unrelated noise before the collector: $instruction",
     async ({ instruction, source }) => {
-      const f = fixture([...unwanted, source]);
+      const regional = instruction.includes("Chinese");
+      const f = fixture([
+        ...unwanted,
+        source,
+        ...(regional ? [modelReference] : []),
+      ]);
       const result = await discoverOffers(instruction, env, f.fetcher, 2000);
       expect(f.collectorPayloads).toHaveLength(1);
       expect(
@@ -223,9 +228,11 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
         instruction,
         budgetMinor: "2000",
       });
-      expect(result.providerCandidates?.map((item) => item.url)).toContain(
-        source.url,
-      );
+      expect(
+        (regional ? result.officialProviders : result.providerCandidates)?.map(
+          (item) => item.url,
+        ),
+      ).toContain(source.url);
     },
   );
 
@@ -243,11 +250,11 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
     );
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({
-      error: "PUBLIC_RESEARCH_NO_RELEVANT_SOURCES",
+      error: "PUBLIC_RESEARCH_NO_VERIFIED_REGIONAL_PROVIDERS",
     });
     expect(f.queries).toEqual([
-      "Chinese model API plans official provider pricing documentation",
-      "Chinese model API plans original developer provider official website company ownership country product documentation pricing",
+      "Chinese model API plans original model developers official pricing",
+      "Chinese model API plans China original model developers official website pricing Wikipedia Wikidata",
     ]);
     expect(f.collectorPayloads).toEqual([]);
     expect(f.fetcher).toHaveBeenCalledTimes(2);
@@ -258,7 +265,14 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
   it.each(requests)(
     "preserves relevant product links through a collector rejection: $instruction",
     async ({ instruction, source }) => {
-      const f = fixture([...unwanted, source], true);
+      const f = fixture(
+        [
+          ...unwanted,
+          source,
+          ...(instruction.includes("Chinese") ? [modelReference] : []),
+        ],
+        true,
+      );
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
         const response = await handlePublicResearch(

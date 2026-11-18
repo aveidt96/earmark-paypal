@@ -1,12 +1,20 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-15**
+Last updated: **2026-11-18**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **2026-11-18: China and US model-plan discovery ready for the requested main
+  release.** Branch `fix/regional-model-provider-discovery` starts from
+  `origin/main` at `ab19c8a`.
+  Country-scoped searches preserve independently corroborated first-party links
+  for the requested country, covering subscriptions and usage-based API pages.
+  The exact China and US prompts pass offline with constructed evidence.
+  Deployment and live retrieval for this change remain unverified.
 
 - **2026-11-15: Incomplete-comparison relevance fix verified offline on latest
   fetched `origin/main` (`7457b75`, merged PR #3).** Local branch
@@ -8484,3 +8492,67 @@ SHA check. Preserve unrelated main work; do not force-push or bypass protection.
 Final remote main SHA and automatic release status are verified after the merge
 and reported to the user. Production availability and the live query's accuracy
 must be verified separately; offline/CI success alone does not establish either.
+
+### 2026-11-18 — Find official AI model plans by developer country
+
+The user wants `Find me $20 Chinese ai model plans` to surface links such as
+DeepSeek, Qwen and Kimi, and `Find me $20 us ai model plans` to surface links such
+as OpenAI, Google and Anthropic. Fetched `origin/main` at `ab19c8a` (merged PR #4)
+and created `fix/regional-model-provider-discovery` from that commit. The earlier
+release's GitHub statuses showed primary `earmark-paypal` success and secondary
+`earmark-paypal-i2bk` failure, with no live research verification.
+
+Before this change, origin verification was China-specific, `us` acted like a
+topic word, and the model relevance gate required API evidence for consumer
+subscriptions. Also, plausible candidates could suppress the only available
+follow-up search even when none had independent ownership evidence.
+
+- `web/src/lib/research-relevance.ts` recognizes China and US country modifiers
+  for AI model research and separates country from product relevance. Explicit
+  API requests still require API evidence. General model-plan requests can
+  accept first-party chatbot subscriptions and API pricing, while generic model
+  names on phone or other unrelated pricing pages are insufficient.
+- `web/src/server/paypal/offer-discovery.ts` directs the existing follow-up
+  search toward independent ownership evidence for discovered candidate domains
+  when verified coverage is sparse. Country, model ownership and official host
+  must be corroborated for regional requests. Accept labelled reference links
+  in common Markdown/infobox formats while preserving safe exact-host or
+  subdomain checks. Exclude other countries, resellers and unverified candidates
+  from regional collector/fallback evidence. Restrict regional offers to verified
+  citations. Return official links when Gemini gives no structured offers, and
+  skip the unrelated payment-method search for link-only regional results unless
+  PayPal was requested. The price ceiling still uses the original instruction
+  and the selected budget. No providers or prices are hardcoded into discovery.
+- `web/src/server/paypal/public-research.ts` and
+  `web/src/components/purchasing-chat.tsx` report when no official provider can
+  be verified for the requested country. No search stage, dependency, checkout,
+  authorization, deadline or quota limit was added or changed.
+- `web/test/official-provider-regression.test.ts`,
+  `web/test/offer-discovery.test.ts` and `web/test/research-relevance.test.ts` cover
+  both exact prompts, first-party subscriptions and APIs, wrong-country and
+  same-company unrelated products, resellers, empty/malformed collector output,
+  and the $20 ceiling for a verified subscription. General research still shows
+  separate unverified candidates where applicable. All fixtures are constructed
+  evidence, not live search results or current price assertions.
+- `HANDOFF-PAYPAL.md` records the local change and verification.
+
+Fresh offline verification: 220 discovery, relevance, policy and provider
+boundary tests passed. Repository formatting, lint, typecheck, production web
+build and whitespace checks passed. The browser boundary scan passed on 46
+chunks and the added-content credential signature scan found zero matches.
+Retrieval still depends on the bounded search returning
+both relevant provider pages and usable independent references. An official link
+with unknown pricing does not establish budget fit. No live provider calls, DB or
+payment operations, commit, push, merge or deployment were performed.
+
+### 2026-11-18 — Publish the regional discovery fix to main
+
+The user requested pushing the previously verified regional discovery fix to
+`main`. Fetched `origin/main` again and verified that its head and the local
+baseline are both `ab19c8a`. The release commit includes the seven code and test
+paths listed above and this `HANDOFF-PAYPAL.md` entry. Application and test
+content is the same as the 220-test offline run. Check the staged paths,
+whitespace, handoff formatting, and credential signatures before committing and
+pushing the single commit normally to `main`. Verify the remote SHA and report
+the existing Vercel integrations' observed statuses after publication.
+Live retrieval for both prompts still requires Production verification.

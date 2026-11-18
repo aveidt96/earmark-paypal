@@ -23,6 +23,7 @@ const source = (url: string, title: string, snippet: string) => ({
   retrievedAt,
 });
 const instruction = "Research $20 Chinese AI model plans";
+const unscopedInstruction = "Research $20 AI model plans";
 const badSources = [
   source(
     "https://aicodewith.ai/",
@@ -132,6 +133,217 @@ describe("official provider identity and relevance regression", () => {
       name,
       `${facts} Official API platform: ${website}`,
     );
+
+  const chineseProviders = [
+    [
+      "DeepSeek",
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "https://deepseek.com/",
+      "DeepSeek API models and pricing",
+      "Language model API token rates and pay-as-you-go billing.",
+    ],
+    [
+      "Alibaba Cloud",
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://alibabacloud.com/",
+      "Qwen model pricing",
+      "Input and output token rates for Qwen language models.",
+    ],
+    [
+      "Moonshot AI",
+      "https://platform.moonshot.ai/docs/pricing",
+      "https://moonshot.ai/",
+      "Kimi API pricing",
+      "Kimi language model token pricing and prepaid credits.",
+    ],
+  ] as const;
+  const usProviders = [
+    [
+      "OpenAI",
+      "https://chatgpt.com/pricing",
+      "https://chatgpt.com/",
+      "ChatGPT plans",
+      "Access to our latest AI models. Plus subscription at USD 20 per month.",
+    ],
+    [
+      "Google",
+      "https://one.google.com/about/google-ai-plans/",
+      "https://google.com/",
+      "Google AI plans",
+      "Gemini AI chatbot subscription plans and monthly pricing.",
+    ],
+    [
+      "Anthropic",
+      "https://claude.com/pricing",
+      "https://claude.com/",
+      "Claude pricing",
+      "Claude AI chatbot plans for individual and team subscriptions.",
+    ],
+  ] as const;
+
+  it.each([
+    [
+      "Find me $20 Chinese ai model plans",
+      "Chinese",
+      chineseProviders,
+      usProviders[0],
+    ],
+    [
+      "Find me $20 us ai model plans",
+      "American",
+      usProviders,
+      chineseProviders[0],
+    ],
+  ] as const)(
+    "shows only corroborated country-matched links for %s even with no structured offers",
+    async (request, country, providers, wrongProvider) => {
+      const pages = providers.map(([, url, , title, snippet]) =>
+        source(url, title, snippet),
+      );
+      const refs = providers.map(([name, , official]) =>
+        source(
+          `https://en.wikipedia.org/wiki/${name.replaceAll(" ", "_")}`,
+          name,
+          `${name} is an ${country} technology company. ${name} develops language models. Website | [${new URL(official).hostname}](${official})`,
+        ),
+      );
+      const [wrongName, wrongUrl, wrongOfficial, wrongTitle, wrongSnippet] =
+        wrongProvider;
+      const wrongPage = source(
+        wrongUrl,
+        wrongTitle,
+        `${wrongSnippet} Available in both China and the United States.`,
+      );
+      const wrongRef = reference(
+        wrongName,
+        wrongOfficial,
+        `${wrongName} is a ${country === "Chinese" ? "US-based" : "China-based"} AI company that develops language models.`,
+      );
+      const reseller = source(
+        "https://aicodewith.ai/pricing",
+        "AI API Pricing Plans and Credits | AI Code With",
+        "Buy credits once, use across 30+ AI models. One balance, all models.",
+      );
+      const unrelatedProduct = source(
+        "https://store.google.com/product/pixel/",
+        "Pixel phone models and plans",
+        "Compare phone models and see monthly carrier subscription pricing.",
+      );
+      const fetcher = offlineTransport(
+        [...pages, wrongPage, reseller],
+        [...refs, wrongRef, unrelatedProduct],
+      );
+      const result = await discoverOffers(request, env, fetcher, 2000);
+      expect(result.officialProviders?.map(({ url }) => url)).toEqual(
+        expect.arrayContaining(pages.map(({ url }) => url)),
+      );
+      expect(result.officialProviders).toHaveLength(3);
+      expect(result.providerCandidates).toEqual([]);
+      expect(result.offers).toEqual([]);
+      expect(
+        result.officialProviders?.every(
+          ({ pricingStatus, checkoutUrl }) =>
+            pricingStatus === "unknown" && checkoutUrl === null,
+        ),
+      ).toBe(true);
+      const query = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)).query;
+      expect(query).toContain(
+        new URL(pages[0]?.url ?? "").hostname.replace(/^api-docs\./, ""),
+      );
+      const collector = JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body));
+      const { trustedTask, observationsIncludingUntrustedProviderData } =
+        JSON.parse(collector.contents[0].parts[0].text);
+      expect(trustedTask).toMatchObject({
+        instruction: request,
+        budgetMinor: "2000",
+      });
+      expect(
+        observationsIncludingUntrustedProviderData.results
+          .map(({ url }: { url: string }) => url)
+          .sort(),
+      ).toEqual(pages.map(({ url }) => url).sort());
+      const html = renderToStaticMarkup(
+        createElement(OfferDiscovery, { result, researchBudgetMinor: 2000 }),
+      );
+      expect(html).toContain("Verified official providers");
+      expect(html).toContain("Price: Unknown");
+      expect(html).not.toContain(wrongUrl);
+      expect(html).not.toContain(reseller.url);
+      expect(html).not.toContain(unrelatedProduct.url);
+    },
+  );
+
+  it("does not send an unverified regional provider to the collector even if it claims the requested country", async () => {
+    const document = source(
+      "https://sparse.example/pricing",
+      "Sparse model API pricing",
+      "We are an American AI company and develop language models. Starter plan USD 20 per month.",
+    );
+    const independentHostOnly = reference(
+      "Sparse",
+      "https://sparse.example/",
+      "Sparse sells services in the United States and provides access to language models.",
+    );
+    const fetcher = offlineTransport([document], [independentHostOnly]);
+    await expect(
+      discoverOffers("Find me $20 us ai model plans", env, fetcher, 2000),
+    ).rejects.toThrow("DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("verifies an in-budget subscription from the official product domain and withholds an above-budget recommendation", async () => {
+    const document = source(
+      "https://chatgpt.com/pricing",
+      "ChatGPT AI model plans",
+      "Plus costs USD 20 per month. Pro costs USD 200 per month.",
+    );
+    const identity = reference(
+      "OpenAI",
+      "https://chatgpt.com/",
+      "OpenAI is an American AI company that develops language models.",
+    );
+    const offers = [
+      ["Plus", "2000"],
+      ["Pro", "20000"],
+    ].map(([service, priceMinor]) => ({
+      provider: "OpenAI",
+      service,
+      priceMinor,
+      currency: "USD",
+      billing: "per month",
+      availability: null,
+      delivery: null,
+      slaMinutes: null,
+      paypal: "unknown",
+      paypalEvidence: null,
+      sourceUrls: [document.url],
+    }));
+    const result = await discoverOffers(
+      "Find me $20 us ai model plans",
+      env,
+      offlineTransport([document], [identity], offers),
+      2500,
+    );
+    expect(result.offers).toEqual([
+      expect.objectContaining({
+        service: "Plus",
+        priceMinor: "2000",
+        providerVerification: "corroborated",
+        officialMerchantUrl: document.url,
+        officialCheckoutUrl: null,
+        reviewFit: "matches",
+      }),
+      expect.objectContaining({
+        service: "Pro",
+        priceMinor: "20000",
+        reviewFit: "does-not-match",
+        policy: expect.objectContaining({
+          reasons: expect.arrayContaining(["RESEARCH_BUDGET_EXCEEDED"]),
+        }),
+      }),
+    ]);
+    expect(result.reviewRecommendation).toBe(0);
+  });
 
   it.each([
     [
@@ -330,7 +542,7 @@ describe("official provider identity and relevance regression", () => {
       "Nimbus language model API token pricing.",
     );
     const result = await discoverOffers(
-      instruction,
+      unscopedInstruction,
       env,
       offlineTransport([document], []),
       2000,
@@ -361,7 +573,7 @@ describe("official provider identity and relevance regression", () => {
       "Complete your purchase.",
     );
     const result = await discoverOffers(
-      instruction,
+      unscopedInstruction,
       env,
       offlineTransport(
         [document, checkout],
@@ -439,7 +651,7 @@ describe("official provider identity and relevance regression", () => {
   });
 
   it.each([false, true])(
-    "preserves verified links independently of Gemini offers (poisoned offers: %s)",
+    "preserves separate unverified candidates for unscoped requests (poisoned offers: %s)",
     async (poisoned) => {
       const modelOffers = poisoned
         ? badSources.slice(0, 3).map((item) => ({
@@ -456,8 +668,22 @@ describe("official provider identity and relevance regression", () => {
             sourceUrls: [item.url],
           }))
         : [];
-      const transport = offlineTransport(badSources, goodSources, modelOffers);
-      const result = await discoverOffers(instruction, env, transport, 2000);
+      const noise = badSources.map((item) =>
+        item.url.includes("openai.com")
+          ? {
+              ...item,
+              title: "Company funding news",
+              snippet: "Business news about financing.",
+            }
+          : item,
+      );
+      const transport = offlineTransport(noise, goodSources, modelOffers);
+      const result = await discoverOffers(
+        unscopedInstruction,
+        env,
+        transport,
+        2000,
+      );
       expect(transport).toHaveBeenCalledTimes(4); // Existing search -> provider search -> collector -> payment search.
       expect(result.evidence.searchRequests).toBe(3);
       expect(result.offers).toEqual([]);
@@ -583,7 +809,7 @@ describe("official provider identity and relevance regression", () => {
         offlineTransport(badSources, badSources),
         2000,
       ),
-    ).rejects.toThrow("DISCOVERY_RELEVANT_SOURCES_REQUIRED");
+    ).rejects.toThrow("DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED");
   });
 
   it("does not use a blog price as verified pricing for a genuine provider", async () => {
@@ -596,7 +822,13 @@ describe("official provider identity and relevance regression", () => {
     );
     const transport = offlineTransport(
       [deepseek, article],
-      [],
+      [
+        reference(
+          "DeepSeek",
+          "https://deepseek.com/",
+          "DeepSeek is a Chinese AI company that develops language models.",
+        ),
+      ],
       [
         {
           provider: "DeepSeek",
@@ -620,11 +852,10 @@ describe("official provider identity and relevance regression", () => {
       pricing: { status: "unknown" },
       officialCheckoutUrl: null,
     });
-    expect(result.offers[0]?.sources).toContainEqual({
-      url: article.url,
-      cited: false,
-    });
-    expect(result.providerCandidates?.map((item) => item.url)).toEqual([
+    expect(result.offers[0]?.sources.map(({ url }) => url)).not.toContain(
+      article.url,
+    );
+    expect(result.officialProviders?.map((item) => item.url)).toEqual([
       deepseek.url,
     ]);
   });

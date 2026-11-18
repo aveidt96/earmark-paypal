@@ -4061,9 +4061,6 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const roundupBlogUrl =
       "https://blog.llmtrends.example/best-chinese-ai-model-plans-2026";
     const analysisUrl = "https://artificialanalysis.ai/models/chinese";
-    const spoofCompareUrl = "https://deepseek-compare.example/pricing";
-    const spoofSubdomainUrl = "https://deepseek.com.spoof.example/pricing";
-    const spoofBrandPathUrl = "https://evil-mirror.example/deepseek-pricing";
     const spoofOfficialTitleUrl = "https://reseller-hub.example/api-plans";
 
     const searchBodies: Array<Record<string, unknown>> = [];
@@ -4115,7 +4112,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
             });
           }
           if (tavilyTurn === 2) {
-            // Pre-Gemini official provider_search recovers additional official vendors + mixed spoofed/aggregator noise
+            // The bounded follow-up recovers more pricing pages plus independent identity evidence.
             return Response.json({
               query: body.query,
               results: [
@@ -4132,25 +4129,29 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
                     "Zhipu AI is a China-based AI provider. We develop our own language models including GLM. BigModel API offers prepaid token packages and pay-as-you-go API access.",
                 },
                 {
-                  title: "DeepSeek Official Pricing",
-                  url: spoofBrandPathUrl,
-                  content: "DeepSeek prices mirrored here.",
+                  title: "DeepSeek",
+                  url: "https://en.wikipedia.org/wiki/DeepSeek",
+                  content:
+                    "DeepSeek is a Chinese company that develops language models. Website: https://deepseek.com/",
                 },
                 {
-                  title: "DeepSeek vs Qwen Pricing Comparison",
-                  url: spoofCompareUrl,
-                  content: "Unofficial comparison site.",
+                  title: "Alibaba Cloud",
+                  url: "https://en.wikipedia.org/wiki/Alibaba_Cloud",
+                  content:
+                    "Alibaba Cloud is a Chinese technology company. It develops Qwen models. Website | alibabacloud.com",
                 },
                 {
-                  title: "DeepSeek Official Portal",
-                  url: spoofSubdomainUrl,
-                  content: "Subdomain spoof.",
+                  title: "Zhipu AI",
+                  url: "https://en.wikipedia.org/wiki/Zhipu_AI",
+                  content:
+                    "Zhipu AI is a Chinese AI company that develops GLM models. Official API platform: https://open.bigmodel.cn/",
                 },
               ],
             });
           }
-          // Third Tavily call is targeted PayPal acceptance check
-          return Response.json({ query: body.query, results: [] });
+          throw new Error(
+            "Unexpected third search for link-only regional results",
+          );
         }
         if (String(input).includes(":generateContent")) {
           // Simulate empty Gemini collector output
@@ -4191,9 +4192,8 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         2000,
       );
 
-      // 1: offer_search, 2: pre-Gemini provider_search, 3: Gemini (empty), 4: payment_evidence
-      expect(f).toHaveBeenCalledTimes(4);
-      expect(searchBodies).toHaveLength(3);
+      expect(f).toHaveBeenCalledTimes(3);
+      expect(searchBodies).toHaveLength(2);
       expect(searchBodies[0]?.exclude_domains).toEqual(
         expect.arrayContaining(["medium.com", "openrouter.ai", "reddit.com"]),
       );
@@ -4212,7 +4212,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       expect(authorizeSpy).not.toHaveBeenCalled();
       expect(reserveSpy).not.toHaveBeenCalled();
 
-      const providerUrls = result.providerCandidates?.map((p) => p.url) ?? [];
+      const providerUrls = result.officialProviders?.map((p) => p.url) ?? [];
       expect(providerUrls).toEqual(
         expect.arrayContaining([deepseekPricing, alibabaPricing, zhipuPricing]),
       );
@@ -4221,13 +4221,10 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         openrouterUrl,
         analysisUrl,
         roundupBlogUrl,
-        spoofCompareUrl,
-        spoofSubdomainUrl,
-        spoofBrandPathUrl,
       ]) {
         expect(providerUrls).not.toContain(badUrl);
       }
-      for (const p of result.providerCandidates ?? []) {
+      for (const p of result.officialProviders ?? []) {
         expect(p.pricingStatus).toBe("unknown");
         expect(p.paypal).toBe("unknown");
         expect(p.checkoutUrl).toBeNull();
@@ -4240,13 +4237,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           assistedCheckout: true,
         }),
       );
-      expect(html).toContain("Provider research links");
+      expect(html).toContain("Verified official providers");
       expect(html).toContain(`href="${deepseekPricing}"`);
       expect(html).toContain(`href="${alibabaPricing}"`);
       expect(html).toContain(`href="${zhipuPricing}"`);
       expect(html).toContain("Research link only (not a checkout destination)");
       expect(html).toContain("Price: Unknown");
-      expect(html).toContain("PayPal: Unknown");
+      expect(html).toContain("PayPal: unknown");
       expect(html).not.toContain(
         "No sufficiently structured offer evidence was returned.",
       );
