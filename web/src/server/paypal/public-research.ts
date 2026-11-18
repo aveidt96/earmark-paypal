@@ -485,6 +485,12 @@ export async function handlePublicResearch(
       payload.budgetMinor,
       {
         deadlineAt,
+        onEvidenceGap(counts) {
+          console.info(
+            "public-research: official provider evidence gap",
+            counts,
+          );
+        },
         onFailure(failure, comparisonContext) {
           provider.failure = failure;
           provider.comparison = comparisonContext;

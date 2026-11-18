@@ -249,13 +249,13 @@ export interface OfferDiscoveryResult {
   evidence: {
     httpStatus: number;
     durationMs: number;
-    modelTurns: 1 | 2;
+    modelTurns: 0 | 1 | 2;
     searchProvider?: "tavily";
     searchRequests?: 1 | 2 | 3 | 4;
     searchResultsCount?: number;
     paymentSearchResultsCount?: number;
     collectorModel?: string;
-    collectedTool: "reportDiscoveredOffers";
+    collectedTool: "reportDiscoveredOffers" | null;
     citedSourceCount: number;
     outboundGuardPassed: true;
   };

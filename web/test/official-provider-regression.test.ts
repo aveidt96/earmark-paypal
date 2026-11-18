@@ -306,6 +306,7 @@ describe("official provider identity and relevance regression", () => {
       usProviders,
       chineseProviders[0],
     ],
+    ["Find a $20 Chinese ai plan", "Chinese", chineseProviders, usProviders[0]],
   ] as const)(
     "shows only corroborated country-matched links for %s even with no structured offers",
     async (request, country, providers, wrongProvider) => {
@@ -385,20 +386,122 @@ describe("official provider identity and relevance regression", () => {
     },
   );
 
-  it("does not send an unverified regional provider to the collector even if it claims the requested country", async () => {
-    const document = source(
-      "https://sparse.example/pricing",
+  it.each([
+    [
+      "Find me $20 us ai model plans",
       "Sparse model API pricing",
       "We are an American AI company and develop language models. Starter plan USD 20 per month.",
+    ],
+    [
+      "Find $20 photo backup plans from Germany",
+      "Sparse photo backup pricing",
+      "Starter photo backup plan costs USD 20 per month.",
+    ],
+  ])(
+    "keeps a plausible provider link separate from verified offers and skips the collector for %s",
+    async (instruction, title, snippet) => {
+      const document = source("https://sparse.example/pricing", title, snippet);
+      const independentHostOnly = reference(
+        "Sparse",
+        "https://sparse.example/",
+        "Sparse provides subscription services in several countries.",
+      );
+      const fetcher = offlineTransport([document], [independentHostOnly]);
+      const result = await discoverOffers(instruction, env, fetcher, 2000);
+      expect(result.providerCandidates?.map(({ url }) => url)).toEqual([
+        document.url,
+      ]);
+      expect(result.officialProviders).toEqual([]);
+      expect(result.offers).toEqual([]);
+      expect(result.evidence).toMatchObject({
+        modelTurns: 0,
+        collectedTool: null,
+        paymentSearchResultsCount: 0,
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("returns relevant plan links for the screenshot prompt when search finds pricing pages but lacks corroborating references", async () => {
+    const instruction = "Find a $20 Chinese ai plan";
+    const product = source(
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "Models & Pricing | DeepSeek API Docs",
+      "Model API input and output token rates and pay-as-you-go billing.",
     );
-    const independentHostOnly = reference(
-      "Sparse",
-      "https://sparse.example/",
-      "Sparse sells services in the United States and provides access to language models.",
+    const reseller = source(
+      "https://aicodewith.ai/pricing",
+      "AI Code With API pricing",
+      "Buy credits once, use across 30+ AI models. Unified billing.",
     );
-    const fetcher = offlineTransport([document], [independentHostOnly]);
+    const unrelated = source(
+      "https://shattered.io/openai-cuts-funding-target-10-billion-20-billion-1-25-trillion-valuation-2026",
+      "OpenAI Funding Target Cut $10B to $20B [2026]",
+      "Sensible hedges are cheap. Keep prompts portable across providers.",
+    );
+    const wrongCountry = source(
+      "https://chatgpt.com/pricing",
+      "ChatGPT AI model plans",
+      "Our AI chatbot subscription is offered worldwide.",
+    );
+    const evidence = reference(
+      "OpenAI",
+      "https://chatgpt.com/",
+      "OpenAI is an American AI company that develops language models.",
+    );
+    const fetcher = offlineTransport(
+      [product, reseller, unrelated, wrongCountry],
+      [evidence],
+    );
+    const onEvidenceGap = vi.fn();
+    const result = await discoverOffers(instruction, env, fetcher, 2000, {
+      deadlineAt: performance.now() + 55000,
+      onFailure: vi.fn(),
+      onEvidenceGap,
+    });
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)).query).toBe(
+      "Chinese AI model plan official provider pricing documentation",
+    );
+    expect(result.providerCandidates?.map(({ url }) => url)).toEqual([
+      product.url,
+    ]);
+    expect(result.officialProviders).toEqual([]);
+    expect(result.offers).toEqual([]);
+    expect(result.reviewRecommendation).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(onEvidenceGap).toHaveBeenCalledWith({
+      initialResults: 4,
+      followupResults: 1,
+      relevantPages: expect.any(Number),
+      visibleResearchLinks: 1,
+      searchRequests: 2,
+    });
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, { result, researchBudgetMinor: 2000 }),
+    );
+    expect(html).toContain(product.url);
+    expect(html).toContain("identity unverified");
+    expect(html).toContain("Price: Unknown");
+    expect(html).not.toContain(wrongCountry.url);
+    expect(html).not.toContain(reseller.url);
+    expect(html).not.toContain(unrelated.url);
+    expect(html).not.toContain("Verified official providers");
+  });
+
+  it("requires corroboration when the user explicitly requests official links", async () => {
+    const document = source(
+      "https://northwind.example/pricing",
+      "Northwind weather API pricing",
+      "Weather forecast API plans and monthly pricing.",
+    );
+    const fetcher = offlineTransport([document], []);
     await expect(
-      discoverOffers("Find me $20 us ai model plans", env, fetcher, 2000),
+      discoverOffers(
+        "Find official links for weather API providers based in Canada",
+        env,
+        fetcher,
+        2000,
+      ),
     ).rejects.toThrow("DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED");
     expect(fetcher).toHaveBeenCalledTimes(2);
   });

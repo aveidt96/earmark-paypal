@@ -8,8 +8,15 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
-- **2026-11-18: General provider discovery verified locally.** Branch
-  `fix/general-provider-search` starts at `origin/main` commit `bf90406`.
+- **2026-11-18: Exact short AI-plan request and verification fallback corrected
+  locally.** Branch `fix/preserve-relevant-provider-links` starts at `ca6251e`.
+  Short AI-plan wording retains its model intent. When country corroboration is
+  incomplete, plausible provider pricing links can remain as clearly unverified
+  research links. Production retrieval still needs a live replay.
+
+- **2026-11-18: General provider discovery published on main.** Commit `ca6251e`
+  passed the primary `earmark-paypal` check and failed the secondary
+  `earmark-paypal-i2bk` check.
   The same relevance and first-party verification flow applies to products,
   subscriptions and APIs. Country of provider origin is optional and separate
   from the requested product and budget. Live retrieval remains unverified.
@@ -8617,3 +8624,58 @@ update. The previously validated code is unchanged. Review the staged path set,
 formatting, whitespace and credential signatures before publishing one normal
 fast-forward commit. Verify the remote SHA and report the automatic deployment
 status separately. Live research and financial operations are outside this release.
+
+### 2026-11-18 — Keep useful plan links when provider verification is incomplete
+
+The user showed `Find a $20 Chinese ai plan` returning the country-verification
+error on Production and asked whether Tavily should be replaced. Fetched main at
+`ca6251e` and worked locally on `fix/preserve-relevant-provider-links`. GitHub
+status confirms the previous primary release passed and its secondary check
+failed. The screenshot alone does not reveal what Tavily returned. This workspace
+has no Vercel CLI, token, local session or log connector. No raw Production
+retrieval trace was available to diagnose search-provider recall.
+
+- `web/src/lib/research-relevance.ts` recognizes `AI plan` and `AI subscription`
+  as model-shopping intent and expands those forms in provider searches. The
+  collector and budget checks still use the original request.
+- `web/src/server/paypal/offer-discovery.ts` preserves plausible matching pricing
+  and documentation links after a country-scoped search yields no corroborated
+  provider. Retained links need product evidence and brand/host association;
+  exclude editorial and reseller pages, checkout-only pages, and providers with
+  contradictory country evidence. Links stay separate from verified providers,
+  compared offers and checkout. An explicit request for official links still
+  requires corroboration. Uses the existing bounded search stages. The link-only
+  response skips Gemini and payment-evidence lookup.
+- `web/src/lib/offer-discovery.ts` allows evidence to represent that no model
+  turn or tool invocation occurred. The existing provider-research card explains
+  incomplete identity or country evidence and shows unknown prices and payments.
+- `web/src/server/paypal/public-research.ts` records aggregate initial/follow-up,
+  relevance and retained-link counts when official evidence is missing. These
+  diagnostics contain no prompts, titles, URLs, credentials, or visitor data.
+- `web/test/official-provider-regression.test.ts` replays the exact screenshot
+  wording with corroborated results and with sparse identity excerpts. Covers
+  known wrong-country sources, the historical unrelated article and reseller,
+  clear unverified labels, a non-AI backup search, and explicit official-only
+  behavior. `HANDOFF-PAYPAL.md` records the incident and validation.
+
+The code explains how valid pages could be discarded regardless of the search
+vendor. It does not establish what the original query retrieved. To evaluate
+Tavily vs another retriever, obtain a sanitized live replay showing returned
+public result URLs/titles and the evidence-gap counts, then compare useful
+first-party coverage on the same requests. There was no release, live provider
+query, payment, or financial operation in this follow-up.
+
+Fresh offline checks passed: 229 targeted tests, lint, typecheck, production web
+build, repository formatting, whitespace, and the 46-chunk browser boundary
+scan. A credential-signature scan found zero matches in the added lines. The
+initial new official-only fixture used ambiguous availability wording; it was
+revised to explicitly request providers based in Canada and passed on rerun.
+
+### 2026-11-18 — Release the plan-search fallback to main
+
+The user requested publication to `main`. The fetched remote and local base
+both point to `ca6251e`. The release includes the five code and test paths
+listed in the preceding entry and this handoff update. Commit the reviewed
+changes as a single fast-forward update and verify the published SHA and
+automatic deployment statuses. The previous 229-test offline validation still
+applies. Production replay and retrieval quality remain separate checks.

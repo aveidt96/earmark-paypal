@@ -2,6 +2,7 @@ import "server-only";
 import {
   GENERIC_BRAND_WORDS,
   MODEL_REQUEST_RE,
+  expandAiPlanQuery,
   isRelevantPurchasingSource,
 } from "../../lib/research-relevance";
 import {
@@ -136,6 +137,13 @@ export type PartialComparisonContext = {
 
 type PublicResearchTiming = {
   deadlineAt: number;
+  onEvidenceGap?: (counts: {
+    initialResults: number;
+    followupResults: number;
+    relevantPages: number;
+    visibleResearchLinks: number;
+    searchRequests: number;
+  }) => void;
   onFailure: (
     failure: ResearchStageFailure,
     comparisonContext?: PartialComparisonContext,
@@ -386,14 +394,15 @@ export function buildExcludedDomains(
 }
 
 function purchasingSearchTopic(instruction: string) {
-  return instruction
+  const topic = instruction
     .replace(
       /(?:\b(?:under|below|within|up to|less than)\s*)?(?:[$€£]\s*\d[\d,.]*|\b(?:USD|EUR|GBP)\s*\d[\d,.]*)/gi,
       " ",
     )
-    .replace(/^(?:find(?:\s+me)?|research|compare)\s+/i, "")
+    .replace(/^(?:find(?:\s+(?:me|an?))?|research|compare)\s+/i, "")
     .replace(/\s+/g, " ")
     .trim();
+  return expandAiPlanQuery(topic);
 }
 
 function buildOfferSearchQuery(instruction: string) {
@@ -796,6 +805,7 @@ function extractOfficialProviders(
   results: ValidatedResearchResults["results"],
   instruction: string,
   classification: "first-party" | "candidate" = "first-party",
+  accept: (source: ProviderSource) => boolean = () => true,
 ): DiscoveredOfficialProvider[] {
   const byDomain = new Map<
     string,
@@ -805,7 +815,7 @@ function extractOfficialProviders(
     const safeUrl = discoverySource(source.url);
     if (!safeUrl) continue;
     const { hostname, pathname } = new URL(safeUrl);
-    if (CHECKOUT_ONLY_PATH_RE.test(pathname)) continue;
+    if (CHECKOUT_ONLY_PATH_RE.test(pathname) || !accept(source)) continue;
     if (classifyProviderSource(source, instruction, results) !== classification)
       continue;
 
@@ -2822,11 +2832,12 @@ export async function discoverOffers(
   };
   const offerResults = sanitizeOfferItems(initialSearch.data.results);
   const { countries } = providerOriginRequest(instruction);
-  const officialOnly =
-    countries.length > 0 ||
+  const explicitlyOfficial =
     /\b(?:first[- ]party|official\s+(?:providers?|manufacturers?|developers?|vendors?|sources?|sites?|websites?|links?|stores?)|directly from (?:the )?(?:provider|manufacturer|developer|vendor))\b/i.test(
       instruction,
     );
+  const officialOnly = countries.length > 0 || explicitlyOfficial;
+  let followupResults = 0;
   if (!offerResults.length && !officialOnly)
     throw new PaymentError("DISCOVERY_GROUNDING_REQUIRED");
 
@@ -2904,6 +2915,7 @@ export async function discoverOffers(
           ),
       );
       bumpSearchRequests();
+      followupResults = providerSearch.data.results.length;
       const validatedProviderResults = boundary.allowProviderResults(
         sanitizeOfferItems(providerSearch.data.results, TAVILY_MAX_RESULTS),
       );
@@ -2936,6 +2948,76 @@ export async function discoverOffers(
         : isRelevantPurchasingSource(source, instruction),
     )
     .slice(0, TAVILY_MAX_RESULTS);
+  if (!sanitizedResults.length && officialOnly) {
+    // Keep plausible provider pages as read-only leads when identity evidence
+    // is sparse. The model and offer pipeline still require verified providers.
+    const providerCandidates =
+      countries.length && !explicitlyOfficial
+        ? extractOfficialProviders(
+            offerResults,
+            instruction,
+            "candidate",
+            (source) => {
+              if (!sourceHasProviderIdentity(source, offerResults))
+                return false;
+              const { pathname } = new URL(source.url);
+              if (
+                !isOfficialPricingPath(pathname) &&
+                !DOCS_PATH_RE.test(pathname) &&
+                !/\b(?:pricing|subscriptions?|plans?|billing|documentation)\b/i.test(
+                  source.title,
+                )
+              )
+                return false;
+              const knownCountries = [
+                source,
+                ...providerIdentityReferences(source, offerResults),
+              ].flatMap(({ snippet }) => referencedProviderCountries(snippet));
+              return knownCountries.every((country) =>
+                countries.includes(country),
+              );
+            },
+          )
+        : [];
+    timing?.onEvidenceGap?.({
+      initialResults: initialSearch.data.results.length,
+      followupResults,
+      relevantPages: offerResults.filter((source) =>
+        matchesProviderRequest(source, instruction, offerResults),
+      ).length,
+      visibleResearchLinks: providerCandidates.length,
+      searchRequests: searchRequestCount,
+    });
+    if (providerCandidates.length)
+      return {
+        source: fetcher ? "OFFLINE_SEARCH_FIXTURE" : "LIVE_TAVILY_SEARCH",
+        instruction,
+        retrievedAt,
+        officialProviders: [],
+        providerCandidates,
+        offers: [],
+        reviewRecommendation: null,
+        summary:
+          "Relevant plan pages were found. Provider identity or country, price, and budget fit still need confirmation.",
+        searchSuggestions: "",
+        evidence: {
+          httpStatus,
+          durationMs: Date.now() - started,
+          modelTurns: 0,
+          searchProvider: "tavily",
+          searchRequests: searchRequestCount,
+          searchResultsCount: offerResults.length,
+          paymentSearchResultsCount: 0,
+          collectedTool: null,
+          citedSourceCount: 0,
+          outboundGuardPassed: true,
+        },
+        proposal: null,
+        ownerAuthorized: false,
+        persisted: false,
+        fundsReserved: false,
+      };
+  }
   if (!sanitizedResults.length)
     throw new PaymentError(
       countries.length

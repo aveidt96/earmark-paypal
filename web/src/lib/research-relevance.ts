@@ -84,7 +84,11 @@ export const GENERIC_BRAND_WORDS = new Set([
 ]);
 
 export const MODEL_REQUEST_RE =
-  /\b(?:AI\s+models?|LLMs?|language\s+models?|foundation\s+models?|model\s+APIs?)\b/i;
+  /\b(?:AI\s+(?:models?|plans?|subscriptions?|chatbots?)|LLMs?|language\s+models?|foundation\s+models?|model\s+APIs?)\b/i;
+
+export function expandAiPlanQuery(topic: string): string {
+  return topic.replace(/\bAI\s+(?=plans?\b|subscriptions?\b)/i, "AI model ");
+}
 
 const INTENT_FILLER = new Set(
   "a an the i d we you this that with and where supports support accepts accept accepted paypal payment billing period periods sla delivery minute minutes activation can could would please help need want like looking look suggest recommend tool tools inexpensive scalable low find research compare show discover get me for of to my our your from in about suitable option options sending send offering affordable cheap best fast reliable approved allowlisted authorized official original direct directly first party sources source links link manufacturers manufacturer verified provider providers vendor vendors plan plans pricing price prices api apis service services product products model models ai llm llms costing cost costs less than at most budget monthly yearly annual per month year usd eur gbp dollars prepaid credit credits pay go subscription subscriptions".split(
