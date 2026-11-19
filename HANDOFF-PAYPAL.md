@@ -8971,3 +8971,42 @@ site exclusions and was corrected to assert the actual URL contract. No
 Production request was submitted. Deployment status and live search quality
 must be verified separately. Retest the original regional request and one
 unrelated category on the primary app.
+
+### 2026-11-19 — Widen Brave discovery for a controlled comparison
+
+The user reported that the live Brave results for `find $20 chinese ai models`
+surfaced a pricing article and a model directory as unverified provider leads
+and asked to widen discovery. This change isolates retrieval depth so a
+Production replay can measure its effect separately from provider
+classification.
+
+- `web/src/server/paypal/offer-discovery.ts` requests up to ten results for
+  each initial query and for the existing provider corroboration search.
+  With three planned queries, up to 30 initial results can be screened. At
+  most ten screened sources enter the Gemini offer collector. The request
+  limits, deadlines, source checks, and targeted pricing and PayPal evidence
+  limits stay the same.
+- `web/test/offer-discovery.test.ts` checks the widened outbound request.
+  `web/test/query-planner-discovery.test.ts` exercises two ten-result search
+  responses and the ten-source collector cap. The first test run uncovered an
+  overly broad fixture assertion that also checked the three-result payment
+  evidence search. The assertion now checks the planned discovery requests.
+- `web/test/official-provider-regression.test.ts` places a weather API pricing
+  or documentation source and its independent identity reference at rank six
+  in their respective searches. The official URL survives even with empty
+  Gemini offers.
+
+Production search quality remains unverified. The provider candidate rules
+still need separate evaluation for the reported articles and directories.
+
+Verification passed on the local changes: 241 focused offline tests, lint,
+typecheck, production web build, the 46-chunk browser credential scan,
+formatting and whitespace checks. No live search request was submitted.
+
+### 2026-11-19 — Record scope guidance in AGENTS.md
+
+At the user's request, added a concise rule to `AGENTS.md` to keep fixes
+targeted, reuse existing code, and justify additional search stages,
+dependencies, or infrastructure. Refactoring and UI changes should support
+the requested behavior. This is a documentation update. Formatting and
+whitespace checks passed for both documents.

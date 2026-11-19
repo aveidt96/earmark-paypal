@@ -25,6 +25,9 @@ The user requires every change to be documented continuously.
 
 ## Project boundaries
 
+- Keep fixes targeted and reuse existing code. Add search stages, dependencies,
+  or infrastructure only when necessary for the task. Limit refactoring and UI
+  changes to the requested behavior.
 - Work in this repository only. Do not modify the original `../project-flint`
   checkout or its environment, database, deployments or generated files.
 - Preserve useful authorization, budget, provider-validation, delivery-inspection,
