@@ -414,4 +414,95 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       info.mockRestore();
     }
   });
+
+  it("retains clean regional pricing candidates across countries without Wikipedia corroboration while excluding contradicted origins", async () => {
+    const alibabaUrl =
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing";
+    const plannedQueries = [
+      "Zhipu GLM API pricing documentation",
+      "Moonshot Kimi API pricing plans",
+      "Alibaba Model Studio Qwen pricing",
+    ];
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      if (url.includes(":generateContent")) {
+        return geminiFunctionResponse("planResearchQueries", {
+          queries: plannedQueries,
+        });
+      }
+      if (body.query === plannedQueries[0]) {
+        return Response.json({
+          query: body.query,
+          results: [
+            {
+              title: "GLM API Pricing",
+              url: "https://open.bigmodel.cn/pricing",
+              content:
+                "GLM language model API input and output token pricing.",
+            },
+          ],
+        });
+      }
+      if (body.query === plannedQueries[1]) {
+        return Response.json({
+          query: body.query,
+          results: [
+            {
+              title: "Kimi API Pricing",
+              url: "https://platform.moonshot.ai/docs/pricing",
+              content:
+                "Kimi LLM API token rates and prepaid credit billing documentation.",
+            },
+            {
+              title: "ChatGPT Pricing",
+              url: "https://chatgpt.com/pricing",
+              content: "AI model subscription plans and API token rates.",
+            },
+          ],
+        });
+      }
+      if (body.query === plannedQueries[2]) {
+        return Response.json({
+          query: body.query,
+          results: [
+            {
+              title: "Model Studio Pricing",
+              url: alibabaUrl,
+              content:
+                "Chinese cloud developer with US-based and international endpoints. Qwen model API input and output tokens.",
+            },
+          ],
+        });
+      }
+      return Response.json({
+        query: body.query,
+        results: [
+          {
+            title: "OpenAI - Wikipedia",
+            url: "https://en.wikipedia.org/wiki/OpenAI",
+            content:
+              "OpenAI is an American AI company that develops language models. Official website: https://chatgpt.com/",
+          },
+        ],
+      });
+    });
+
+    const result = await discoverOffers(
+      "find $20 chinese ai model plans",
+      env,
+      fetcher,
+      2000,
+    );
+    expect(result.officialProviders).toEqual([]);
+    expect(result.offers).toEqual([]);
+    expect(result.providerCandidates?.map((item) => item.url)).toEqual([
+      "https://open.bigmodel.cn/pricing",
+      "https://platform.moonshot.ai/docs/pricing",
+      alibabaUrl,
+    ]);
+    expect(result.ownerAuthorized).toBe(false);
+    expect(result.persisted).toBe(false);
+    expect(result.fundsReserved).toBe(false);
+  });
 });
