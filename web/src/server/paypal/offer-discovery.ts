@@ -264,6 +264,7 @@ export function sanitizePlannedQueries(
   for (const raw of rawQueries) {
     if (typeof raw !== "string") continue;
     const cleaned = raw
+      .trim()
       .replace(/^["'`]+|["'`]+$/g, "")
       .replace(/\s+/g, " ")
       .trim();
