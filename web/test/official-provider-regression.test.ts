@@ -307,6 +307,12 @@ describe("official provider identity and relevance regression", () => {
       chineseProviders[0],
     ],
     ["Find a $20 Chinese ai plan", "Chinese", chineseProviders, usProviders[0]],
+    [
+      "Find me a $20 Chinese ai model plan",
+      "Chinese",
+      chineseProviders,
+      usProviders[0],
+    ],
   ] as const)(
     "shows only corroborated country-matched links for %s even with no structured offers",
     async (request, country, providers, wrongProvider) => {
@@ -317,7 +323,7 @@ describe("official provider identity and relevance regression", () => {
         source(
           `https://en.wikipedia.org/wiki/${name.replaceAll(" ", "_")}`,
           name,
-          `${name} is an ${country} technology company. ${name} develops language models. Website | [${new URL(official).hostname}](${official})`,
+          `${request === "Find me a $20 Chinese ai model plan" ? "Background information. ".repeat(35) : ""}${name} is an ${country} technology company. ${name} develops language models. Website | [${new URL(official).hostname}](${official})`,
         ),
       );
       const [wrongName, wrongUrl, wrongOfficial, wrongTitle, wrongSnippet] =

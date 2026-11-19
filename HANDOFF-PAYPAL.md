@@ -1,12 +1,17 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-18**
+Last updated: **2026-11-19**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **2026-11-19: Bounded deeper Tavily retrieval prepared for main.** Initial and
+  provider follow-up searches use advanced retrieval, three passages per source
+  and richer collector evidence. The standalone high-thinking experiment remains
+  separate from app routes. Live search quality requires a Production replay.
 
 - **2026-11-18: Exact short AI-plan request and verification fallback corrected
   locally.** Branch `fix/preserve-relevant-provider-links` starts at `ca6251e`.
@@ -8679,3 +8684,90 @@ listed in the preceding entry and this handoff update. Commit the reviewed
 changes as a single fast-forward update and verify the published SHA and
 automatic deployment statuses. The previous 229-test offline validation still
 applies. Production replay and retrieval quality remain separate checks.
+
+### 2026-11-19 — Compare shallow and iterative Tavily research
+
+The user asked to try deeper Tavily retrieval and an iterative Gemini workflow
+before deciding whether to switch search providers. Created isolated worktree
+`/workspace/earmark-paypal-tavily-trial` on `experiment/tavily-iterative-research`
+from `origin/main` at `7ba49eb`. The existing local Brave work stays in the
+original checkout. Production already has bounded provider/pricing follow-up
+search stages. Its Gemini collector uses low thinking and does not plan its own
+search calls. `include_answer` was already disabled.
+
+- `scripts/tavily-research-trial.mjs`: standalone comparison for two fixed
+  public prompts (`ai`, `email`) on a configured Gemini 3 model. Baseline uses
+  one basic search, short snippets and low thinking; this is a simplified
+  benchmark arm rather than an exact reproduction of the Production pipeline.
+  Deep mode uses at most three advanced searches with three chunks per source
+  and a score floor of 0.5. It allows one conditional Extract call with up to
+  three previously retained public URLs and caps excerpt/Markdown sizes.
+  Gemini runs in high thinking with at most four sequential tool turns. It
+  receives the full prior model Content objects, preserving signatures and
+  matching function responses, and must synthesize without tools at the cap.
+  Instructions require source/date cross-checking, flagging conflict and
+  missing evidence. Fixed hosts, private URL checks, distinct short queries,
+  time and response limits, and credential separation bound the diagnostic.
+  Output lists queries, scores, excerpt lengths, source URLs, elapsed time
+  and an unverified model answer for human evaluation.
+- `scripts/tavily-research-trial.test.mjs`: mocked assertions for baseline,
+  deeper search settings, filtered results, Extract eligibility, unchanged
+  Gemini model turns with opaque signatures, forced synthesis and key gating.
+- `HANDOFF-PAYPAL.md` records the experiment and its limits.
+
+With `TAVILY_API_KEY`, `GEMINI_API_KEY` and a supported `GEMINI_MODEL` supplied
+securely in the shell, run the following for `ai`, then repeat with `email`:
+
+```sh
+node --experimental-strip-types scripts/tavily-research-trial.mjs ai baseline
+node --experimental-strip-types scripts/tavily-research-trial.mjs ai deep
+```
+
+Review relevant first-party links, whether cited pages confirm the stated
+plan, whether conflicts are handled and the additional latency. The deep arm
+changes several knobs together, so a win warrants a smaller follow-up trial to
+isolate which changes helped. A search score is a ranking signal rather than
+proof of relevance, ownership or price. A hard cutoff can reduce useful recall.
+No Tavily or Gemini key is available in the workspace, so the CLI correctly
+stopped before transport. No empirical improvement, provider deployment, push,
+payment or production change is established.
+
+Four offline tests passed, as did formatting, changed-script lint and
+whitespace checks. Node 22 emitted its expected experimental type-stripping
+and module-format notices for the shared TypeScript URL validator.
+
+### 2026-11-19 — Ship bounded deeper Tavily retrieval for phone testing
+
+The user authorized an update to `main` to test in Production without a PC.
+Fetched and confirmed `origin/main` at `7ba49eb` in the isolated Tavily
+worktree. The separate unpublished Brave trial remains in the original checkout.
+
+- `web/src/server/paypal/offer-discovery.ts`: authorize and dispatch advanced
+  Tavily retrieval with three passages in the initial and provider follow-up
+  stages. Keep answer and raw-content fields off. Preserve up to 2,400 characters
+  per research excerpt for relevance, references and analysis. Use score 0.5 as
+  a ranking signal within equal provider/source priorities. Collector instructions
+  preserve separate passage evidence and flag contradictions. Deterministic offer
+  claims retain their 600-character single-passage window. Existing targeted
+  pricing and payment searches, quotas, model settings and deadline stay intact.
+- `web/test/offer-discovery.test.ts` and
+  `web/test/official-provider-regression.test.ts`: test the exact advanced search
+  envelope, snippet caps, separation of tier and amount across passages, and
+  corroboration beyond the former excerpt cap for the phone reproduction prompt.
+- `scripts/tavily-research-trial.mjs` and
+  `scripts/tavily-research-trial.test.mjs`: retain the isolated benchmark above.
+  Extract, Gemini high thinking and the multi-turn loop remain experiment-only
+  because their latency has not been measured against the public route limit.
+- `HANDOFF-PAYPAL.md` records scope and publication checks.
+
+Existing hosted Tavily/Gemini settings apply. Advanced Tavily searches can
+consume more credits than basic. No live provider probe, payment or database
+operation was performed here. Verify the primary deployment and replay the
+reported prompt on Production to assess retrieval quality.
+
+Release checks passed: 196 focused app tests, four standalone trial tests,
+typecheck, changed-file lint and formatting, production web build, and browser
+boundary scan of 46 chunks. An initial worktree build resolved the other
+checkout's workspace package; rebuilding with worktree-local workspace aliases
+resolved the type conflict. The request-mutation regression now tests both
+directions of depth changes for advanced discovery and basic payment evidence.

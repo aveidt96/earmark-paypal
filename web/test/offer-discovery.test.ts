@@ -217,6 +217,20 @@ it("applies the selected public budget independently and only exposes a merchant
   ).not.toContain("Review for manual checkout");
 });
 
+it("does not combine a tier and price from separate advanced search passages", async () => {
+  const result = await discoverOffers(
+    "Find weather API plans under $10 per month",
+    env,
+    transport([{ ...offer, service: "Starter" }], {
+      snippet:
+        "Weather API Starter subscription. [...] USD 5 per month for an unnamed offer.",
+      paymentResults: [],
+    }),
+  );
+  expect(result.offers[0]?.priceMinor).toBeNull();
+  expect(result.reviewRecommendation).toBeNull();
+});
+
 it("does not borrow another tier's billing period when the price is ambiguous", async () => {
   const result = await discoverOffers(
     "Find a weather API under $10 per month",
@@ -1683,6 +1697,7 @@ const origin = "http://127.0.0.1:3032";
 type MutableTavilyEnvelope = {
   query: string;
   search_depth: string;
+  chunks_per_source?: number;
   max_results: number;
   include_answer: boolean;
   include_raw_content: boolean;
@@ -1806,7 +1821,8 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         query: expect.stringContaining(
           "official provider pricing documentation",
         ),
-        search_depth: "basic",
+        search_depth: "advanced",
+        chunks_per_source: 3,
         max_results: TAVILY_MAX_RESULTS,
         include_answer: false,
         include_raw_content: false,
@@ -2822,17 +2838,17 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         {
           title: `${"Example Weather API pricing ".padEnd(199, "t")} tail`,
           url,
-          content: `${"a".repeat(599)} tail`,
+          content: `${"a".repeat(2399)} tail`,
         },
         {
           title: "Exact boundary",
           url: `${url}/exact`,
-          content: "b".repeat(600),
+          content: "b".repeat(2400),
         },
         {
           title: "Above boundary",
           url: `${url}/long`,
-          content: "c".repeat(601),
+          content: "c".repeat(2401),
         },
       ],
       paymentResults: [
@@ -2856,19 +2872,19 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         {
           title: "Example Weather API pricing ".padEnd(199, "t"),
           url,
-          snippet: "a".repeat(599),
+          snippet: "a".repeat(2399),
           retrievedAt: result.retrievedAt,
         },
         {
           title: "Exact boundary",
           url: `${url}/exact`,
-          snippet: "b".repeat(600),
+          snippet: "b".repeat(2400),
           retrievedAt: result.retrievedAt,
         },
         {
           title: "Above boundary",
           url: `${url}/long`,
-          snippet: "c".repeat(600),
+          snippet: "c".repeat(2400),
           retrievedAt: result.retrievedAt,
         },
       ],
@@ -2944,10 +2960,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     );
     const searchMutations = [
       (b: MutableTavilyEnvelope) => {
-        b.search_depth = "advanced";
+        b.search_depth = b.search_depth === "basic" ? "advanced" : "basic";
       },
       (b: MutableTavilyEnvelope) => {
         b.max_results = 20;
+      },
+      (b: MutableTavilyEnvelope) => {
+        b.chunks_per_source = 5;
       },
       (b: MutableTavilyEnvelope) => {
         b.include_raw_content = true;
