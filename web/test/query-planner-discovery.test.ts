@@ -99,18 +99,6 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       "Mailgun Brevo email API pricing",
     ]);
 
-    const firstBody = JSON.stringify({
-      query: "Resend Postmark transactional email pricing",
-      search_depth: "advanced",
-      chunks_per_source: 3,
-      max_results: TAVILY_MAX_RESULTS,
-      include_answer: false,
-      include_raw_content: false,
-      include_images: false,
-      exclude_domains: expect.any(Array),
-    });
-    expect(firstBody).toBeTypeOf("string");
-
     expect(() =>
       boundary.guard(TAVILY_SEARCH_URL, {
         method: "POST",
@@ -134,14 +122,14 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
   });
 
   it.each([
-    [
-      "Find me $20 transactional email API plans",
-      [
+    {
+      instruction: "Find me $20 transactional email API plans",
+      plannedQueries: [
         "Resend Postmark transactional email API pricing",
         "Mailgun Brevo transactional email monthly plans",
         "Amazon SES transactional email pricing documentation",
       ],
-      [
+      pages: [
         {
           title: "Resend Pricing",
           url: "https://resend.com/pricing",
@@ -160,14 +148,14 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
             "Mailgun transactional email API Basic plan USD 15 per month.",
         },
       ],
-    ],
-    [
-      "Buy portable solar lanterns under $20",
-      [
+    },
+    {
+      instruction: "Buy portable solar lanterns under $20",
+      plannedQueries: [
         "Sun King solar lantern official store pricing",
         "d.light portable solar lantern specifications price",
       ],
-      [
+      pages: [
         {
           title: "Sun King Home Solar Lantern",
           url: "https://sunking.example/products/lantern",
@@ -181,10 +169,10 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
             "Shop d.light portable solar lantern S30 at USD 18 one-time. Official specifications.",
         },
       ],
-    ],
+    },
   ])(
-    "plans and runs parallel Tavily queries by default for %s",
-    async (instruction, plannedQueries, pages) => {
+    "plans and runs parallel Tavily queries by default for $instruction",
+    async ({ instruction, plannedQueries, pages }) => {
       const seenTavilyQueries: string[] = [];
       let collectorSourcesCount = 0;
       const fetcher = vi.fn<typeof fetch>(async (input, init) => {
