@@ -248,6 +248,48 @@ describe("official provider identity and relevance regression", () => {
     expect(result.providerCandidates).toEqual([]);
   });
 
+  it("keeps official evidence below the old five-result window in both searches", async () => {
+    const docs = source(
+      "https://northwind.example/docs",
+      "Northwind weather API",
+      "Weather forecast API documentation.",
+    );
+    const unrelated = (topic: string) =>
+      Array.from({ length: 5 }, (_, index) =>
+        source(
+          `https://example.com/news/${topic}-${index}`,
+          `News about ${topic}`,
+          `Latest ${topic} headlines.`,
+        ),
+      );
+    const fetcher = offlineTransport(
+      [...unrelated("baseball"), docs],
+      [
+        ...unrelated("tennis"),
+        reference(
+          "Northwind",
+          "https://northwind.example/",
+          "Northwind provides weather data.",
+        ),
+      ],
+    );
+
+    const result = await discoverOffers(
+      "Find official links for weather API plans",
+      env,
+      fetcher,
+      2000,
+    );
+    const searchUrls = fetcher.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.startsWith(`${BRAVE_SEARCH_URL}?`));
+    expect(
+      searchUrls.map((url) => new URL(url).searchParams.get("count")),
+    ).toEqual(["10", "10"]);
+    expect(result.officialProviders?.map(({ url }) => url)).toEqual([docs.url]);
+    expect(result.offers).toEqual([]);
+  });
+
   const chineseProviders = [
     [
       "DeepSeek",

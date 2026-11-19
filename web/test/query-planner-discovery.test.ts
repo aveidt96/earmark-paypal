@@ -101,7 +101,7 @@ describe("general Gemini query planner and parallel Brave discovery", () => {
     while (queryWords.join(" ").length > 400) queryWords.pop();
     approvedUrl.search = new URLSearchParams({
       q: queryWords.join(" "),
-      count: "5",
+      count: "10",
       result_filter: "web",
       text_decorations: "false",
     }).toString();
@@ -251,6 +251,7 @@ describe("general Gemini query planner and parallel Brave discovery", () => {
       "cloud backup provider pricing plans beta",
     ];
     let collectorResultsCount = 0;
+    const requestedCounts = new Map<string, string | null>();
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       if (url.includes(":generateContent")) {
@@ -270,9 +271,13 @@ describe("general Gemini query planner and parallel Brave discovery", () => {
         return geminiFunctionResponse("reportDiscoveredOffers", { offers: [] });
       }
       if (url.startsWith(`${BRAVE_SEARCH_URL}?`)) {
-        const group = readBraveQuery(url) === plannedQueries[0] ? "a" : "b";
+        const query = readBraveQuery(url);
+        const index = plannedQueries.indexOf(query);
+        if (index === -1) return braveSearchResponse({ results: [] });
+        requestedCounts.set(query, new URL(url).searchParams.get("count"));
+        const group = index === 0 ? "a" : "b";
         return braveSearchResponse({
-          results: Array.from({ length: 5 }, (_, idx) => ({
+          results: Array.from({ length: 10 }, (_, idx) => ({
             title: `Backup${group}${idx + 1} Cloud Backup Pricing`,
             url: `https://backup-${group}-${idx + 1}.example/pricing`,
             content: `Backup${group}${idx + 1} cloud backup storage plans at USD ${idx + 5} per month.`,
@@ -289,6 +294,9 @@ describe("general Gemini query planner and parallel Brave discovery", () => {
       2000,
     );
     expect(collectorResultsCount).toBe(MAX_COLLECTOR_RESULTS);
+    expect([...requestedCounts]).toEqual(
+      plannedQueries.map((query) => [query, "10"]),
+    );
     expect(result.evidence.modelTurns).toBe(2);
   });
 

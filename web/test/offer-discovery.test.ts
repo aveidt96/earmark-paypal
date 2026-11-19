@@ -22,7 +22,7 @@ vi.mock("server-only", () => ({}));
 import {
   BRAVE_EXCLUDED_DOMAINS,
   BRAVE_SEARCH_URL,
-  BRAVE_MAX_RESULTS,
+  BRAVE_DISCOVERY_MAX_RESULTS,
   BRAVE_PAYMENT_MAX_RESULTS,
   DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL,
   buildTargetedPayPalQuery,
@@ -1840,7 +1840,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
         Object.fromEntries(new URL(String(searchUrl)).searchParams),
       ).toEqual({
         q: expect.any(String),
-        count: String(BRAVE_MAX_RESULTS),
+        count: String(BRAVE_DISCOVERY_MAX_RESULTS),
         result_filter: "web",
         text_decorations: "false",
       });
@@ -4423,7 +4423,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
       env.GEMINI_MODEL,
     );
     boundary.allowProviderSearch(["blog.aggregator.example"]);
-    const wrongUrl = `${BRAVE_SEARCH_URL}?q=Compare+cloud+API+plans&count=5&result_filter=web&text_decorations=false`;
+    const wrongUrl = `${BRAVE_SEARCH_URL}?q=Compare+cloud+API+plans&count=10&result_filter=web&text_decorations=false`;
     expect(() =>
       boundary.guard(wrongUrl, {
         method: "GET",

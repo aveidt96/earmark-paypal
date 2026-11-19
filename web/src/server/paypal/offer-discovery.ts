@@ -56,7 +56,10 @@ const offerSchema = z.strictObject({
 });
 export const BRAVE_SEARCH_URL =
   "https://api.search.brave.com/res/v1/web/search" as const;
-export const BRAVE_MAX_RESULTS = 5 as const;
+export const BRAVE_DISCOVERY_MAX_RESULTS = 10 as const;
+const BRAVE_PRICING_MAX_RESULTS = 5 as const;
+const MAX_PROVIDER_QUERY_DOMAINS = 5;
+const MIN_RESULTS_FOR_NOISE_FOLLOWUP = 5;
 export const BRAVE_PAYMENT_MAX_RESULTS = 3 as const;
 export const MAX_PLANNED_SEARCH_QUERIES = 3 as const;
 export const MAX_COLLECTOR_RESULTS = 10 as const;
@@ -1151,9 +1154,12 @@ const paymentResultsSchema = z
     }),
   )
   .max(BRAVE_PAYMENT_MAX_RESULTS);
+const providerResultsSchema = z
+  .array(sanitizedResultSchema)
+  .max(BRAVE_DISCOVERY_MAX_RESULTS);
 const pricingResultsSchema = z
   .array(sanitizedResultSchema)
-  .max(BRAVE_MAX_RESULTS);
+  .max(BRAVE_PRICING_MAX_RESULTS);
 export type ValidatedResearchResults = z.infer<typeof researchResultsSchema>;
 export type ValidatedPaymentResults = z.infer<typeof paymentResultsSchema>;
 export type ValidatedPricingResults = z.infer<typeof pricingResultsSchema>;
@@ -1369,7 +1375,7 @@ export function createDiscoveryBoundary(
   };
   const excludedDomains = buildExcludedDomains(instruction);
   const buildInitialSearchUrl = (query: string) =>
-    braveSearchUrl(query, BRAVE_MAX_RESULTS, excludedDomains);
+    braveSearchUrl(query, BRAVE_DISCOVERY_MAX_RESULTS, excludedDomains);
   const expectedSearch = buildInitialSearchUrl(
     buildOfferSearchQuery(instruction),
   );
@@ -1464,7 +1470,7 @@ export function createDiscoveryBoundary(
         allSecrets,
       );
       if (
-        candidateDomains.length > BRAVE_MAX_RESULTS ||
+        candidateDomains.length > MAX_PROVIDER_QUERY_DOMAINS ||
         candidateDomains.some(
           (domain) => !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(domain),
         )
@@ -1473,7 +1479,7 @@ export function createDiscoveryBoundary(
       const domains = buildExcludedDomains(instruction, extraExcludedHosts);
       expectedProviderSearch = braveSearchUrl(
         buildOfficialProviderDiscoveryQuery(instruction, candidateDomains),
-        BRAVE_MAX_RESULTS,
+        BRAVE_DISCOVERY_MAX_RESULTS,
         domains,
       );
     },
@@ -1482,7 +1488,7 @@ export function createDiscoveryBoundary(
     ): ValidatedPricingResults {
       if (expectedProviderSearch === null || providerSearchDone)
         throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
-      const parsed = pricingResultsSchema.safeParse(results);
+      const parsed = providerResultsSchema.safeParse(results);
       if (!parsed.success)
         throw new PaymentError("DISCOVERY_GROUNDING_REQUIRED");
       assertUntrustedResultsSafe(parsed.data, allSecrets);
@@ -1566,7 +1572,7 @@ export function createDiscoveryBoundary(
         allSecrets,
       );
       const query = buildTargetedPricingQuery(merchantDomain, productHint);
-      expectedPricingSearch = braveSearchUrl(query, BRAVE_MAX_RESULTS);
+      expectedPricingSearch = braveSearchUrl(query, BRAVE_PRICING_MAX_RESULTS);
     },
     allowPricingResults(
       results: ValidatedPricingResults,
@@ -1688,7 +1694,7 @@ const braveResponseSchema = z.object({
             description: z.string().max(10000).nullable().optional(),
           }),
         )
-        .max(10),
+        .max(BRAVE_DISCOVERY_MAX_RESULTS),
     })
     .optional(),
 });
@@ -3071,7 +3077,7 @@ export async function discoverOffers(
           const single = await runBraveSearch(
             braveSearchUrl(
               initialQueries[0] ?? buildOfferSearchQuery(instruction),
-              BRAVE_MAX_RESULTS,
+              BRAVE_DISCOVERY_MAX_RESULTS,
               excludedDomains,
             ),
             braveKey,
@@ -3084,7 +3090,11 @@ export async function discoverOffers(
         const settled = await Promise.allSettled(
           initialQueries.map((query) =>
             runBraveSearch(
-              braveSearchUrl(query, BRAVE_MAX_RESULTS, excludedDomains),
+              braveSearchUrl(
+                query,
+                BRAVE_DISCOVERY_MAX_RESULTS,
+                excludedDomains,
+              ),
               braveKey,
               stageTimeout,
               boundary.guard,
@@ -3182,7 +3192,7 @@ export async function discoverOffers(
   );
   const candidateDomains = initialCandidates
     .map(({ domain }) => domain)
-    .slice(0, BRAVE_MAX_RESULTS);
+    .slice(0, MAX_PROVIDER_QUERY_DOMAINS);
   const initialThirdPartyHosts = collectThirdPartyHostnames(
     offerResults,
     instruction,
@@ -3198,7 +3208,7 @@ export async function discoverOffers(
         offerResults.filter(
           (source) => !isRetainedProvider(source, instruction, offerResults),
         ).length >= 2 &&
-        offerResults.length >= BRAVE_MAX_RESULTS);
+        offerResults.length >= MIN_RESULTS_FOR_NOISE_FOLLOWUP);
   const remainingBeforeProviderMs = timing
     ? Math.floor(timing.deadlineAt - performance.now())
     : timeout;
@@ -3227,7 +3237,7 @@ export async function discoverOffers(
                 instruction,
                 candidateDomains,
               ),
-              BRAVE_MAX_RESULTS,
+              BRAVE_DISCOVERY_MAX_RESULTS,
               providerExcludedDomains,
             ),
             braveKey,
@@ -3239,7 +3249,10 @@ export async function discoverOffers(
       bumpSearchRequests();
       followupResults = providerSearch.data.results.length;
       const validatedProviderResults = boundary.allowProviderResults(
-        sanitizeOfferItems(providerSearch.data.results, BRAVE_MAX_RESULTS),
+        sanitizeOfferItems(
+          providerSearch.data.results,
+          BRAVE_DISCOVERY_MAX_RESULTS,
+        ),
       );
       offerResults.push(...validatedProviderResults);
     } catch (error) {
@@ -3772,7 +3785,7 @@ export async function discoverOffers(
                 pricingDomain,
                 missingPricingGroup.offer.service,
               ),
-              BRAVE_MAX_RESULTS,
+              BRAVE_PRICING_MAX_RESULTS,
             ),
             braveKey,
             timeout,
@@ -3803,7 +3816,7 @@ export async function discoverOffers(
             offerSourcePriority(a) - offerSourcePriority(b)
           );
         })
-        .slice(0, BRAVE_MAX_RESULTS);
+        .slice(0, BRAVE_PRICING_MAX_RESULTS);
       const validatedPricingResults = boundary.allowPricingResults(
         prioritizedPricingResults,
       );
