@@ -2902,14 +2902,10 @@ export async function discoverOffers(
     paymentSearchAccepted = false,
     plannerTurnUsed = false,
     searchRequestCount: 1 | 2 | 3 | 4 | 5 | 6 = 1;
+  const clampSearchCount = (n: number): 1 | 2 | 3 | 4 | 5 | 6 =>
+    Math.min(6, Math.max(1, n)) as 1 | 2 | 3 | 4 | 5 | 6;
   const bumpSearchRequests = (delta = 1) => {
-    searchRequestCount = Math.min(6, searchRequestCount + delta) as
-      | 1
-      | 2
-      | 3
-      | 4
-      | 5
-      | 6;
+    searchRequestCount = clampSearchCount(searchRequestCount + delta);
   };
   let usedCollectorModel = collectorModel;
   const started = Date.now();
@@ -2970,19 +2966,14 @@ export async function discoverOffers(
   let initialQueries: string[] = [buildOfferSearchQuery(instruction)];
   if (queryPlannerEnabled) {
     const planStart = performance.now();
-    const planTimeoutMs = timing
-      ? Math.max(
-          0,
-          Math.min(
-            publicStageLimits.query_plan,
-            Math.floor(
-              timing.deadlineAt -
-                planStart -
-                (MIN_INITIAL_SEARCH_MS + MIN_COMPARISON_ATTEMPT_MS),
-            ),
-          ),
-        )
-      : Math.min(timeout, publicStageLimits.query_plan);
+    const reserveMs = MIN_INITIAL_SEARCH_MS + MIN_COMPARISON_ATTEMPT_MS;
+    const remainingForPlan = timing
+      ? Math.floor(timing.deadlineAt - planStart - reserveMs)
+      : timeout;
+    const planTimeoutMs = Math.max(
+      0,
+      Math.min(publicStageLimits.query_plan, remainingForPlan),
+    );
     let rawPlannedQueries: string[] = [];
     let fallbackReason: string | undefined;
     if (planTimeoutMs >= MIN_QUERY_PLAN_MS) {
@@ -3063,13 +3054,7 @@ export async function discoverOffers(
     throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
   initialSearchAccepted = true;
   const excludedDomains = buildExcludedDomains(instruction);
-  searchRequestCount = Math.min(6, Math.max(1, initialQueries.length)) as
-    | 1
-    | 2
-    | 3
-    | 4
-    | 5
-    | 6;
+  searchRequestCount = clampSearchCount(initialQueries.length);
   const initialSearch = await runStage(
     "offer_search",
     async (stageTimeout, transport) => {
@@ -3117,24 +3102,24 @@ export async function discoverOffers(
             ),
           ),
         );
-        const fulfilled = settled.filter(
-          (
-            entry,
-          ): entry is PromiseFulfilledResult<{
-            status: number;
-            data: z.infer<typeof tavilyResponseSchema>;
-          }> => entry.status === "fulfilled",
-        );
-        if (!fulfilled.length) {
-          const firstRejected = settled.find(
-            (entry): entry is PromiseRejectedResult =>
-              entry.status === "rejected",
-          );
-          throw firstRejected?.reason ?? new PaymentError("TAVILY_API_ERROR");
+        const fulfilled: Array<{
+          status: number;
+          data: z.infer<typeof tavilyResponseSchema>;
+        }> = [];
+        let firstError: unknown;
+        for (const entry of settled) {
+          if (entry.status === "fulfilled") {
+            fulfilled.push(entry.value);
+          } else if (firstError === undefined) {
+            firstError = entry.reason;
+          }
         }
-        const resultLists = fulfilled.map((entry) => entry.value.data.results);
+        if (!fulfilled.length) {
+          throw firstError ?? new PaymentError("TAVILY_API_ERROR");
+        }
+        const resultLists = fulfilled.map((entry) => entry.data.results);
         const maxLen = Math.max(...resultLists.map((list) => list.length), 0);
-        const interleaved: z.infer<typeof tavilyResponseSchema>["results"] = [];
+        const interleaved: (typeof resultLists)[number] = [];
         for (let idx = 0; idx < maxLen; idx += 1) {
           for (const list of resultLists) {
             const item = list[idx];
@@ -3142,7 +3127,7 @@ export async function discoverOffers(
           }
         }
         return {
-          status: fulfilled[0]?.value.status ?? 200,
+          status: fulfilled[0]?.status ?? 200,
           results: interleaved,
         };
       } finally {
