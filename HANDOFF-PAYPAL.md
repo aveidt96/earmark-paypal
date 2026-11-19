@@ -8,6 +8,13 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-19: Brave Search replaces Tavily in offer research.** The Gemini
+  query planner still runs up to three bounded searches in parallel, using
+  Brave for initial and follow-up retrieval. Configure the server-only
+  `BRAVE_SEARCH_API_KEY` in the deployment environment. Tavily trial scripts
+  remain available for offline development and separate provider experiments.
+  Live search quality requires a Production replay.
+
 - **2026-11-19: General regional candidate fallback refined for main.** When a
   country-scoped research request retrieves clean official pricing/docs pages
   without Wikipedia/Wikidata infobox corroboration, `discoverOffers` no longer
@@ -24,11 +31,6 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
   through `createDiscoveryBoundary`, feeds up to 10 diverse sources to the
   collector, and emits sanitized `onPlan` / `onRetrievalSummary` diagnostics in
   `public-research.ts`. Live search quality still requires a Production replay.
-
-- **2026-11-19: Bounded deeper Tavily retrieval prepared for main.** Initial and
-  provider follow-up searches use advanced retrieval, three passages per source
-  and richer collector evidence. The standalone high-thinking experiment remains
-  separate from app routes. Live search quality requires a Production replay.
 
 - **2026-11-18: Exact short AI-plan request and verification fallback corrected
   locally.** Branch `fix/preserve-relevant-provider-links` starts at `ca6251e`.
@@ -8883,3 +8885,89 @@ verified via GitHub Actions `Earmark PayPal CI` (Prettier, Biome lint,
 TypeScript, Vitest, Foundry, Next.js build on Ubuntu and Windows) on a PR
 branch before merging to `main`. No live provider, database or payment calls
 were executed; live Production behavior requires a post-deployment replay.
+
+### 2026-11-19 — Replace Tavily with Brave Search for a controlled trial
+
+The user reported the same empty Production error for
+`Find me a $20 Chinese ai model plan` and requested trying another search
+provider. Verified main at `7ba49eb` and confirmed the primary project passed
+its deployment check. The secondary Vercel project failed its check. No live
+search trace was available, so the original retrieval-versus-filtering failure
+is still undiagnosed. Selected Brave Search for its public web result envelope
+with titles, URLs and excerpts, and checked its public API documentation.
+
+- `web/src/server/paypal/offer-discovery.ts`: use the fixed Brave web endpoint
+  for initial discovery, independent provider corroboration, targeted pricing
+  and payment evidence. Authorize the exact bounded GET URL and subscription
+  header, block redirects and caching, validate the response, and feed its
+  titles, URLs and descriptions into the existing validation path. The search
+  limits and collector/price/identity rules remain. Also trim `Find me a` from
+  the search query and keep a branded pricing page when the excerpt identifies
+  its publisher but the title uses a product brand, as an unverified link only.
+- `web/src/server/paypal/public-research.ts`,
+  `web/src/server/paypal/judge-http.ts`,
+  `web/src/server/paypal/agent-checkout-http.ts`,
+  `web/src/lib/offer-discovery.ts` and
+  `web/src/components/purchasing-chat.tsx`: require the Brave key, map provider
+  errors and recognize the `LIVE_BRAVE_SEARCH` result. Tavily has no active
+  runtime path or credential fallback.
+- `.env.example`, `web/.env.example` and
+  `docs/task-08b-deployment-readiness.md`: document the server key and live
+  trial. Existing Gemini and quota settings are still required. Configure the
+  Brave subscription token in the authorized test environment before enabling
+  or releasing live research. A legacy key alone leaves research unavailable.
+- `scripts/paypal-secret-check.ts`, `scripts/check-web-boundary.mjs`, and
+  `scripts/preview-smoke.mjs`: include the new key in secret/bundle scans and
+  update the mock research UI to the new provider result. The browser scanner
+  still guards against leakage of legacy search credentials.
+- `web/test/fixtures/brave-search.ts`, `web/test/offer-discovery.test.ts`,
+  `web/test/official-provider-regression.test.ts` and
+  `web/test/research-relevance.test.ts`: use Brave-shaped fixtures and assert
+  outbound origin, exact query, headers, query length, rejection of the retired
+  endpoint and fail-closed behavior without the new key. Replay the exact
+  screenshot text with independent verification and sparse search excerpts,
+  reject irrelevant and wrong-country results, and exercise non-AI searches.
+- `HANDOFF-PAYPAL.md` records the trial and handoff.
+
+Live acceptance remains blocked on a Brave key. No Brave or Gemini service
+credentials were configured in this workspace. Only public documentation was
+read over the network. No metered query, deployment, push, payment or database
+operation was performed. Fixture success does not establish that Brave has
+better live coverage or current prices. After configuration, replay the exact
+request and a non-AI search while checking the aggregate verification counts.
+
+Fresh checks passed: 231 targeted offline tests, lint, TypeScript, production
+web build, full formatting, whitespace, 46-chunk browser boundary and the
+added-content credential scan. Offline Chromium smoke passed eight pages and
+the Brave-shaped browser research response, with zero external requests or
+browser exceptions. Initial migration checks exposed stale POST assertions,
+unused fixture parameters and untyped fixture arrays. Those fixtures were
+updated to check the GET contract and the final checks passed.
+
+### 2026-11-19 — Prepare the Brave switch for Production
+
+The user confirmed saving `BRAVE_SEARCH_API_KEY` for the primary deployment
+and asked to continue. Integrated the trial on top of main at `5c0007d`,
+which includes the Gemini planner from `8fc45dc` and regional alias-domain
+fallback from `5c0007d`.
+
+- `web/src/server/paypal/offer-discovery.ts` issues the planner's existing
+  one to three searches through Brave. The outbound guard authorizes each
+  exact encoded planned URL once and continues requiring the exact URL for
+  each follow-up stage. Identical encoded queries are deduplicated. The
+  collector source cap, deadlines, and regional provider checks are retained.
+- `web/src/lib/offer-discovery.ts` and
+  `web/src/server/paypal/public-research.ts` retain planner-era evidence
+  counts and sanitized diagnostics while reporting Brave as the source.
+- `web/test/query-planner-discovery.test.ts` exercises the planned GET
+  envelope, rejection of an injected and a replayed URL, deterministic
+  search after a planner failure, and regional fallback using Brave fixtures.
+  The earlier trial entry lists the remaining updated paths.
+
+Fresh checks passed on the rebased code: 240 focused offline tests, lint,
+TypeScript, the production web build, and the browser boundary check across
+46 compiled chunks. The first planner boundary fixture omitted the bounded
+site exclusions and was corrected to assert the actual URL contract. No
+Production request was submitted. Deployment status and live search quality
+must be verified separately. Retest the original regional request and one
+unrelated category on the primary app.

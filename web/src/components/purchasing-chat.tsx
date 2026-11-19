@@ -292,7 +292,7 @@ export function PurchasingChat({
       if (
         !body ||
         (publicResearch &&
-          (body.discovery?.source !== "LIVE_TAVILY_SEARCH" ||
+          (body.discovery?.source !== "LIVE_BRAVE_SEARCH" ||
             !Array.isArray(body.discovery.offers)))
       )
         throw new Error("PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE");

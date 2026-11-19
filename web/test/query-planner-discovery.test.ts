@@ -3,12 +3,13 @@ vi.mock("server-only", () => ({}));
 import {
   MAX_COLLECTOR_RESULTS,
   MAX_PLANNED_SEARCH_QUERIES,
-  TAVILY_MAX_RESULTS,
-  TAVILY_SEARCH_URL,
+  BRAVE_SEARCH_URL,
+  buildExcludedDomains,
   createDiscoveryBoundary,
   discoverOffers,
   sanitizePlannedQueries,
 } from "../src/server/paypal/offer-discovery";
+import { braveSearchResponse, readBraveQuery } from "./fixtures/brave-search";
 import { handlePublicResearch } from "../src/server/paypal/public-research";
 
 const env = {
@@ -16,7 +17,7 @@ const env = {
   EARMARK_GEMINI_ENABLED: "true",
   AI_ENABLE_NETWORK: "true",
   GEMINI_API_KEY: "offline-gemini-planner-key-only",
-  TAVILY_API_KEY: "offline-tavily-planner-key-only",
+  BRAVE_SEARCH_API_KEY: "offline-brave-planner-key-only",
   GEMINI_MODEL: "gemini-3.8-flash",
   AI_TIMEOUT_MS: "60000",
   PAYPAL_BACKEND_ENABLED: "false",
@@ -36,7 +37,7 @@ const geminiFunctionResponse = (name: string, args: unknown) =>
     ],
   });
 
-describe("general Gemini query planner and parallel Tavily discovery", () => {
+describe("general Gemini query planner and parallel Brave discovery", () => {
   it("sanitizes planned queries generally while blocking URLs, secrets, injections and payment actions", () => {
     const cleaned = sanitizePlannedQueries(
       [
@@ -65,11 +66,12 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
     ).toEqual([]);
   });
 
-  it("enforces strict one-shot boundary guards for query planning and planned Tavily queries", () => {
+  it("enforces strict one-shot boundary guards for query planning and planned Brave queries", () => {
+    const instruction = "Compare transactional email API plans under $20";
     const boundary = createDiscoveryBoundary(
-      "Compare transactional email API plans under $20",
+      instruction,
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
       env.GEMINI_MODEL,
       [],
       2000,
@@ -77,18 +79,35 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       true,
     );
     const signal = new AbortController().signal;
-    expect(() =>
-      boundary.guard(TAVILY_SEARCH_URL, {
-        method: "POST",
-        redirect: "error",
-        signal,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.TAVILY_API_KEY}`,
-        },
-        body: "{}",
-      }),
-    ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
+    const init = {
+      method: "GET",
+      redirect: "error",
+      cache: "no-store",
+      signal,
+      headers: {
+        Accept: "application/json",
+        "X-Subscription-Token": env.BRAVE_SEARCH_API_KEY,
+      },
+    } satisfies RequestInit;
+    const approvedUrl = new URL(BRAVE_SEARCH_URL);
+    const queryWords = [
+      "Resend",
+      "Postmark",
+      "transactional",
+      "email",
+      "pricing",
+      ...buildExcludedDomains(instruction).map((domain) => `-site:${domain}`),
+    ].slice(0, 50);
+    while (queryWords.join(" ").length > 400) queryWords.pop();
+    approvedUrl.search = new URLSearchParams({
+      q: queryWords.join(" "),
+      count: "5",
+      result_filter: "web",
+      text_decorations: "false",
+    }).toString();
+    expect(() => boundary.guard(String(approvedUrl), init)).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
 
     const accepted = boundary.finishQueryPlan([
       "Resend Postmark transactional email pricing",
@@ -99,26 +118,15 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       "Mailgun Brevo email API pricing",
     ]);
 
-    expect(() =>
-      boundary.guard(TAVILY_SEARCH_URL, {
-        method: "POST",
-        redirect: "error",
-        signal,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.TAVILY_API_KEY}`,
-        },
-        body: JSON.stringify({
-          query: "Unapproved injected query",
-          search_depth: "advanced",
-          chunks_per_source: 3,
-          max_results: TAVILY_MAX_RESULTS,
-          include_answer: false,
-          include_raw_content: false,
-          include_images: false,
-        }),
-      }),
-    ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
+    const injectedUrl = new URL(approvedUrl);
+    injectedUrl.searchParams.set("q", "Unapproved injected query");
+    expect(() => boundary.guard(String(injectedUrl), init)).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
+    expect(() => boundary.guard(String(approvedUrl), init)).not.toThrow();
+    expect(() => boundary.guard(String(approvedUrl), init)).toThrow(
+      "DISCOVERY_OUTBOUND_REJECTED",
+    );
   });
 
   it.each([
@@ -171,14 +179,14 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       ],
     },
   ])(
-    "plans and runs parallel Tavily queries by default for $instruction",
+    "plans and runs parallel Brave queries by default for $instruction",
     async ({ instruction, plannedQueries, pages }) => {
-      const seenTavilyQueries: string[] = [];
+      const seenBraveQueries: string[] = [];
       let collectorSourcesCount = 0;
       const fetcher = vi.fn<typeof fetch>(async (input, init) => {
         const url = String(input);
-        const body = JSON.parse(String(init?.body ?? "{}"));
         if (url.includes(":generateContent")) {
+          const body = JSON.parse(String(init?.body ?? "{}"));
           const toolName = body.tools?.[0]?.functionDeclarations?.[0]?.name;
           if (toolName === "planResearchQueries") {
             return geminiFunctionResponse("planResearchQueries", {
@@ -195,12 +203,11 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
             offers: [],
           });
         }
-        if (url === TAVILY_SEARCH_URL) {
-          seenTavilyQueries.push(String(body.query));
-          const queryIndex = plannedQueries.indexOf(String(body.query));
+        if (url.startsWith(`${BRAVE_SEARCH_URL}?`)) {
+          seenBraveQueries.push(readBraveQuery(url));
+          const queryIndex = plannedQueries.indexOf(readBraveQuery(url));
           const page = pages[queryIndex];
-          return Response.json({
-            query: body.query,
+          return braveSearchResponse({
             results: page ? [page] : [],
           });
         }
@@ -216,7 +223,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
         onRetrievalSummary,
       });
 
-      expect(seenTavilyQueries).toEqual(expect.arrayContaining(plannedQueries));
+      expect(seenBraveQueries).toEqual(expect.arrayContaining(plannedQueries));
       expect(collectorSourcesCount).toBe(pages.length);
       expect(result.evidence.modelTurns).toBe(2);
       expect(result.evidence.outboundGuardPassed).toBe(true);
@@ -246,8 +253,8 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
     let collectorResultsCount = 0;
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body ?? "{}"));
       if (url.includes(":generateContent")) {
+        const body = JSON.parse(String(init?.body ?? "{}"));
         const toolName = body.tools?.[0]?.functionDeclarations?.[0]?.name;
         if (toolName === "planResearchQueries") {
           return geminiFunctionResponse("planResearchQueries", {
@@ -262,10 +269,9 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
           0;
         return geminiFunctionResponse("reportDiscoveredOffers", { offers: [] });
       }
-      if (url === TAVILY_SEARCH_URL) {
-        const group = body.query === plannedQueries[0] ? "a" : "b";
-        return Response.json({
-          query: body.query,
+      if (url.startsWith(`${BRAVE_SEARCH_URL}?`)) {
+        const group = readBraveQuery(url) === plannedQueries[0] ? "a" : "b";
+        return braveSearchResponse({
           results: Array.from({ length: 5 }, (_, idx) => ({
             title: `Backup${group}${idx + 1} Cloud Backup Pricing`,
             url: `https://backup-${group}-${idx + 1}.example/pricing`,
@@ -287,21 +293,20 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
   });
 
   it("falls back cleanly to deterministic search when query planning returns HTTP 503", async () => {
-    const seenTavilyQueries: string[] = [];
+    const seenBraveQueries: string[] = [];
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body ?? "{}"));
       if (url.includes(":generateContent")) {
+        const body = JSON.parse(String(init?.body ?? "{}"));
         const toolName = body.tools?.[0]?.functionDeclarations?.[0]?.name;
         if (toolName === "planResearchQueries") {
           return new Response("{}", { status: 503 });
         }
         return geminiFunctionResponse("reportDiscoveredOffers", { offers: [] });
       }
-      if (url === TAVILY_SEARCH_URL) {
-        seenTavilyQueries.push(String(body.query));
-        return Response.json({
-          query: body.query,
+      if (url.startsWith(`${BRAVE_SEARCH_URL}?`)) {
+        seenBraveQueries.push(readBraveQuery(url));
+        return braveSearchResponse({
           results: [
             {
               title: "Northwind Weather API Pricing",
@@ -337,7 +342,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
         fallbackReason: expect.any(String),
       }),
     );
-    expect(seenTavilyQueries[0]).toBe(
+    expect(seenBraveQueries[0]).toBe(
       "weather API plans official provider pricing documentation",
     );
     expect(result.evidence.modelTurns).toBe(1);
@@ -361,8 +366,8 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body ?? "{}"));
       if (url.includes(":generateContent")) {
+        const body = JSON.parse(String(init?.body ?? "{}"));
         const toolName = body.tools?.[0]?.functionDeclarations?.[0]?.name;
         if (toolName === "planResearchQueries") {
           return geminiFunctionResponse("planResearchQueries", {
@@ -371,8 +376,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
         }
         return geminiFunctionResponse("reportDiscoveredOffers", { offers: [] });
       }
-      return Response.json({
-        query: body.query,
+      return braveSearchResponse({
         results: [
           {
             title: "Resend Pricing",
@@ -423,17 +427,15 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
       "Moonshot Kimi API pricing plans",
       "Alibaba Model Studio Qwen pricing",
     ];
-    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body ?? "{}"));
       if (url.includes(":generateContent")) {
         return geminiFunctionResponse("planResearchQueries", {
           queries: plannedQueries,
         });
       }
-      if (body.query === plannedQueries[0]) {
-        return Response.json({
-          query: body.query,
+      if (readBraveQuery(url) === plannedQueries[0]) {
+        return braveSearchResponse({
           results: [
             {
               title: "GLM API Pricing",
@@ -443,9 +445,8 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
           ],
         });
       }
-      if (body.query === plannedQueries[1]) {
-        return Response.json({
-          query: body.query,
+      if (readBraveQuery(url) === plannedQueries[1]) {
+        return braveSearchResponse({
           results: [
             {
               title: "Kimi API Pricing",
@@ -461,9 +462,8 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
           ],
         });
       }
-      if (body.query === plannedQueries[2]) {
-        return Response.json({
-          query: body.query,
+      if (readBraveQuery(url) === plannedQueries[2]) {
+        return braveSearchResponse({
           results: [
             {
               title: "Model Studio Pricing",
@@ -474,8 +474,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
           ],
         });
       }
-      return Response.json({
-        query: body.query,
+      return braveSearchResponse({
         results: [
           {
             title: "OpenAI - Wikipedia",

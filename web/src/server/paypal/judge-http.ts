@@ -128,7 +128,7 @@ export function createJudgeHandler(
             localDiscoveryAvailable:
               localGeminiAvailable &&
               env.EARMARK_OFFER_DISCOVERY_ENABLED === "true" &&
-              Boolean(env.TAVILY_API_KEY),
+              Boolean(env.BRAVE_SEARCH_API_KEY),
             authenticated,
             csrfToken,
             publicLiveGemini: false,
@@ -173,7 +173,8 @@ export function createJudgeHandler(
         );
       if (
         input.mode === "discovery" &&
-        (env.EARMARK_OFFER_DISCOVERY_ENABLED !== "true" || !env.TAVILY_API_KEY)
+        (env.EARMARK_OFFER_DISCOVERY_ENABLED !== "true" ||
+          !env.BRAVE_SEARCH_API_KEY)
       )
         throw new PaymentError("DISCOVERY_DISABLED");
       const now = Date.now();

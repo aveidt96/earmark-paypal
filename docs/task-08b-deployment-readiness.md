@@ -95,7 +95,7 @@ for this release.
 | `NEXT_PUBLIC_CHAIN_ID`                                                                                                                                           | Optional browser-visible legacy chain UI setting. Layout and navigation                            | Unset                                                             | Unset for this flow                                              |
 | `EARMARK_DISCOVERY_VALIDATION_TRACE`                                                                                                                             | Optional local-only trace opt-in. Owner checkout HTTP                                              | `false` or unset                                                  | Unset for routine demos                                          |
 | `GEMINI_API_KEY`                                                                                                                                                 | Required server-only private research secret. Gemini adapter and discovery collector               | Omit                                                              | Existing approved key                                            |
-| `TAVILY_API_KEY`                                                                                                                                                 | Required server-only private research secret. Discovery search                                     | Omit                                                              | Existing approved key                                            |
+| `BRAVE_SEARCH_API_KEY`                                                                                                                                           | Required server-only private research secret. Discovery search                                     | Omit                                                              | Existing approved key                                            |
 | `GEMINI_MODEL`                                                                                                                                                   | Server-only model selection. Synthetic adapter and discovery fallback                              | Omit                                                              | Keep the verified local model                                    |
 | `GEMINI_COLLECTOR_MODEL`                                                                                                                                         | Optional private Gemini discovery override. `offer-discovery.ts`                                   | Omit                                                              | Keep the verified model or inherit `GEMINI_MODEL`                |
 | `AI_TIMEOUT_MS`                                                                                                                                                  | Optional private provider timeout. Model and discovery                                             | Omit                                                              | `60000` or use the existing default                              |
@@ -160,6 +160,23 @@ ephemeral browser state and remains `not paid`. Public endpoint guards,
 disabled flags, absent storage and provider credentials, and existing
 execution/expiry checks prevent historical campaigns from becoming executable.
 Autonomous saved-Wallet payment remains unresolved and disabled.
+
+## Brave Search trial (2026-11-19)
+
+This trial replaces the search transport in online offer research. For an
+environment where research is enabled, configure `BRAVE_SEARCH_API_KEY` as a
+server-only Brave Search API subscription key in that environment. Keep the
+existing Gemini and research quota settings. Legacy search credentials do not
+enable research on this version. The provider-free demo can still leave both
+search and Gemini credentials unset.
+
+For live acceptance, use a configured test deployment and replay
+`Find me a $20 Chinese ai model plan` with a $20 research budget. Also replay
+one non-AI product or subscription request. Check that relevant first-party
+pricing pages appear and that price, country and identity claims reflect the
+evidence. The `public-research: official provider evidence gap` log records
+aggregate counts when verification falls short. Model and payment execution
+remain separate from retrieving public pages.
 
 ## Local release evidence
 

@@ -27,6 +27,7 @@ try {
   ];
   for (const name of [
     "GEMINI_API_KEY",
+    "BRAVE_SEARCH_API_KEY",
     "TAVILY_API_KEY",
     "AI_API_KEY",
     "EARMARK_JUDGE_LOGIN_SECRET",

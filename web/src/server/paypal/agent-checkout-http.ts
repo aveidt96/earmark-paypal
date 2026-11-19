@@ -50,7 +50,7 @@ export function getAgentCheckoutRuntime(): AgentCheckoutRuntime {
       env.EARMARK_OFFER_DISCOVERY_ENABLED === "true" &&
       env.EARMARK_GEMINI_ENABLED === "true" &&
       env.AI_ENABLE_NETWORK === "true" &&
-      Boolean(env.TAVILY_API_KEY && env.GEMINI_API_KEY);
+      Boolean(env.BRAVE_SEARCH_API_KEY && env.GEMINI_API_KEY);
     let service: Promise<AgentCheckoutPreparationService> | undefined;
     let diagnostic: Promise<AgentSyntheticDiagnostic> | undefined;
     instance = {

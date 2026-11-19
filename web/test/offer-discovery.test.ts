@@ -1,3 +1,9 @@
+import {
+  braveSearchResponse,
+  type BraveFixtureResult,
+  readBraveQuery,
+  readBraveExcludedSites,
+} from "./fixtures/brave-search";
 import { describe, it, expect, vi } from "vitest";
 import { channel } from "node:diagnostics_channel";
 import { createElement } from "react";
@@ -14,10 +20,10 @@ import {
 } from "../src/lib/offer-discovery";
 vi.mock("server-only", () => ({}));
 import {
-  TAVILY_EXCLUDED_DOMAINS,
-  TAVILY_SEARCH_URL,
-  TAVILY_MAX_RESULTS,
-  TAVILY_PAYMENT_MAX_RESULTS,
+  BRAVE_EXCLUDED_DOMAINS,
+  BRAVE_SEARCH_URL,
+  BRAVE_MAX_RESULTS,
+  BRAVE_PAYMENT_MAX_RESULTS,
   DEFAULT_PUBLIC_FALLBACK_COLLECTOR_MODEL,
   buildTargetedPayPalQuery,
   buildTargetedPricingQuery,
@@ -45,7 +51,7 @@ const env = {
   EARMARK_GEMINI_ENABLED: "true",
   AI_ENABLE_NETWORK: "true",
   GEMINI_API_KEY: "offline-gemini-fixture-key-only",
-  TAVILY_API_KEY: "offline-tavily-fixture-key-only",
+  BRAVE_SEARCH_API_KEY: "offline-brave-fixture-key-only",
   GEMINI_MODEL: "gemini-3.8-flash",
   AI_TIMEOUT_MS: "60000",
   EARMARK_JUDGE_LOCAL_GEMINI: "true",
@@ -76,11 +82,11 @@ function transport(
   offers: unknown[] = [offer],
   options: {
     corroborated?: boolean;
-    tavilyResults?: unknown[];
-    paymentResults?: unknown[];
-    tavilyBody?: string;
+    braveResults?: BraveFixtureResult[];
+    paymentResults?: BraveFixtureResult[];
+    braveBody?: string;
     paymentBody?: string;
-    tavilyStatus?: number;
+    braveStatus?: number;
     paymentStatus?: number;
     geminiStatus?: number;
     geminiResponse?: unknown;
@@ -93,19 +99,19 @@ function transport(
   return vi.fn<typeof fetch>(async (input) => {
     turn += 1;
     if (turn === 1) {
-      if (options.tavilyStatus && options.tavilyStatus !== 200) {
-        return new Response("{}", { status: options.tavilyStatus });
+      if (options.braveStatus && options.braveStatus !== 200) {
+        return new Response("{}", { status: options.braveStatus });
       }
-      if (options.tavilyBody !== undefined) {
-        return new Response(options.tavilyBody, {
+      if (options.braveBody !== undefined) {
+        return new Response(options.braveBody, {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
       }
-      return Response.json({
+      return braveSearchResponse({
         query: "fixture weather API pricing",
         results: [
-          ...(options.tavilyResults ?? [
+          ...(options.braveResults ?? [
             {
               title: "Example Weather API pricing",
               url,
@@ -161,7 +167,7 @@ function transport(
         headers: { "Content-Type": "application/json" },
       });
     }
-    return Response.json({
+    return braveSearchResponse({
       query: buildTargetedPayPalQuery("example.com"),
       results: options.paymentResults ?? [
         {
@@ -282,7 +288,7 @@ it.each([
       ],
       {
         corroborated: true,
-        tavilyResults: [
+        braveResults: [
           {
             url,
             title: "Example Weather API pricing",
@@ -709,7 +715,7 @@ describe("anonymous Norway research", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       const info = vi.spyOn(console, "info").mockImplementation(() => {});
       const fixture = transport([offer], {
-        tavilyResults: [
+        braveResults: [
           {
             title: "Example Weather API pricing",
             url,
@@ -1152,6 +1158,14 @@ describe("anonymous Norway research", () => {
           "PUBLIC_RESEARCH_PROVIDERS_NOT_CONFIGURED",
           "GEMINI_API_KEY",
         ],
+        [
+          {
+            BRAVE_SEARCH_API_KEY: "",
+            TAVILY_API_KEY: "offline-legacy-key-only",
+          },
+          "PUBLIC_RESEARCH_PROVIDERS_NOT_CONFIGURED",
+          "BRAVE_SEARCH_API_KEY",
+        ],
         [{ VERCEL: "" }, "PUBLIC_RESEARCH_RUNTIME_NOT_CONFIGURED", "VERCEL"],
         [
           { EARMARK_PUBLIC_RESEARCH_ORIGIN: `${origin}/` },
@@ -1512,7 +1526,7 @@ describe("anonymous Norway research", () => {
     const boundary = createDiscoveryBoundary(
       payload.instruction,
       publicEnv.GEMINI_API_KEY,
-      publicEnv.TAVILY_API_KEY,
+      publicEnv.BRAVE_SEARCH_API_KEY,
       "gemini-3.8-flash",
       [],
       1000,
@@ -1522,7 +1536,7 @@ describe("anonymous Norway research", () => {
       "DISCOVERY_OUTBOUND_REJECTED",
     );
     boundary.allowCollector({
-      searchProvider: "tavily",
+      searchProvider: "brave",
       retrievedAt: "2026-11-13T00:00:00.000Z",
       results: [
         {
@@ -1614,7 +1628,7 @@ describe("anonymous Norway research", () => {
         );
         expect(reply.status, label).toBe(expectedStatus);
         expect(await reply.json(), label).toEqual(expectedShape);
-        // Exactly 1 Tavily + 1 primary Gemini call; fallback must not run.
+        // Exactly 1 Brave + 1 primary Gemini call; fallback must not run.
         expect(spyFetcher, label).toHaveBeenCalledTimes(2);
         expect(refund, label).not.toHaveBeenCalled();
       }
@@ -1633,7 +1647,7 @@ describe("anonymous Norway research", () => {
       const officialPricingUrl = "https://acme.example/pricing";
       const fetcher = transport([offer], {
         geminiStatus: 503,
-        tavilyResults: [
+        braveResults: [
           {
             title: "Top 10 Weather APIs Compared",
             url: blogUrl,
@@ -1695,17 +1709,6 @@ describe("anonymous Norway research", () => {
   });
 });
 const origin = "http://127.0.0.1:3032";
-type MutableTavilyEnvelope = {
-  query: string;
-  search_depth: string;
-  chunks_per_source?: number;
-  max_results: number;
-  include_answer: boolean;
-  include_raw_content: boolean;
-  include_images: boolean;
-  exclude_domains?: string[];
-  privateDatabaseRow?: unknown;
-};
 type MutableCollectorEnvelope = {
   contents: unknown[];
   systemInstruction: { parts: [{ text: string }] };
@@ -1726,7 +1729,7 @@ function request(input?: unknown, cookie = "", csrf = "") {
   });
 }
 
-describe("authenticated offer discovery with offline Tavily Search + targeted PayPal research + Gemini collector", () => {
+describe("authenticated offer discovery with offline Brave Search + targeted PayPal research + Gemini collector", () => {
   it.each([
     [
       "Find an affordable weather API under $10.",
@@ -1764,14 +1767,14 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       ],
     ],
   ])(
-    "runs initial Tavily search, Gemini collector, targeted payment-method search, and canonical policy: %s",
+    "runs initial Brave search, Gemini collector, targeted payment-method search, and canonical policy: %s",
     async (instruction, offers) => {
       const costly = instruction.includes("$10");
       const fetcher = transport(
         offers,
         costly
           ? {
-              tavilyResults: [
+              braveResults: [
                 {
                   title: "Example Weather API pricing",
                   url,
@@ -1805,41 +1808,49 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       const [paymentSearchUrl, paymentSearchInit] =
         fetcher.mock.calls.at(-1) ?? [];
       if (costly)
-        expect(String(fetcher.mock.calls[1]?.[1]?.body)).toContain(
+        expect(readBraveQuery(fetcher.mock.calls[1]?.[0])).toContain(
           "company ownership official website",
         );
-      expect(String(searchUrl)).toBe(TAVILY_SEARCH_URL);
+      expect(String(searchUrl).startsWith(`${BRAVE_SEARCH_URL}?`)).toBe(true);
       expect(String(collectorUrl)).toContain(
         `/models/${env.GEMINI_MODEL}:generateContent`,
       );
-      expect(String(paymentSearchUrl)).toBe(TAVILY_SEARCH_URL);
-      const searchHeaders = new Headers(searchInit?.headers);
-      expect(searchHeaders.get("authorization")).toBe(
-        `Bearer ${env.TAVILY_API_KEY}`,
+      expect(String(paymentSearchUrl).startsWith(`${BRAVE_SEARCH_URL}?`)).toBe(
+        true,
       );
-      const searchRaw = String(searchInit?.body);
-      expect(JSON.parse(searchRaw)).toEqual({
-        query: expect.stringContaining(
-          "official provider pricing documentation",
-        ),
-        search_depth: "advanced",
-        chunks_per_source: 3,
-        max_results: TAVILY_MAX_RESULTS,
-        include_answer: false,
-        include_raw_content: false,
-        include_images: false,
-        exclude_domains: [...TAVILY_EXCLUDED_DOMAINS],
+      const searchHeaders = new Headers(searchInit?.headers);
+      expect(searchHeaders.get("x-subscription-token")).toBe(
+        env.BRAVE_SEARCH_API_KEY,
+      );
+      expect(searchHeaders.get("accept")).toBe("application/json");
+      expect(searchInit).toMatchObject({
+        method: "GET",
+        cache: "no-store",
+        redirect: "error",
       });
-      const paymentSearchRaw = String(paymentSearchInit?.body);
-      expect(JSON.parse(paymentSearchRaw)).toEqual({
-        query:
-          "site:example.com accepted payment methods PayPal checkout FAQ billing documentation",
-        search_depth: "basic",
-        max_results: TAVILY_PAYMENT_MAX_RESULTS,
-        include_answer: false,
-        include_raw_content: false,
-        include_images: false,
+      expect(searchInit?.body).toBeUndefined();
+      expect(String(searchUrl)).not.toContain(env.BRAVE_SEARCH_API_KEY);
+      expect(readBraveQuery(searchUrl)).toContain(
+        "official provider pricing documentation",
+      );
+      expect(readBraveExcludedSites(searchUrl)).toContain(
+        BRAVE_EXCLUDED_DOMAINS[0],
+      );
+      expect(
+        Object.fromEntries(new URL(String(searchUrl)).searchParams),
+      ).toEqual({
+        q: expect.any(String),
+        count: String(BRAVE_MAX_RESULTS),
+        result_filter: "web",
+        text_decorations: "false",
       });
+      expect(readBraveQuery(paymentSearchUrl)).toBe(
+        buildTargetedPayPalQuery("example.com"),
+      );
+      expect(new URL(String(paymentSearchUrl)).searchParams.get("count")).toBe(
+        String(BRAVE_PAYMENT_MAX_RESULTS),
+      );
+      expect(paymentSearchInit?.body).toBeUndefined();
       const collectorRaw = String(collectorInit?.body);
       const collectorBody = JSON.parse(collectorRaw);
       const collectorContext = JSON.parse(
@@ -1849,7 +1860,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       expect(
         collectorContext.observationsIncludingUntrustedProviderData,
       ).toEqual({
-        searchProvider: "tavily",
+        searchProvider: "brave",
         retrievedAt: result.retrievedAt,
         results: [
           {
@@ -1878,10 +1889,14 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         ),
       ).toEqual(["reportDiscoveredOffers"]);
       expect(collectorRaw).not.toContain("googleSearch");
-      for (const raw of [searchRaw, paymentSearchRaw, collectorRaw]) {
+      for (const raw of [
+        readBraveQuery(searchUrl),
+        readBraveQuery(paymentSearchUrl),
+        collectorRaw,
+      ]) {
         for (const forbidden of [
           env.GEMINI_API_KEY,
-          env.TAVILY_API_KEY,
+          env.BRAVE_SEARCH_API_KEY,
           "forbidden-test-secret-only",
           "postgresql://",
           "historicalImmutable",
@@ -1901,7 +1916,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         evidence: {
           httpStatus: 200,
           modelTurns: 1,
-          searchProvider: "tavily",
+          searchProvider: "brave",
           searchRequests: costly ? 3 : 2,
           searchResultsCount: costly ? 2 : 1,
           paymentSearchResultsCount: 1,
@@ -2098,7 +2113,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       paypalSourceUrl: changelog,
       sourceUrls: [article, changelog],
     };
-    const tavilyResults = [
+    const braveResults = [
       {
         title: "Top 5 Weather APIs",
         url: article,
@@ -2122,7 +2137,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ],
       {
-        tavilyResults,
+        braveResults,
         paymentResults: [
           {
             title: "API Changelog — WeatherAPI.com",
@@ -2182,7 +2197,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ],
       {
-        tavilyResults: [
+        braveResults: [
           {
             title:
               "Weather API Pricing: Free Plan & Paid Plans - WeatherAPI.com",
@@ -2209,11 +2224,16 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const [, collectorInit] = f.mock.calls[2] ?? [];
     const [paymentSearchUrl, paymentSearchInit] = f.mock.calls[3] ?? [];
     expect(String(collectorInit?.body)).toContain("accuweather.com");
-    expect(String(paymentSearchUrl)).toBe(TAVILY_SEARCH_URL);
-    expect(JSON.parse(String(paymentSearchInit?.body))).toMatchObject({
-      query: buildTargetedPayPalQuery("accuweather.com"),
-      max_results: TAVILY_PAYMENT_MAX_RESULTS,
-    });
+    expect(String(paymentSearchUrl).startsWith(`${BRAVE_SEARCH_URL}?`)).toBe(
+      true,
+    );
+    expect(readBraveQuery(paymentSearchUrl)).toBe(
+      buildTargetedPayPalQuery("accuweather.com"),
+    );
+    expect(new URL(String(paymentSearchUrl)).searchParams.get("count")).toBe(
+      String(BRAVE_PAYMENT_MAX_RESULTS),
+    );
+    expect(paymentSearchInit?.body).toBeUndefined();
     expect(result.targetMerchantDomain).toBe("accuweather.com");
     expect(result.offers).toHaveLength(1);
     expect(result.offers[0]).toMatchObject({
@@ -2274,7 +2294,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           },
         ],
         {
-          tavilyResults: [
+          braveResults: [
             {
               title: "AccuWeather Weather API Pricing",
               url: accuweatherOverview,
@@ -2431,7 +2451,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ],
       {
-        tavilyResults: [
+        braveResults: [
           {
             title: "WeatherAPI Weather API Pricing",
             url: weatherApiPricing,
@@ -2480,7 +2500,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const named = { ...offer, service: "Starter", sourceUrls: [url] };
     const roundup = "https://directory.example.net/blog/weather-apis";
     const f = transport([named], {
-      tavilyResults: [
+      braveResults: [
         {
           title: "Top 5 Weather APIs",
           url: roundup,
@@ -2543,15 +2563,32 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(result.reviewRecommendation).toBeNull();
   });
 
-  it("handles empty Tavily results and empty collected offers safely without fabricating proposals", async () => {
-    const emptyTavily = transport([offer], { tavilyResults: [] });
+  it("bounds the Brave query when a long instruction and domain exclusions share the search budget", async () => {
+    const fetcher = transport([], { braveStatus: 401 });
     await expect(
-      discoverOffers("Find weather API under $10", env, emptyTavily),
+      discoverOffers(
+        `Find weather API ${"comparison ".repeat(70)}pricing`,
+        env,
+        fetcher,
+      ),
+    ).rejects.toThrow("BRAVE_AUTH_ERROR");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const query =
+      new URL(String(fetcher.mock.calls[0]?.[0])).searchParams.get("q") ?? "";
+    expect(query).toMatch(/^weather API /);
+    expect(query.length).toBeLessThanOrEqual(400);
+    expect(query.split(" ").length).toBeLessThanOrEqual(50);
+  });
+
+  it("handles empty Brave results and empty collected offers safely without fabricating proposals", async () => {
+    const emptyBrave = transport([offer], { braveResults: [] });
+    await expect(
+      discoverOffers("Find weather API under $10", env, emptyBrave),
     ).rejects.toThrow("DISCOVERY_GROUNDING_REQUIRED");
-    expect(emptyTavily).toHaveBeenCalledTimes(1);
+    expect(emptyBrave).toHaveBeenCalledTimes(1);
 
     const unsafeUrlOnly = transport([offer], {
-      tavilyResults: [
+      braveResults: [
         {
           title: "Localhost",
           url: "http://127.0.0.1/weather",
@@ -2592,7 +2629,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           },
         ],
         {
-          tavilyResults: [
+          braveResults: [
             {
               title: "Example Weather API pricing",
               url,
@@ -2835,7 +2872,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
   it("dispatches canonical titles and snippets at the clipping boundary", async () => {
     const instruction = "Find weather API plans under $10";
     const f = transport([], {
-      tavilyResults: [
+      braveResults: [
         {
           title: `${"Example Weather API pricing ".padEnd(199, "t")} tail`,
           url,
@@ -2867,7 +2904,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const body = JSON.parse(String(collectorInit?.body));
     const context = JSON.parse(body.contents[0].parts[0].text);
     const research = {
-      searchProvider: "tavily" as const,
+      searchProvider: "brave" as const,
       retrievedAt: result.retrievedAt,
       results: [
         {
@@ -2896,7 +2933,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const boundary = createDiscoveryBoundary(
       instruction,
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
       env.GEMINI_MODEL,
     );
     expect(boundary.allowCollector(research)).toEqual(research);
@@ -2928,7 +2965,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const boundary2 = createDiscoveryBoundary(
       instruction,
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
       env.GEMINI_MODEL,
     );
     boundary2.allowCollector(research);
@@ -2956,42 +2993,46 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const boundary = createDiscoveryBoundary(
       instruction,
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
       env.GEMINI_MODEL,
     );
-    const searchMutations = [
-      (b: MutableTavilyEnvelope) => {
-        b.search_depth = b.search_depth === "basic" ? "advanced" : "basic";
-      },
-      (b: MutableTavilyEnvelope) => {
-        b.max_results = 20;
-      },
-      (b: MutableTavilyEnvelope) => {
-        b.chunks_per_source = 5;
-      },
-      (b: MutableTavilyEnvelope) => {
-        b.include_raw_content = true;
-      },
-      (b: MutableTavilyEnvelope) => {
-        b.exclude_domains = [];
-      },
-      (b: MutableTavilyEnvelope) => {
-        b.privateDatabaseRow = { captureId: "CANARY_FORBIDDEN_SYNTHETIC_ONLY" };
-      },
-    ];
-    for (const mutate of searchMutations) {
-      const changed = JSON.parse(String(searchInit?.body));
-      mutate(changed);
+    const assertRejectsSearchChanges = (url: unknown, init: RequestInit) => {
+      for (const [key, value] of [
+        ["q", "foreign search"],
+        ["count", "20"],
+        ["extra_snippets", "true"],
+        ["result_filter", "news"],
+        ["db_capture_id", "CANARY_FORBIDDEN_SYNTHETIC_ONLY"],
+      ] as const) {
+        const changed = new URL(String(url));
+        changed.searchParams.set(key, value);
+        expect(() => boundary.guard(changed.href, init)).toThrow(
+          "DISCOVERY_OUTBOUND_REJECTED",
+        );
+      }
+      for (const changed of [
+        { ...init, method: "POST" },
+        { ...init, body: "{}" },
+        { ...init, redirect: "follow" as const },
+        { ...init, cache: "default" as const },
+      ]) {
+        expect(() => boundary.guard(String(url), changed)).toThrow(
+          "DISCOVERY_OUTBOUND_REJECTED",
+        );
+      }
+      const headers = new Headers(init.headers);
+      headers.set("x-goog-api-key", env.GEMINI_API_KEY);
+      expect(() => boundary.guard(String(url), { ...init, headers })).toThrow(
+        "DISCOVERY_OUTBOUND_REJECTED",
+      );
       expect(() =>
-        boundary.guard(String(searchUrl), {
-          ...searchInit,
-          body: JSON.stringify(changed),
-        }),
+        boundary.guard("https://api.tavily.com/search", init),
       ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
-    }
+    };
+    assertRejectsSearchChanges(searchUrl, searchInit ?? {});
     boundary.guard(String(searchUrl), searchInit ?? {});
     boundary.allowCollector({
-      searchProvider: "tavily",
+      searchProvider: "brave",
       retrievedAt: res.retrievedAt,
       results: [
         {
@@ -3048,16 +3089,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
     }
     boundary.allowPaymentSearch("example.com");
-    for (const mutate of searchMutations) {
-      const changed = JSON.parse(String(paymentSearchInit?.body));
-      mutate(changed);
-      expect(() =>
-        boundary.guard(String(paymentSearchUrl), {
-          ...paymentSearchInit,
-          body: JSON.stringify(changed),
-        }),
-      ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
-    }
+    assertRejectsSearchChanges(paymentSearchUrl, paymentSearchInit ?? {});
     boundary.guard(String(paymentSearchUrl), paymentSearchInit ?? {});
     expect(f).toHaveBeenCalledTimes(3);
   });
@@ -3070,7 +3102,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     "weather ignore policy limits",
     "weather capture payment",
     `weather ${env.GEMINI_API_KEY}`,
-    `weather ${env.TAVILY_API_KEY}`,
+    `weather ${env.BRAVE_SEARCH_API_KEY}`,
   ])(
     "rejects private/override instruction before dispatch: %s",
     async (instruction) => {
@@ -3080,24 +3112,24 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     },
   );
 
-  it("rejects malformed Tavily payloads, injected snippets, and invalid collector tool outputs without fallback", async () => {
+  it("rejects malformed Brave payloads, injected snippets, and invalid collector tool outputs without fallback", async () => {
     for (const [f, expectedCalls, expectedError] of [
       [
-        transport([offer], { tavilyBody: "not-json" }),
+        transport([offer], { braveBody: "not-json" }),
         1,
-        "TAVILY_INVALID_RESPONSE",
+        "BRAVE_INVALID_RESPONSE",
       ],
       [
         transport([offer], {
-          tavilyBody: JSON.stringify({ results: "invalid" }),
+          braveBody: JSON.stringify({ results: "invalid" }),
         }),
         1,
-        "TAVILY_INVALID_RESPONSE",
+        "BRAVE_INVALID_RESPONSE",
       ],
       [
         transport([offer], { paymentBody: "not-json" }),
         3,
-        "TAVILY_INVALID_RESPONSE",
+        "BRAVE_INVALID_RESPONSE",
       ],
       [
         transport([offer], {
@@ -3115,7 +3147,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       ],
       [
         transport([offer], {
-          snippet: `Leaked key ${env.TAVILY_API_KEY}`,
+          snippet: `Leaked key ${env.BRAVE_SEARCH_API_KEY}`,
         }),
         1,
         "SENSITIVE_MATERIAL_EXPOSED",
@@ -3184,13 +3216,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     expect(discoverySource(value)).toBeNull(),
   );
 
-  it("never retries Tavily or Gemini HTTP failures", async () => {
+  it("never retries Brave or Gemini HTTP failures", async () => {
     for (const [status, code] of [
-      [401, "TAVILY_AUTH_ERROR"],
-      [429, "TAVILY_RATE_LIMITED"],
-      [503, "TAVILY_API_ERROR"],
+      [401, "BRAVE_AUTH_ERROR"],
+      [429, "BRAVE_RATE_LIMITED"],
+      [503, "BRAVE_API_ERROR"],
     ] as const) {
-      const f = transport([offer], { tavilyStatus: status });
+      const f = transport([offer], { braveStatus: status });
       await expect(discoverOffers("Find weather API", env, f)).rejects.toThrow(
         code,
       );
@@ -3205,11 +3237,11 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const payment429 = transport([offer], { paymentStatus: 429 });
     await expect(
       discoverOffers("Find weather API", env, payment429),
-    ).rejects.toThrow("TAVILY_RATE_LIMITED");
+    ).rejects.toThrow("BRAVE_RATE_LIMITED");
     expect(payment429).toHaveBeenCalledTimes(3);
   });
 
-  it("denies discovery on hosted/default profiles, missing TAVILY_API_KEY, unauthenticated requests, and bad CSRF; reuses local quota", async () => {
+  it("denies discovery on hosted/default profiles, missing BRAVE_SEARCH_API_KEY, unauthenticated requests, and bad CSRF; reuses local quota", async () => {
     const discover = vi.fn(async (instruction: string) =>
       discoverOffers(instruction, env, transport()),
     );
@@ -3217,7 +3249,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       {},
       { ...env, VERCEL: "1" },
       { ...env, PAYPAL_PAYMENTS_ENABLED: "true" },
-      { ...env, TAVILY_API_KEY: "" },
+      { ...env, BRAVE_SEARCH_API_KEY: "" },
     ]) {
       const handler = createJudgeHandler(settings, undefined, discover);
       const login = await handler(
@@ -3460,7 +3492,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           },
         ],
         {
-          tavilyResults: [
+          braveResults: [
             {
               title: "AccuWeather Weather API Packages",
               url: accuUrl,
@@ -3557,7 +3589,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ],
       {
-        tavilyResults: [
+        braveResults: [
           {
             title: "Best Qwen API Providers Compared",
             url: thirdPartyUrl,
@@ -3659,7 +3691,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
       "https://www.alibabacloud.com/help/en/model-studio/model-pricing";
     const blogUrl = "https://medium.com/@techwriter/qwen3-8-flash-review";
 
-    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
       const target = String(input);
       if (target.includes(":generateContent")) {
         return Response.json({
@@ -3698,14 +3730,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           ],
         });
       }
-      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
-        query?: string;
-      };
+      const parsedBody = { query: readBraveQuery(input) };
       if (
         parsedBody.query ===
         buildTargetedPricingQuery("alibabacloud.com", "Qwen3.8 Flash")
       ) {
-        return Response.json({
+        return braveSearchResponse({
           query: parsedBody.query,
           results: [
             {
@@ -3718,12 +3748,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         });
       }
       if (parsedBody.query === buildTargetedPayPalQuery("alibabacloud.com")) {
-        return Response.json({
+        return braveSearchResponse({
           query: parsedBody.query,
           results: [],
         });
       }
-      return Response.json({
+      return braveSearchResponse({
         query: parsedBody.query,
         results: [
           {
@@ -3771,7 +3801,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
 
     // Insufficient deadline headroom skips the optional targeted pricing search cleanly while preserving payment_evidence.
     const onFailure = vi.fn();
-    const tightFetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const tightFetcher = vi.fn<typeof fetch>(async (input) => {
       if (String(input).includes(":generateContent")) {
         return Response.json({
           candidates: [
@@ -3809,15 +3839,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           ],
         });
       }
-      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
-        query?: string;
-      };
+      const parsedBody = { query: readBraveQuery(input) };
       if (
         parsedBody.query?.startsWith("site:alibabacloud.com accepted payment")
       ) {
-        return Response.json({ query: parsedBody.query, results: [] });
+        return braveSearchResponse({ query: parsedBody.query, results: [] });
       }
-      return Response.json({
+      return braveSearchResponse({
         query: parsedBody.query,
         results: [
           {
@@ -3847,13 +3875,13 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const boundary = createDiscoveryBoundary(
       "Research Alibaba Model Studio Qwen3.8 Flash official pricing",
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
     );
     expect(() => boundary.allowPricingSearch("alibabacloud.com")).toThrow(
       "DISCOVERY_OUTBOUND_REJECTED",
     );
     boundary.allowCollector({
-      searchProvider: "tavily",
+      searchProvider: "brave",
       retrievedAt: new Date().toISOString(),
       results: [
         {
@@ -3886,7 +3914,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const creditPricingUrl = "https://novaml.example/billing/credit-packs";
     const roundupUrl = "https://dev.to/cloud-benchmarks/top-inference-apis";
 
-    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
       if (String(input).includes(":generateContent")) {
         return Response.json({
           candidates: [
@@ -3938,14 +3966,12 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
           ],
         });
       }
-      const parsedBody = JSON.parse(String(init?.body ?? "{}")) as {
-        query?: string;
-      };
+      const parsedBody = { query: readBraveQuery(input) };
       if (
         parsedBody.query ===
         buildTargetedPricingQuery("novaml.example", "Echo-7B")
       ) {
-        return Response.json({
+        return braveSearchResponse({
           query: parsedBody.query,
           results: [
             {
@@ -3964,9 +3990,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         });
       }
       if (parsedBody.query === buildTargetedPayPalQuery("novaml.example")) {
-        return Response.json({ query: parsedBody.query, results: [] });
+        return braveSearchResponse({ query: parsedBody.query, results: [] });
       }
-      return Response.json({
+      return braveSearchResponse({
         query: parsedBody.query,
         results: [
           {
@@ -4086,25 +4112,24 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const roundupBlogUrl =
       "https://blog.llmtrends.example/best-chinese-ai-model-plans-2026";
     const analysisUrl = "https://artificialanalysis.ai/models/chinese";
-    const spoofOfficialTitleUrl = "https://reseller-hub.example/api-plans";
 
     const searchBodies: Array<Record<string, unknown>> = [];
     const authorizeSpy = vi.spyOn(policy, "authorize");
     const reserveSpy = vi.spyOn(PayPalPaymentService.prototype, "reserve");
-    let tavilyTurn = 0;
+    let braveTurn = 0;
 
     try {
-      const f = vi.fn<typeof fetch>(async (input, init) => {
-        if (String(input) === TAVILY_SEARCH_URL) {
-          tavilyTurn += 1;
-          const body = JSON.parse(String(init?.body ?? "{}")) as Record<
-            string,
-            unknown
-          >;
+      const f = vi.fn<typeof fetch>(async (input) => {
+        if (String(input).startsWith(`${BRAVE_SEARCH_URL}?`)) {
+          braveTurn += 1;
+          const body = {
+            query: readBraveQuery(input),
+            exclude_domains: readBraveExcludedSites(input),
+          };
           searchBodies.push(body);
-          if (tavilyTurn === 1) {
+          if (braveTurn === 1) {
             // Crowded initial results: 1 official doc + 4 aggregators/listicles
-            return Response.json({
+            return braveSearchResponse({
               query: body.query,
               results: [
                 {
@@ -4136,9 +4161,9 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
               ],
             });
           }
-          if (tavilyTurn === 2) {
+          if (braveTurn === 2) {
             // The bounded follow-up recovers more pricing pages plus independent identity evidence.
-            return Response.json({
+            return braveSearchResponse({
               query: body.query,
               results: [
                 {
@@ -4199,15 +4224,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
             ],
           });
         }
-        return Response.json({
-          results: [
-            {
-              title: "Alibaba Cloud Official Pricing",
-              url: spoofOfficialTitleUrl,
-              content: "Vendor summary.",
-            },
-          ],
-        });
+        throw new Error("Unexpected transport in provider discovery fixture");
       });
 
       const result = await discoverOffers(
@@ -4309,7 +4326,7 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
         },
       ],
       {
-        tavilyResults: [
+        braveResults: [
           {
             title: "Resend Official Pricing",
             url: spoofUnofficialUrl,
@@ -4402,28 +4419,21 @@ describe("authenticated offer discovery with offline Tavily Search + targeted Pa
     const boundary = createDiscoveryBoundary(
       "Find $20 cloud API plans",
       env.GEMINI_API_KEY,
-      env.TAVILY_API_KEY,
+      env.BRAVE_SEARCH_API_KEY,
       env.GEMINI_MODEL,
     );
     boundary.allowProviderSearch(["blog.aggregator.example"]);
-    const badProviderBody = JSON.stringify({
-      query: "Compare $20 cloud API plans",
-      search_depth: "basic",
-      max_results: TAVILY_MAX_RESULTS,
-      include_answer: false,
-      include_raw_content: false,
-      include_images: false,
-    });
+    const wrongUrl = `${BRAVE_SEARCH_URL}?q=Compare+cloud+API+plans&count=5&result_filter=web&text_decorations=false`;
     expect(() =>
-      boundary.guard(TAVILY_SEARCH_URL, {
-        method: "POST",
+      boundary.guard(wrongUrl, {
+        method: "GET",
         redirect: "error",
+        cache: "no-store",
         signal: new AbortController().signal,
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.TAVILY_API_KEY}`,
+          Accept: "application/json",
+          "X-Subscription-Token": env.BRAVE_SEARCH_API_KEY,
         },
-        body: badProviderBody,
       }),
     ).toThrow("DISCOVERY_OUTBOUND_REJECTED");
   });

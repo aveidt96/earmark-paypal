@@ -1,3 +1,4 @@
+import { braveSearchResponse, readBraveQuery } from "./fixtures/brave-search";
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,7 +9,7 @@ import { IncompleteOfferComparison } from "../src/components/offer-discovery";
 import {
   classifyProviderSource,
   discoverOffers,
-  TAVILY_SEARCH_URL,
+  BRAVE_SEARCH_URL,
 } from "../src/server/paypal/offer-discovery";
 import { handlePublicResearch } from "../src/server/paypal/public-research";
 
@@ -75,7 +76,7 @@ const env = {
   EARMARK_GEMINI_ENABLED: "true",
   AI_ENABLE_NETWORK: "true",
   GEMINI_API_KEY: "offline-gemini-key-only",
-  TAVILY_API_KEY: "offline-tavily-key-only",
+  BRAVE_SEARCH_API_KEY: "offline-brave-key-only",
   GEMINI_MODEL: "gemini-3.8-flash",
   AI_TIMEOUT_MS: "60000",
   GEMINI_COLLECTOR_FALLBACK_MODEL: "off",
@@ -112,10 +113,10 @@ function fixture(results: typeof unwanted, failCollector = false) {
       observationsIncludingUntrustedProviderData: { results: typeof unwanted };
     }> = [];
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {
-    if (String(url) === TAVILY_SEARCH_URL) {
-      const { query } = JSON.parse(String(init?.body));
+    if (String(url).startsWith(`${BRAVE_SEARCH_URL}?`)) {
+      const query = readBraveQuery(url);
       queries.push(query);
-      return Response.json({
+      return braveSearchResponse({
         query,
         results: (queries.length === 1 ? results : []).map(
           ({ snippet, ...item }) => ({ ...item, content: snippet }),

@@ -1,3 +1,4 @@
+import { braveSearchResponse, readBraveQuery } from "./fixtures/brave-search";
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -11,7 +12,7 @@ vi.mock("server-only", () => ({}));
 import {
   classifyProviderSource,
   discoverOffers,
-  TAVILY_SEARCH_URL,
+  BRAVE_SEARCH_URL,
   type ValidatedResearchResults,
 } from "../src/server/paypal/offer-discovery";
 
@@ -75,7 +76,7 @@ const env = {
   EARMARK_GEMINI_ENABLED: "true",
   AI_ENABLE_NETWORK: "true",
   GEMINI_API_KEY: "offline-gemini-key-only",
-  TAVILY_API_KEY: "offline-tavily-key-only",
+  BRAVE_SEARCH_API_KEY: "offline-brave-key-only",
   GEMINI_MODEL: "gemini-3.8-flash",
   AI_TIMEOUT_MS: "60000",
   PAYPAL_BACKEND_ENABLED: "false",
@@ -88,12 +89,12 @@ function offlineTransport(
   offers: unknown[] = [],
 ) {
   let searches = 0;
-  return vi.fn<typeof fetch>(async (input, init) => {
-    if (String(input) === TAVILY_SEARCH_URL) {
+  return vi.fn<typeof fetch>(async (input) => {
+    if (String(input).startsWith(`${BRAVE_SEARCH_URL}?`)) {
       searches += 1;
-      const body = JSON.parse(String(init?.body));
+      const body = { query: readBraveQuery(input) };
       const results = searches === 1 ? initial : searches === 2 ? followup : [];
-      return Response.json({
+      return braveSearchResponse({
         query: body.query,
         results: results.map(({ snippet, ...item }) => ({
           ...item,
@@ -366,7 +367,7 @@ describe("official provider identity and relevance regression", () => {
             pricingStatus === "unknown" && checkoutUrl === null,
         ),
       ).toBe(true);
-      const query = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)).query;
+      const query = readBraveQuery(fetcher.mock.calls[1]?.[0]);
       expect(query).toContain(
         new URL(pages[0]?.url ?? "").hostname.replace(/^api-docs\./, ""),
       );
@@ -430,11 +431,16 @@ describe("official provider identity and relevance regression", () => {
   );
 
   it("returns relevant plan links for the screenshot prompt when search finds pricing pages but lacks corroborating references", async () => {
-    const instruction = "Find a $20 Chinese ai plan";
+    const instruction = "Find me a $20 Chinese ai model plan";
     const product = source(
       "https://api-docs.deepseek.com/quick_start/pricing",
       "Models & Pricing | DeepSeek API Docs",
       "Model API input and output token rates and pay-as-you-go billing.",
+    );
+    const aliasedProduct = source(
+      "https://platform.moonshot.ai/docs/pricing",
+      "Kimi API pricing",
+      "Moonshot AI offers Kimi language model token pricing.",
     );
     const reseller = source(
       "https://aicodewith.ai/pricing",
@@ -457,7 +463,7 @@ describe("official provider identity and relevance regression", () => {
       "OpenAI is an American AI company that develops language models.",
     );
     const fetcher = offlineTransport(
-      [product, reseller, unrelated, wrongCountry],
+      [product, aliasedProduct, reseller, unrelated, wrongCountry],
       [evidence],
     );
     const onEvidenceGap = vi.fn();
@@ -466,27 +472,29 @@ describe("official provider identity and relevance regression", () => {
       onFailure: vi.fn(),
       onEvidenceGap,
     });
-    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)).query).toBe(
-      "Chinese AI model plan official provider pricing documentation",
+    expect(readBraveQuery(fetcher.mock.calls[0]?.[0])).toBe(
+      "Chinese ai model plan official provider pricing documentation",
     );
     expect(result.providerCandidates?.map(({ url }) => url)).toEqual([
       product.url,
+      aliasedProduct.url,
     ]);
     expect(result.officialProviders).toEqual([]);
     expect(result.offers).toEqual([]);
     expect(result.reviewRecommendation).toBeNull();
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(onEvidenceGap).toHaveBeenCalledWith({
-      initialResults: 4,
+      initialResults: 5,
       followupResults: 1,
       relevantPages: expect.any(Number),
-      visibleResearchLinks: 1,
+      visibleResearchLinks: 2,
       searchRequests: 2,
     });
     const html = renderToStaticMarkup(
       createElement(OfferDiscovery, { result, researchBudgetMinor: 2000 }),
     );
     expect(html).toContain(product.url);
+    expect(html).toContain(aliasedProduct.url);
     expect(html).toContain("identity unverified");
     expect(html).toContain("Price: Unknown");
     expect(html).not.toContain(wrongCountry.url);
@@ -1117,7 +1125,7 @@ describe("official provider identity and relevance regression", () => {
     );
     const result = await discoverOffers(request, env, transport, 2000);
     expect(transport).toHaveBeenCalledTimes(4);
-    expect(String(transport.mock.calls[1]?.[1]?.body)).toContain(
+    expect(readBraveQuery(transport.mock.calls[1]?.[0])).toContain(
       "resend.com OR postmarkapp.com",
     );
     expect(result.officialProviders?.map((item) => item.url)).toEqual([

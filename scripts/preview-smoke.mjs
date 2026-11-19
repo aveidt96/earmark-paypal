@@ -862,9 +862,7 @@ try {
     const discovery = structuredClone(discoveryFixture.discovery);
     discovery.instruction = payload.instruction;
     discovery.source =
-      publicPosts.length === 1
-        ? "OFFLINE_SEARCH_FIXTURE"
-        : "LIVE_TAVILY_SEARCH";
+      publicPosts.length === 1 ? "OFFLINE_SEARCH_FIXTURE" : "LIVE_BRAVE_SEARCH";
     discovery.offers[0].officialMerchantUrl = researchSource;
     if (publicPosts.length === 2) {
       discovery.offers[0].officialCheckoutUrl = checkoutSource;
@@ -891,7 +889,7 @@ try {
     }
     await expect(chat).toContainText("Matches requirements");
     await expect(chat).toContainText("Earmark AI · online research");
-    await expect(chat).not.toContainText(/\b(?:Google|Tavily|Gemini)\b/i);
+    await expect(chat).not.toContainText(/\b(?:Google|Brave|Gemini)\b/i);
     await expect(
       chat.getByRole("region", { name: "Online offer research" }),
     ).toContainText(width === 1440 ? "$25.00" : "$1,000.00");
