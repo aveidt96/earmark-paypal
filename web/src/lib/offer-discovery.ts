@@ -251,7 +251,7 @@ export interface OfferDiscoveryResult {
     durationMs: number;
     modelTurns: 0 | 1 | 2;
     searchProvider?: "tavily";
-    searchRequests?: 1 | 2 | 3 | 4;
+    searchRequests?: 1 | 2 | 3 | 4 | 5 | 6;
     searchResultsCount?: number;
     paymentSearchResultsCount?: number;
     collectorModel?: string;

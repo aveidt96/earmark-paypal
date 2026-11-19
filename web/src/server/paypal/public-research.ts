@@ -28,6 +28,7 @@ const MAX_DAILY_RESEARCH_REQUESTS = 120;
 // Leave 5 seconds of the 60-second route for local evaluation and the response.
 const PUBLIC_RESEARCH_DEADLINE_MS = 55000;
 const stageTimeouts = {
+  query_plan: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
   offer_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
   provider_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
   offer_analysis: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
@@ -485,6 +486,12 @@ export async function handlePublicResearch(
       payload.budgetMinor,
       {
         deadlineAt,
+        onPlan(info) {
+          console.info("public-research: planned search queries", info);
+        },
+        onRetrievalSummary(info) {
+          console.info("public-research: retrieval summary", info);
+        },
         onEvidenceGap(counts) {
           console.info(
             "public-research: official provider evidence gap",

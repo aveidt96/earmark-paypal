@@ -8,6 +8,15 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-19: General Gemini query planning and parallel Tavily retrieval
+  prepared for main.** `discoverOffers` now plans 1–3 category-agnostic search
+  queries via a bounded Gemini `planResearchQueries` turn (with automatic
+  fallback to `buildOfferSearchQuery` on failure/timeout and an explicit
+  `EARMARK_RESEARCH_QUERY_PLANNER=false` kill-switch), runs them in parallel
+  through `createDiscoveryBoundary`, feeds up to 10 diverse sources to the
+  collector, and emits sanitized `onPlan` / `onRetrievalSummary` diagnostics in
+  `public-research.ts`. Live search quality still requires a Production replay.
+
 - **2026-11-19: Bounded deeper Tavily retrieval prepared for main.** Initial and
   provider follow-up searches use advanced retrieval, three passages per source
   and richer collector evidence. The standalone high-thinking experiment remains
@@ -8771,3 +8780,55 @@ boundary scan of 46 chunks. An initial worktree build resolved the other
 checkout's workspace package; rebuilding with worktree-local workspace aliases
 resolved the type conflict. The request-mutation regression now tests both
 directions of depth changes for advanced discovery and basic payment evidence.
+
+### 2026-11-19 — General Gemini query planning and parallel bounded Tavily search
+
+The user requested applying the general intelligent-search upgrade to `main` so
+research works across categories rather than targeting a single search term.
+Previously, `discoverOffers` sent a single regex-templated Tavily query
+(`buildOfferSearchQuery`) capped at five collector results, leaving Gemini
+locked out of query formulation.
+
+- `web/src/server/paypal/offer-discovery.ts`: added a general, category-agnostic
+  Gemini `planResearchQueries` turn (`queryPlanSchema`, `queryPlanner`,
+  `queryPlannerSystem`, `maxOutputTokens: 600`, `thinkingLevel: "low"`, 8s stage
+  cap) enabled by default (`EARMARK_RESEARCH_QUERY_PLANNER !== "false"`). Added
+  `sanitizePlannedQueries` to block secrets, URLs, emails, prompt-injection
+  verbs and payment actions while allowing legitimate pricing terminology such as
+  token pricing. Extended `createDiscoveryBoundary` with strict one-shot
+  envelopes (`expectedQueryPlan`, `finishQueryPlan`, `completeInitialSearches`)
+  and ran 1–3 planned Tavily searches in parallel via `Promise.allSettled` with
+  round-robin deduplication. Raised collector input capacity to
+  `MAX_COLLECTOR_RESULTS` (10). Planner timeouts, HTTP errors or invalid tool
+  outputs fail open to the existing deterministic `buildOfferSearchQuery`
+  fallback without failing the request; outbound/secret violations still fail
+  closed. All deterministic price/tier/billing/PayPal verification, policy and
+  checkout restrictions remain unchanged.
+- `web/src/lib/offer-discovery.ts`: widened `OfferDiscoveryResult.evidence`
+  `searchRequests` union to `1 | 2 | 3 | 4 | 5 | 6` to reflect parallel initial
+  searches plus follow-up stages.
+- `web/src/server/paypal/public-research.ts`: added `query_plan` to
+  `stageTimeouts` and logged sanitized, non-secret, non-PII `onPlan` and
+  `onRetrievalSummary` aggregate metrics.
+- `web/test/query-planner-discovery.test.ts` (new): added offline regressions
+  covering multi-category query planning (transactional email APIs, physical
+  solar lanterns, cloud backup), parallel Tavily retrieval up to 10 collector
+  sources, HTTP 503 graceful fallback, `sanitizePlannedQueries` /
+  `createDiscoveryBoundary` security checks, and `handlePublicResearch`
+  sanitized log verification.
+- `web/test/offer-discovery.test.ts`,
+  `web/test/official-provider-regression.test.ts`,
+  `web/test/research-relevance.test.ts`: pinned
+  `EARMARK_RESEARCH_QUERY_PLANNER: "false"` on legacy single-query deterministic
+  fixtures so existing call-count and fallback assertions remain intact.
+- `HANDOFF-PAYPAL.md`: recorded the change, verification status and remaining
+  live-replay requirement.
+
+Verification: `npm ci` could not run inside this ephemeral VM because
+`registry.npmjs.org` is blocked (`403 Forbidden`) and Node 24 is installed
+against the repo's Node 22 engine constraint; full `npm run check` (Prettier,
+Biome lint, TypeScript, Vitest, Foundry and Next.js production build) is
+verified via GitHub Actions CI (`Earmark PayPal CI` on Ubuntu and Windows) on a
+verification branch before merging to `main`. No live provider, database or
+payment operations were performed. Live search quality on Production still
+requires a post-deployment replay.

@@ -41,6 +41,7 @@ import * as policy from "../src/server/paypal/policy";
 
 const env = {
   EARMARK_OFFER_DISCOVERY_ENABLED: "true",
+  EARMARK_RESEARCH_QUERY_PLANNER: "false",
   EARMARK_GEMINI_ENABLED: "true",
   AI_ENABLE_NETWORK: "true",
   GEMINI_API_KEY: "offline-gemini-fixture-key-only",
