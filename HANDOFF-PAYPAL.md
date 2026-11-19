@@ -8860,6 +8860,7 @@ relevance and excluded resellers, aggregators, blogs, and spoofed brands):
    non-HQ deployment regions alongside the requested country.
 
 Changes:
+
 - `web/src/server/paypal/offer-discovery.ts`: removed the redundant
   `sourceHasProviderIdentity` check from the regional `providerCandidates`
   fallback in `discoverOffers`, broadened the acceptable pricing/docs/product

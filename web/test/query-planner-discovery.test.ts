@@ -438,8 +438,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
             {
               title: "GLM API Pricing",
               url: "https://open.bigmodel.cn/pricing",
-              content:
-                "GLM language model API input and output token pricing.",
+              content: "GLM language model API input and output token pricing.",
             },
           ],
         });
