@@ -156,7 +156,8 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
         {
           title: "Mailgun Pricing",
           url: "https://mailgun.com/pricing",
-          content: "Mailgun transactional email API Basic plan USD 15 per month.",
+          content:
+            "Mailgun transactional email API Basic plan USD 15 per month.",
         },
       ],
     ],
@@ -196,7 +197,9 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
               queries: plannedQueries,
             });
           }
-          const payload = JSON.parse(body.contents?.[0]?.parts?.[0]?.text ?? "{}");
+          const payload = JSON.parse(
+            body.contents?.[0]?.parts?.[0]?.text ?? "{}",
+          );
           collectorSourcesCount =
             payload.observationsIncludingUntrustedProviderData?.results
               ?.length ?? 0;
@@ -225,9 +228,7 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
         onRetrievalSummary,
       });
 
-      expect(seenTavilyQueries).toEqual(
-        expect.arrayContaining(plannedQueries),
-      );
+      expect(seenTavilyQueries).toEqual(expect.arrayContaining(plannedQueries));
       expect(collectorSourcesCount).toBe(pages.length);
       expect(result.evidence.modelTurns).toBe(2);
       expect(result.evidence.outboundGuardPassed).toBe(true);
@@ -265,7 +266,9 @@ describe("general Gemini query planner and parallel Tavily discovery", () => {
             queries: plannedQueries,
           });
         }
-        const payload = JSON.parse(body.contents?.[0]?.parts?.[0]?.text ?? "{}");
+        const payload = JSON.parse(
+          body.contents?.[0]?.parts?.[0]?.text ?? "{}",
+        );
         collectorResultsCount =
           payload.observationsIncludingUntrustedProviderData?.results?.length ??
           0;

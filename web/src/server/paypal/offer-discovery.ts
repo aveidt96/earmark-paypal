@@ -1347,7 +1347,9 @@ export function createDiscoveryBoundary(
       include_images: false,
       ...(excludedDomains.length ? { exclude_domains: excludedDomains } : {}),
     });
-  const expectedSearch = buildTavilyEnvelope(buildOfferSearchQuery(instruction));
+  const expectedSearch = buildTavilyEnvelope(
+    buildOfferSearchQuery(instruction),
+  );
   const expectedQueryPlan = enableQueryPlanner
     ? JSON.stringify({
         systemInstruction: { parts: [{ text: queryPlannerSystem }] },
