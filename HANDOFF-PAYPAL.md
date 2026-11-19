@@ -8,9 +8,17 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-19: General regional candidate fallback refined for main.** When a
+  country-scoped research request retrieves clean official pricing/docs pages
+  without Wikipedia/Wikidata infobox corroboration, `discoverOffers` no longer
+  drops alias/short-domain pages via `sourceHasProviderIdentity` or rejects
+  pages that mention international deployment regions alongside the requested
+  country; providers corroborated only in a non-requested country, resellers,
+  aggregators, and explicit "official links" requests remain strictly rejected.
+
 - **2026-11-19: General Gemini query planning and parallel Tavily retrieval
-  prepared for main.** `discoverOffers` now plans 1–3 category-agnostic search
-  queries via a bounded Gemini `planResearchQueries` turn (with automatic
+  merged to main (`8fc45dc`).** `discoverOffers` now plans 1–3 category-agnostic
+  search queries via a bounded Gemini `planResearchQueries` turn (with automatic
   fallback to `buildOfferSearchQuery` on failure/timeout and an explicit
   `EARMARK_RESEARCH_QUERY_PLANNER=false` kill-switch), runs them in parallel
   through `createDiscoveryBoundary`, feeds up to 10 diverse sources to the
@@ -8827,8 +8835,51 @@ locked out of query formulation.
 Verification: `npm ci` could not run inside this ephemeral VM because
 `registry.npmjs.org` is blocked (`403 Forbidden`) and Node 24 is installed
 against the repo's Node 22 engine constraint; full `npm run check` (Prettier,
-Biome lint, TypeScript, Vitest, Foundry and Next.js production build) is
-verified via GitHub Actions CI (`Earmark PayPal CI` on Ubuntu and Windows) on a
-verification branch before merging to `main`. No live provider, database or
+Biome lint, TypeScript, Vitest, Foundry and Next.js production build) passed in
+GitHub Actions CI (`Earmark PayPal CI` run `44526711188`, Ubuntu and Windows)
+before squash-merging PR #5 to `main` (`8fc45dc`). No live provider, database or
 payment operations were performed. Live search quality on Production still
 requires a post-deployment replay.
+
+### 2026-11-19 — General regional candidate fallback refinement
+
+The user shared a screenshot of `"find $20 chinese ai model plans"` returning
+`"No official provider could be verified for the requested country."`
+(`DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED`). Root-cause inspection showed two
+overly strict checks in the regional read-only `providerCandidates` fallback in
+`discoverOffers` (after `classifyProviderSource` had already verified candidate
+relevance and excluded resellers, aggregators, blogs, and spoofed brands):
+
+1. `sourceHasProviderIdentity(source, offerResults)` rejected legitimate
+   official pricing/docs pages whenever the product title did not literally
+   match a >=4-character root domain stem (e.g., short domains or corporate
+   aliases such as `open.bigmodel.cn`, `platform.moonshot.ai`,
+   `www.alibabacloud.com`, `docs.z.ai`, `postmarkapp.com`, `ovh.com`, `sap.com`).
+2. `knownCountries.every((country) => countries.includes(country))` dropped
+   even candidate leads whenever an international pricing page mentioned
+   non-HQ deployment regions alongside the requested country.
+
+Changes:
+
+- `web/src/server/paypal/offer-discovery.ts`: removed the redundant
+  `sourceHasProviderIdentity` check from the regional `providerCandidates`
+  fallback in `discoverOffers`, broadened the acceptable pricing/docs/product
+  title match slightly for physical and SaaS categories, and refined the
+  country check so providers corroborated or self-identified solely in a
+  non-requested country are still excluded while pages mentioning both the
+  requested origin and international regions are retained as read-only
+  `identity unverified` leads. Explicit `"official links"` requests
+  (`explicitlyOfficial`), verified `"first-party"` corroboration rules,
+  reseller/editorial blocks, and checkout restrictions remain unchanged.
+- `web/test/query-planner-discovery.test.ts`: added an offline regression test
+  verifying that regional requests retain clean alias-domain and
+  international-endpoint pricing candidates as read-only `providerCandidates`
+  without Wikipedia corroboration while excluding providers corroborated in a
+  contradicted country.
+- `HANDOFF-PAYPAL.md`: updated current-state summary and recorded this change.
+
+Verification: syntax-checked locally with Node 24 (`stripTypeScriptTypes`) and
+verified via GitHub Actions `Earmark PayPal CI` (Prettier, Biome lint,
+TypeScript, Vitest, Foundry, Next.js build on Ubuntu and Windows) on a PR
+branch before merging to `main`. No live provider, database or payment calls
+were executed; live Production behavior requires a post-deployment replay.

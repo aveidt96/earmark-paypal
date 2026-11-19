@@ -3312,24 +3312,33 @@ export async function discoverOffers(
             instruction,
             "candidate",
             (source) => {
-              if (!sourceHasProviderIdentity(source, offerResults))
-                return false;
               const { pathname } = new URL(source.url);
               if (
                 !isOfficialPricingPath(pathname) &&
                 !DOCS_PATH_RE.test(pathname) &&
-                !/\b(?:pricing|subscriptions?|plans?|billing|documentation)\b/i.test(
+                !/\b(?:pricing|prices?|subscriptions?|plans?|billing|documentation|docs|products?|store)\b/i.test(
                   source.title,
                 )
               )
                 return false;
-              const knownCountries = [
+              const referenceCountries = providerIdentityReferences(
                 source,
-                ...providerIdentityReferences(source, offerResults),
-              ].flatMap(({ snippet }) => referencedProviderCountries(snippet));
-              return knownCountries.every((country) =>
-                countries.includes(country),
-              );
+                offerResults,
+              ).flatMap(({ snippet }) => referencedProviderCountries(snippet));
+              if (
+                referenceCountries.length &&
+                !referenceCountries.some((country) =>
+                  countries.includes(country),
+                )
+              )
+                return false;
+              const pageCountries = referencedProviderCountries(source.snippet);
+              if (
+                pageCountries.length &&
+                !pageCountries.some((country) => countries.includes(country))
+              )
+                return false;
+              return true;
             },
           )
         : [];
