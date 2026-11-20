@@ -217,7 +217,7 @@ describe("gemini-fix hybrid search pipeline", () => {
         sourceUrl: pricingUrl,
       },
       reviewFit: "matches",
-      officialCheckoutUrl: pricingUrl,
+      officialMerchantUrl: pricingUrl,
       policy: { eligible: false },
     });
     expect(result.offers[1]).toMatchObject({

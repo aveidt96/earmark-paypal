@@ -160,7 +160,7 @@ export function buildVerifiedOffers(input: {
       return { url: page.url, cited: true };
     });
 
-    const checkoutUrl = safePlanCheckoutUrl(primaryPage.url);
+    const checkoutUrl = safePlanCheckoutUrl(primaryPage.url, raw.service);
     const features = raw.features
       .map((text) => sanitizePlainText(text, 140))
       .filter(Boolean)
@@ -191,7 +191,7 @@ export function buildVerifiedOffers(input: {
       paypalEvidence: paypalCheck.evidence,
       paypalSourceUrl: paypalCheck.evidence ? primaryPage.url : null,
       sources,
-      officialMerchantUrl: checkoutUrl,
+      officialMerchantUrl: primaryPage.url,
       officialCheckoutUrl: checkoutUrl,
       providerVerification: primaryPage.fetchedLive
         ? "corroborated"
