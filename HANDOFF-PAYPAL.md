@@ -8,6 +8,15 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
+- **2026-11-20: Clean-slate hybrid search pipeline built on branch
+  `gemini-fix`.** Replaced the 4,236-line snippet/Wikipedia search pipeline in
+  `web/src/server/paypal/offer-discovery.ts` with a modular 3-stage engine under
+  `web/src/server/paypal/search/` (Gemini native `google_search` grounding with
+  automatic Brave Search fallback, SSRF-safe direct merchant pricing page fetch,
+  and deterministic price/PayPal/budget verification) while preserving the
+  existing UI, routes, quota, and PayPal/mandate boundaries. Live provider
+  verification requires a replay with real keys.
+
 - **2026-11-20: Additional merchant pricing excerpts prepared locally.**
   The existing Brave searches request more excerpts, and exact tier pricing
   can use a complete quote from any one bounded passage. DecodeError and
@@ -9158,3 +9167,58 @@ pricing. These observations describe the merchant pages, not an app replay.
 Fresh local checks passed: 247 focused tests, lint, typecheck, production
 build, formatting and whitespace checks, and the 46-chunk browser
 credential scan.
+
+### 2026-11-20 — Clean-slate hybrid search rebuild on branch `gemini-fix`
+
+The user requested a clean-slate rebuild of the offer search mechanism on a
+dedicated `gemini-fix` branch aligned with the Earmark AI demo flow (source-
+matched merchant plan cards with exact prices, billing periods, features,
+honest unknown PayPal/delivery/SLA states, and session-only assisted manual
+checkout review).
+
+Changes:
+
+- `web/src/server/paypal/search/guard.ts` (new): instruction/secret/PII/action
+  guard (`discoveryInstruction`), budget and Gemini 3 model validation, safe
+  public HTTPS merchant URL filtering (blocking `vertexaisearch.cloud.google.com`
+  redirects, raw IPs, loopback/local hosts, and third-party/editorial domains).
+- `web/src/server/paypal/search/page-fetch.ts` (new): SSRF-safe direct merchant
+  pricing page fetcher (`dns.lookup` private/reserved IP blocking, HTTPS-only,
+  `redirect: "error"`, 5s per-page timeout, 200 KB cap, up to 4 pages) with
+  HTML-to-plain-text extraction and graceful fallback to search excerpts.
+- `web/src/server/paypal/search/grounding.ts` (new): hybrid Stage 1 discovery
+  using Gemini native `google_search` + structured JSON output (`gemini-3.8-flash`),
+  automatic fallback to Brave Search when `google_search` is unavailable or
+  returns no merchant URLs, and a single structured Gemini extraction pass with
+  automatic fallback to `gemini-3.5-flash-lite` on transient errors.
+- `web/src/server/paypal/search/verify.ts` (new): deterministic server-side
+  price (`Source-matched`), billing period, PayPal acceptance, budget fit,
+  recommendation (`reviewRecommendation`), and policy (`EXTERNAL_MERCHANT_UNBOUND`)
+  verification against the actual retrieved/fetched merchant page text.
+- `web/src/server/paypal/offer-discovery.ts`: replaced the legacy 4,236-line
+  implementation with a compact 3-stage orchestrator preserving the exported
+  `discoverOffers`, `discoveryInstruction`, `ResearchStageFailure`,
+  `PartialComparisonContext`, and `PublicResearchTiming` contract.
+- `web/src/lib/offer-discovery.ts`: widened `OfferDiscoveryResult.source` to
+  include `"LIVE_GEMINI_GROUNDED"` and `evidence.searchProvider` to include
+  `"gemini-google-search" | "hybrid"`.
+- `web/src/server/paypal/public-research.ts`: updated `stageTimeouts` for
+  `grounded_search` and `page_fetch`, removed the obsolete `payment_evidence`
+  branch, and made `BRAVE_SEARCH_API_KEY` optional when `GEMINI_API_KEY` is set.
+- `web/test/search-pipeline.test.ts` (new) and removed obsolete legacy search
+  tests (`web/test/offer-discovery.test.ts`,
+  `web/test/official-provider-regression.test.ts`,
+  `web/test/query-planner-discovery.test.ts`,
+  `web/test/research-relevance.test.ts`, `web/test/fixtures/brave-search.ts`):
+  added offline unit and security coverage for guards, SSRF IP checks, HTML
+  extraction, deterministic price/PayPal verification, Gemini `google_search` +
+  page-fetch flow, Brave fallback, and `handlePublicResearch` with
+  `GEMINI_API_KEY` alone.
+- `HANDOFF-PAYPAL.md`: updated current-state summary and recorded this rebuild.
+
+Verification: syntax-checked all modified/added `.ts` files locally with Node 24
+(`stripTypeScriptTypes`) and pushed `gemini-fix` for full GitHub Actions
+`Earmark PayPal CI` verification (`format:check`, `lint`, `typecheck`, `test`,
+`build` on Ubuntu and Windows). No live Gemini/Brave API, database, or PayPal
+operations were executed; live grounding and page-fetch behavior require a
+post-deployment or local-key replay.

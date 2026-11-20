@@ -28,12 +28,10 @@ const MAX_DAILY_RESEARCH_REQUESTS = 120;
 // Leave 5 seconds of the 60-second route for local evaluation and the response.
 const PUBLIC_RESEARCH_DEADLINE_MS = 55000;
 const stageTimeouts = {
-  query_plan: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
+  grounded_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
   offer_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
-  provider_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
+  page_fetch: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
   offer_analysis: "PUBLIC_RESEARCH_ANALYSIS_TIMEOUT",
-  pricing_search: "PUBLIC_RESEARCH_SEARCH_TIMEOUT",
-  payment_evidence: "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_TIMEOUT",
 } as const;
 
 type QuotaAttempt = {
@@ -560,14 +558,6 @@ export async function handlePublicResearch(
     }
     if (failure && timedOut)
       return json({ error: stageTimeouts[failure.stage] }, 504);
-    if (
-      failure?.stage === "payment_evidence" &&
-      failure.classification !== "rejected_or_internal"
-    )
-      return json(
-        { error: "PUBLIC_RESEARCH_PAYMENT_EVIDENCE_UNAVAILABLE" },
-        502,
-      );
     const code =
       error instanceof PaymentError || error instanceof AgentError
         ? error.code
