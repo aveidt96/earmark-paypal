@@ -27,10 +27,7 @@ const baseEnv = {
   PAYPAL_PAYMENTS_ENABLED: "false",
 };
 
-const geminiJsonResponse = (
-  payload: unknown,
-  groundingUrls: string[] = [],
-) =>
+const geminiJsonResponse = (payload: unknown, groundingUrls: string[] = []) =>
   Response.json({
     candidates: [
       {
