@@ -111,10 +111,7 @@ describe("gemini-fix hybrid search pipeline", () => {
       paypal: "claimed",
     });
     expect(
-      verifyPayPalInSource(
-        "claimed",
-        "We do not accept PayPal at this time.",
-      ),
+      verifyPayPalInSource("claimed", "We do not accept PayPal at this time."),
     ).toEqual({ paypal: "unknown", evidence: null });
     expect(
       verifyPayPalInSource(
