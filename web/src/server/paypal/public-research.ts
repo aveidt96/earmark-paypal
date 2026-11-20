@@ -189,7 +189,7 @@ function profile(env: Env) {
       ...quotaSettings,
     );
 
-  const providerSettings = ["GEMINI_API_KEY", "BRAVE_SEARCH_API_KEY"].filter(
+  const providerSettings = ["GEMINI_API_KEY"].filter(
     (name) => !env[name]?.trim(),
   );
   if (providerSettings.length)

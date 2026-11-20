@@ -15,11 +15,12 @@ export const BRAVE_SEARCH_URL =
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 const textField = z.string().trim().min(1).max(300);
+const minorUnitsField = z.string().regex(/^(0|[1-9][0-9]{0,8})$/);
 
 export const rawOfferSchema = z.object({
   provider: textField,
   service: textField,
-  priceMinor: z.string().regex(/^(0|[1-9][0-9]{0,8})$/).nullable(),
+  priceMinor: minorUnitsField.nullable(),
   currency: z.enum(["USD", "EUR", "GBP"]).nullable(),
   billingPeriod: z
     .enum(["month", "year", "one-time", "usage-based", "prepaid"])
@@ -279,8 +280,7 @@ export async function runBraveFallbackSearch(input: {
       void response.body?.cancel().catch(() => {});
       if (response.status === 401 || response.status === 403)
         throw new PaymentError("BRAVE_AUTH_ERROR");
-      if (response.status === 429)
-        throw new PaymentError("BRAVE_RATE_LIMITED");
+      if (response.status === 429) throw new PaymentError("BRAVE_RATE_LIMITED");
       throw new PaymentError("BRAVE_API_ERROR");
     }
     const raw = await readGeminiBody(response, controller.signal);

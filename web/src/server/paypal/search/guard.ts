@@ -99,7 +99,8 @@ export function resolveFallbackModel(
 }
 
 export function rootDomain(hostname: string): string {
-  const parts = hostname.toLowerCase().replace(/^www\./, "").split(".");
+  const normalized = hostname.toLowerCase().replace(/^www\./, "");
+  const parts = normalized.split(".");
   if (parts.length <= 2) return parts.join(".");
   const lastTwo = parts.slice(-2).join(".");
   if (/^(?:co|com|org|net|gov|edu)\.[a-z]{2}$/.test(lastTwo)) {

@@ -177,9 +177,7 @@ export async function discoverOffers(
   let usedGeminiSearch = false;
   let usedBraveSearch = false;
   let candidates: DiscoveredCandidate[] = [];
-  let groundingFallbackReason:
-    | ResearchStageFailure["classification"]
-    | undefined;
+  let fallbackReason: ResearchStageFailure["classification"] | undefined;
 
   // Stage 1: Hybrid discovery (Gemini native google_search, with Brave fallback)
   if (mode !== "brave") {
@@ -199,13 +197,11 @@ export async function discoverOffers(
       candidates = discovered.candidates;
       usedGeminiSearch = true;
     } catch (error) {
-      groundingFallbackReason = classifyFailure(error);
+      fallbackReason = classifyFailure(error);
       if (!braveKey) {
         timing?.onFailure({
           stage: "grounded_search",
-          classification: limit
-            ? groundingFallbackReason
-            : "deadline_exhausted",
+          classification: limit ? fallbackReason : "deadline_exhausted",
           elapsedMs: Math.round(performance.now() - t0),
           timeoutMs: limit,
           httpStatus: null,
@@ -245,9 +241,7 @@ export async function discoverOffers(
     plannerUsed: usedGeminiSearch,
     queryCount: usedGeminiSearch && usedBraveSearch ? 2 : 1,
     elapsedMs: Date.now() - started,
-    ...(groundingFallbackReason
-      ? { fallbackReason: groundingFallbackReason }
-      : {}),
+    ...(fallbackReason ? { fallbackReason } : {}),
   });
 
   if (!candidates.length)

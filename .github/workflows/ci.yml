@@ -52,9 +52,18 @@ jobs:
       - name: fmt-test
         if: always()
         run: npx prettier --check web/test/search-pipeline.test.ts
-      - name: fmt-other
+      - name: fmt-handoff
         if: always()
-        run: npx prettier --check HANDOFF-PAYPAL.md web/src/components/purchasing-chat.tsx web/src/lib/offer-discovery.ts web/src/server/paypal/public-research.ts
+        run: npx prettier --check HANDOFF-PAYPAL.md
+      - name: fmt-chat
+        if: always()
+        run: npx prettier --check web/src/components/purchasing-chat.tsx
+      - name: fmt-lib
+        if: always()
+        run: npx prettier --check web/src/lib/offer-discovery.ts
+      - name: fmt-public-research
+        if: always()
+        run: npx prettier --check web/src/server/paypal/public-research.ts
       - name: lint
         if: always()
         run: npm run lint
