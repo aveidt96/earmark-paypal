@@ -19,10 +19,7 @@ const textField = z.string().trim().min(1).max(300);
 export const rawOfferSchema = z.object({
   provider: textField,
   service: textField,
-  priceMinor: z
-    .string()
-    .regex(/^(0|[1-9][0-9]{0,8})$/)
-    .nullable(),
+  priceMinor: z.string().regex(/^(0|[1-9][0-9]{0,8})$/).nullable(),
   currency: z.enum(["USD", "EUR", "GBP"]).nullable(),
   billingPeriod: z
     .enum(["month", "year", "one-time", "usage-based", "prepaid"])
