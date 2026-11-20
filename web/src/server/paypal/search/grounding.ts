@@ -27,7 +27,7 @@ export const rawOfferSchema = z.object({
   billingPeriod: z
     .enum(["month", "year", "one-time", "usage-based", "prepaid"])
     .nullable(),
-  features: z.array(z.string().trim().min(1).max(160)).max(4).default([]),
+  features: z.array(z.string().trim().min(1).max(160)).max(4),
   availability: textField.nullable(),
   delivery: textField.nullable(),
   slaMinutes: z.number().int().min(1).max(10080).nullable(),
@@ -44,8 +44,8 @@ const discoveryOutputSchema = z.object({
       z.object({
         provider: textField,
         url: z.string().max(2048),
-        title: z.string().max(200).default(""),
-        summary: z.string().max(600).default(""),
+        title: z.string().max(200),
+        summary: z.string().max(600),
       }),
     )
     .max(8),
@@ -100,16 +100,16 @@ function parseJsonFromGeminiText(rawText: string): unknown {
   return JSON.parse(fenced?.[1] ?? trimmed);
 }
 
-async function callGeminiJson(input: {
+async function callGeminiJson<T>(input: {
   apiKey: string;
   model: string;
   systemInstruction: string;
   userPrompt: string;
-  responseSchema: z.ZodType;
+  responseSchema: z.ZodType<T>;
   useGoogleSearch: boolean;
   timeoutMs: number;
   fetcher?: typeof fetch;
-}): Promise<{ status: number; data: unknown; groundingUrls: string[] }> {
+}): Promise<{ status: number; data: T; groundingUrls: string[] }> {
   const url = `${GEMINI_BASE_URL}/models/${encodeURIComponent(input.model)}:generateContent`;
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: input.systemInstruction }] },
@@ -214,10 +214,9 @@ export async function runGeminiGroundedDiscovery(input: {
     timeoutMs: input.timeoutMs,
     ...(input.fetcher ? { fetcher: input.fetcher } : {}),
   });
-  const parsed = result.data as z.infer<typeof discoveryOutputSchema>;
   const candidates: DiscoveredCandidate[] = [];
   const seen = new Set<string>();
-  for (const item of parsed.candidates) {
+  for (const item of result.data.candidates) {
     const safeUrl = safePublicMerchantUrl(item.url);
     if (!safeUrl || seen.has(safeUrl)) continue;
     if (isEditorialOrThirdParty(safeUrl, item.title)) continue;
@@ -357,11 +356,10 @@ export async function runGeminiStructuredExtraction(input: {
       timeoutMs,
       ...(input.fetcher ? { fetcher: input.fetcher } : {}),
     });
-    const parsed = result.data as z.infer<typeof extractionOutputSchema>;
     return {
       status: result.status,
       modelUsed: model,
-      offers: parsed.offers,
+      offers: result.data.offers,
     };
   };
 
