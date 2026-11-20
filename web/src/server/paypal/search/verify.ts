@@ -151,8 +151,10 @@ export function buildVerifiedOffers(input: {
       raw.billingPeriod && PERIOD_PATTERNS[raw.billingPeriod].test(combinedText)
         ? raw.billingPeriod
         : null;
-    const verifiedPeriod: OfferBillingPeriod | null =
-      isFixedBillingPeriod(verifiedBilling) ? verifiedBilling : null;
+    let verifiedPeriod: OfferBillingPeriod | null = null;
+    if (isFixedBillingPeriod(verifiedBilling)) {
+      verifiedPeriod = verifiedBilling;
+    }
 
     const paypalCheck = verifyPayPalInSource(raw.paypal, combinedText);
     const sources = validPages.map((page) => {
