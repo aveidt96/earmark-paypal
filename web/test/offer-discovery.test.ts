@@ -1397,7 +1397,12 @@ describe("anonymous Norway research", () => {
           evidence: { collectorModel: "gemini-3.8-flash", modelTurns: 1 },
         },
       });
-      expect(info).toHaveBeenCalledTimes(2);
+      expect(
+        info.mock.calls.filter(
+          ([message]) =>
+            message === "public-research: retrying offer comparison",
+        ),
+      ).toHaveLength(2);
     } finally {
       info.mockRestore();
       vi.useRealTimers();
@@ -1637,7 +1642,7 @@ describe("anonymous Norway research", () => {
     }
   });
 
-  it("prioritizes official pricing and API/billing docs over blogs/roundups and renders partial results distinctly from unknowns", async () => {
+  it("preserves merchant pricing and API/billing docs while excluding roundups from incomplete comparisons", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const blogUrl =
@@ -1683,13 +1688,12 @@ describe("anonymous Norway research", () => {
       expect(body.incompleteComparison.sources).toEqual([
         officialPricingUrl,
         docsUrl,
-        blogUrl,
       ]);
       expect(
         body.incompleteComparison.results.map(
           (r: { category: string }) => r.category,
         ),
-      ).toEqual(["pricing", "docs", "web"]);
+      ).toEqual(["pricing", "docs"]);
 
       const html = renderToStaticMarkup(
         createElement(IncompleteOfferComparison, {
@@ -2098,7 +2102,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
     );
   });
 
-  it("replays the WeatherAPI billing changelog and a partial list as unknown", async () => {
+  it("stops before comparison when WeatherAPI sources are only roundups and changelogs", async () => {
     const article =
       "https://blog.weatherapi.com/top-5-weather-apis-developers-2026-complete-comparison";
     const changelog = "https://www.weatherapi.com/api-changelog.html";
@@ -2154,23 +2158,19 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
         ],
       },
     );
-    const result = await discoverOffers(
-      "Find weather API plans under $10 per month and check PayPal acceptance",
-      env,
-      f,
-    );
-    // Turn 1 returns blog-only articles, triggering a pre-Gemini official provider_search (4 calls total).
-    expect(f).toHaveBeenCalledTimes(4);
-    // Editorial evidence cannot become a merchant merely because Gemini names it.
-    expect(result.offers).toEqual([]);
-    expect(result.officialProviders).toEqual([]);
-    expect(result.reviewRecommendation).toBeNull();
-    const html = renderToStaticMarkup(
-      createElement(OfferDiscovery, { result }),
-    );
-    expect(html).toContain("No suitable first-party provider was verified");
-    expect(html).not.toContain("Verified official providers");
-    expect(html).not.toContain("Approve for manual checkout");
+    await expect(
+      discoverOffers(
+        "Find weather API plans under $10 per month and check PayPal acceptance",
+        env,
+        f,
+      ),
+    ).rejects.toThrow("DISCOVERY_RELEVANT_SOURCES_REQUIRED");
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(
+      f.mock.calls.every(([input]) =>
+        String(input).startsWith(`${BRAVE_SEARCH_URL}?`),
+      ),
+    ).toBe(true);
   });
 
   it("reproduces the Task 07P-L3 AccuWeather Free/Starter table defect, withholds unsupported availability, and targets AccuWeather for payment-method search", async () => {
@@ -2496,7 +2496,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
     ]);
   });
 
-  it("prioritizes a named pricing tier ahead of roundups without extra searches", async () => {
+  it("compares a named pricing tier and excludes roundups without extra searches", async () => {
     const named = { ...offer, service: "Starter", sourceUrls: [url] };
     const roundup = "https://directory.example.net/blog/weather-apis";
     const f = transport([named], {
@@ -2526,7 +2526,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
       ).observationsIncludingUntrustedProviderData.results.map(
         (source: { url: string }) => source.url,
       ),
-    ).toEqual([url, roundup]);
+    ).toEqual([url]);
     expect(result.targetMerchantDomain).toBe("example.com");
     expect(result.offers[0]).toMatchObject({
       priceMinor: "500",

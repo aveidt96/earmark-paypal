@@ -840,6 +840,7 @@ try {
                 url: relevantUrl,
                 snippet: "Weather API monthly plans and pricing documentation.",
                 category: "pricing",
+                providerVerified: true,
               },
               ...unrelated,
             ]
@@ -933,6 +934,7 @@ try {
     name: "Comparison incomplete",
   });
   await expect(incomplete).toContainText("ran out of time to compare offers");
+  await expect(incomplete).toContainText("Verified official provider");
   await expect(incomplete.getByRole("link")).toHaveCount(1);
   await expect(incomplete.getByRole("link")).toHaveAttribute(
     "rel",

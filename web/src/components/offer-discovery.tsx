@@ -76,14 +76,14 @@ export function IncompleteOfferComparison({
             ? "Earmark AI ran out of time to compare offers."
             : "Earmark AI couldn’t complete the offer comparison right now."}{" "}
           {retrievedItems.length
-            ? "Relevant sources are preserved below; the comparison remains unverified."
+            ? "Relevant sources are preserved below. Confirm pricing and terms on the merchant site."
             : "No relevant product or pricing sources could be preserved for this request. Try a more specific product or service."}
         </p>
       </header>
       <div className="offer-research-sources">
         <ul
           className="offer-research-list"
-          aria-label="Unverified search results"
+          aria-label="Preserved research sources"
         >
           {retrievedItems.map((item) => {
             const label =
@@ -100,7 +100,11 @@ export function IncompleteOfferComparison({
                   >
                     {item.title}
                   </a>
-                  <Badge tone="warning">{label}</Badge>
+                  {item.providerVerified ? (
+                    <Badge tone="info">Verified official provider</Badge>
+                  ) : (
+                    <Badge tone="warning">{label}</Badge>
+                  )}
                 </div>
                 <small className="offer-research-reasons">
                   {item.url.replace(/^https:\/\//, "")}

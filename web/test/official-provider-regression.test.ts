@@ -53,6 +53,19 @@ const badSources = [
     "Generic prepaid credit packages for AI assistants.",
   ),
 ];
+// Replays the screenshot titles with constructed excerpts and representative URLs.
+const publisherNoise = [
+  source(
+    "https://pickurai.ai/chinese-ai-models-pricing",
+    "Chinese AI Models Pricing (2026): Paid Plans & API Token Costs — Pickurai.ai",
+    "Chinese AI models offer paid AI API plans and pay-as-you-go token pricing.",
+  ),
+  source(
+    "https://chinese-ai-tools.example/pricing",
+    "Chinese AI model database and API pricing",
+    "Chinese AI Tools lists model plans and AI API pricing.",
+  ),
+];
 const goodSources = [
   source(
     "https://api-docs.deepseek.com/quick_start/pricing",
@@ -136,6 +149,117 @@ describe("official provider identity and relevance regression", () => {
       name,
       `${facts} Official API platform: ${website}`,
     );
+
+  it("keeps the reported pricing article and model index out of provider results and the collector", async () => {
+    const request = "find $20 chinese ai models";
+    const fetcher = offlineTransport(publisherNoise, []);
+    const onRetrievalSummary = vi.fn();
+    for (const item of publisherNoise)
+      expect(classifyProviderSource(item, request)).toBe("editorial");
+    await expect(
+      discoverOffers(request, env, fetcher, 2000, {
+        deadlineAt: performance.now() + 55_000,
+        onFailure: vi.fn(),
+        onRetrievalSummary,
+      }),
+    ).rejects.toThrow("DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(
+      fetcher.mock.calls.every(([input]) =>
+        String(input).startsWith(`${BRAVE_SEARCH_URL}?`),
+      ),
+    ).toBe(true);
+    expect(onRetrievalSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verifiedProviders: 0,
+        candidateProviders: 0,
+        relevantResults: 0,
+        rejectedSources: expect.objectContaining({ editorial: 2 }),
+      }),
+    );
+  });
+
+  it("compares the walkthrough's weather API plans using corroborated pricing, with unknown PayPal acceptance", async () => {
+    const plans = [
+      {
+        provider: "Northwind",
+        domain: "northwind.example",
+        service: "Starter",
+        dollars: 12,
+        fit: "matches",
+      },
+      {
+        provider: "Southwind",
+        domain: "southwind.example",
+        service: "Team",
+        dollars: 35,
+        fit: "does-not-match",
+      },
+    ] as const;
+    const pricingPages = plans.map(({ provider, domain, service, dollars }) =>
+      source(
+        `https://${domain}/pricing`,
+        `${provider} Weather API Pricing`,
+        `${service} costs USD ${dollars} per month. Weather API documentation.`,
+      ),
+    );
+    const refs = plans.map(({ provider, domain }) =>
+      reference(
+        provider,
+        `https://${domain}/`,
+        `${provider} provides weather data.`,
+      ),
+    );
+    const reported = plans.map(({ provider, service, dollars }, index) => ({
+      provider,
+      service,
+      priceMinor: String(dollars * 100),
+      currency: "USD",
+      billing: "per month",
+      availability: null,
+      delivery: null,
+      slaMinutes: null,
+      paypal: "unknown",
+      paypalEvidence: null,
+      sourceUrls: [pricingPages[index]?.url],
+    }));
+    const result = await discoverOffers(
+      "Find a weather API under $25 per month and check PayPal acceptance",
+      env,
+      offlineTransport([...pricingPages, ...refs], [], reported),
+      2500,
+    );
+    expect(result.offers).toHaveLength(2);
+    for (const [index, { provider, dollars, fit }] of plans.entries()) {
+      expect(result.offers[index]).toMatchObject({
+        provider,
+        priceMinor: String(dollars * 100),
+        reviewFit: fit,
+        paypal: "unknown",
+        pricing: {
+          status: "source-matched",
+          period: "month",
+          sourceUrl: pricingPages[index]?.url,
+        },
+      });
+    }
+    expect(result.reviewRecommendation).toBe(0);
+    expect(result.officialProviders?.map(({ url }) => url)).toEqual(
+      pricingPages.map(({ url }) => url),
+    );
+    const html = renderToStaticMarkup(
+      createElement(OfferDiscovery, { result, researchBudgetMinor: 2500 }),
+    );
+    expect(html).toContain("12.00 USD");
+    expect(html).toContain("35.00 USD");
+    expect(html).toContain("Matches requirements");
+    expect(html).toContain("Does not match");
+    expect(result).toMatchObject({
+      proposal: null,
+      fundsReserved: false,
+      ownerAuthorized: false,
+    });
+  });
 
   it.each([
     [
@@ -393,7 +517,7 @@ describe("official provider identity and relevance regression", () => {
         "Compare phone models and see monthly carrier subscription pricing.",
       );
       const fetcher = offlineTransport(
-        [...pages, wrongPage, reseller],
+        [...pages, wrongPage, reseller, ...publisherNoise],
         [...refs, wrongRef, unrelatedProduct],
       );
       const result = await discoverOffers(request, env, fetcher, 2000);

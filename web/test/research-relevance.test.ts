@@ -180,9 +180,21 @@ describe("purchasing relevance across discovery and incomplete comparison", () =
         async () => true,
       );
       expect(response.status).toBe(200);
-      expect((await response.json()).incompleteComparison.sources).toContain(
-        entry.source.url,
+      const { incompleteComparison } = await response.json();
+      expect(incompleteComparison.sources).toContain(entry.source.url);
+      expect(incompleteComparison.results).toContainEqual(
+        expect.objectContaining({
+          url: entry.source.url,
+          providerVerified: true,
+        }),
       );
+      const html = renderToStaticMarkup(
+        createElement(IncompleteOfferComparison, {
+          result: incompleteComparison,
+        }),
+      );
+      expect(html).toContain("Verified official provider");
+      expect(html).toContain(`href="${entry.source.url}"`);
     } finally {
       warn.mockRestore();
     }

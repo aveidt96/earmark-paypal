@@ -29,6 +29,8 @@ export type PartialSearchSource = {
   url: string;
   snippet: string;
   category?: SearchSourceCategory | undefined;
+  /** Set by the server after independent provider verification. */
+  providerVerified?: true;
 };
 
 /** Small plain-text excerpts only; search markdown is never product copy. */

@@ -158,6 +158,10 @@ type PublicResearchTiming = {
     relevantResults: number;
     verifiedProviders: number;
     candidateProviders: number;
+    rejectedSources: Record<
+      "editorial" | "reseller" | "irrelevant" | "unverified",
+      number
+    >;
     searchRequests: number;
   }) => void;
   onEvidenceGap?: (counts: {
@@ -251,7 +255,7 @@ const queryPlanner = {
     "Plan 2 to 3 concise, distinct public web search queries to find official provider, vendor, or manufacturer product and pricing pages. No payment or account actions.",
   schema: queryPlanSchema,
 };
-const queryPlannerSystem = `Read trustedTask and call planResearchQueries once with 2 to 3 concise, distinct public web search queries that surface official first-party provider, vendor, or manufacturer pricing, plan, or product pages matching the user's request. Translate broad category requests into targeted queries across multiple real first-party providers in that category (for example pairing concrete well-known providers or manufacturers with pricing/plans terminology alongside a clean category official-pricing query). When the request specifies a provider country or region of origin, focus queries on providers based or headquartered in that country. Avoid listicle or review trigger words such as "best", "top 10", "comparison", or "review", and avoid raw dollar amounts unless part of a product tier name. Never include URLs, domains with http/https, email addresses, credentials, secrets, or payment/checkout instructions. Output search queries only.`;
+const queryPlannerSystem = `Read trustedTask and call planResearchQueries once with 2 to 3 concise, distinct public web search queries that surface official first-party provider, vendor, or manufacturer pricing, plan, or product pages matching the user's request. Translate broad category requests into targeted queries across multiple real first-party providers in that category (for example pairing concrete well-known providers or manufacturers with pricing/plans terminology alongside a clean category official-pricing query). When the request specifies a provider country or region of origin, target providers based there. Search for their specific product or pricing pages and include an independent identity query for the same providers, using terms such as company headquarters and official website. A product being available somewhere does not establish where its provider is based. Avoid listicle or review trigger words such as "best", "top 10", "comparison", or "review", and avoid raw dollar amounts unless part of a product tier name. Never include URLs, domains with http/https, email addresses, credentials, secrets, or payment/checkout instructions. Output search queries only.`;
 
 const PLANNED_QUERY_PRIVATE_RE =
   /CANARY_FORBIDDEN|https?:|www\.|@|[\\/]|[a-z0-9_-]{32,}|[a-f0-9]{8}-[a-f0-9-]{20,}|\b(?:secret|password|credential|(?:access|auth|bearer|refresh|session)[ _-]?token|api.?key|order.?id|capture.?id|account|buyer|owner)\b/i;
@@ -538,6 +542,9 @@ const EMBEDDED_TLD_SUBDOMAIN_RE =
   /\.(?:com|net|org|io|ai|cn|co|cloud|dev|app)\.(?=[a-z0-9-]+\.[a-z]{2,20}$)/i;
 const COMPARISON_TITLE_RE =
   /\b(?:best|top\s+\d+|ranked|every\s+provider\s+ranked|comparison|compared|alternatives?|versus|vs\.?|price\s+comparison|pricing\s+tracker|aggregator|unified\s+api|multi[- ]?provider|routing\s+between|third[- ]?party\s+overview|unofficial\s+mirror|coupons?|promo\s+codes?)\b/i;
+// Year-stamped buying guides and cross-provider indexes can look like pricing pages.
+const EDITORIAL_OFFER_TITLE_RE =
+  /\b(?:pricing|prices?|plans?|costs?)\s*\(20\d{2}\)\s*[:—–-]|\b(?:models?|vendors?|providers?|products?|tools?)\s+(?:database|directory)\b/i;
 const CHANGELOG_RE = /\b(?:changelog|release notes|what'?s new)\b/i;
 const DOCS_PATH_RE =
   /\/(?:api|developer|developers|docs|documentation|faq|help|payments?|checkout|terms|support)\b/i;
@@ -784,6 +791,7 @@ function isSpoofedOrThirdPartyProvider(
     SPOOF_OR_THIRD_PARTY_HOST_LABEL_RE.test(hostname) ||
     EMBEDDED_TLD_SUBDOMAIN_RE.test(hostname) ||
     COMPARISON_TITLE_RE.test(title) ||
+    EDITORIAL_OFFER_TITLE_RE.test(title) ||
     RESELLER_RE.test(`${title} ${snippet}`) ||
     CHANGELOG_RE.test(`${pathname} ${title}`)
   )
@@ -1037,12 +1045,15 @@ function reconcileOfficialProviders(
 
 function rankOfficialFirstDiverse(
   results: ValidatedResearchResults["results"],
-  instruction: string,
+  classifications: ReadonlyMap<
+    string,
+    ReturnType<typeof classifyProviderSource>
+  >,
 ): ValidatedResearchResults["results"] {
   const seenPrimaryDomain = new Set<string>();
   const annotated = results.map((source, index) => {
     const basePriority = offerSourcePriority(source);
-    const classification = classifyProviderSource(source, instruction, results);
+    const classification = classifications.get(source.url);
     const identityPriority =
       classification === "first-party"
         ? 0
@@ -1091,6 +1102,7 @@ function offerSourcePriority({
     SPOOF_OR_THIRD_PARTY_HOST_LABEL_RE.test(hostname) ||
     EMBEDDED_TLD_SUBDOMAIN_RE.test(hostname) ||
     COMPARISON_TITLE_RE.test(title) ||
+    EDITORIAL_OFFER_TITLE_RE.test(title) ||
     CHANGELOG_RE.test(`${pathname} ${title}`)
   )
     return 3;
@@ -3276,15 +3288,36 @@ export async function discoverOffers(
     officialOnly
       ? classifyProviderSource(source, instruction, context) === "first-party"
       : isRetainedProvider(source, instruction, context);
-  const sanitizedResults = rankOfficialFirstDiverse(offerResults, instruction)
-    .filter((source) =>
-      officialOnly
-        ? isPurchasingEvidence(source, offerResults)
-        : isRelevantPurchasingSource(source, instruction),
-    )
+  const classifications = new Map(
+    offerResults.map((source) => [
+      source.url,
+      classifyProviderSource(source, instruction, offerResults),
+    ]),
+  );
+  const sanitizedResults = rankOfficialFirstDiverse(
+    offerResults,
+    classifications,
+  )
+    .filter(({ url }) => {
+      const classification = classifications.get(url);
+      return (
+        classification === "first-party" ||
+        (!officialOnly && classification === "candidate")
+      );
+    })
     .slice(0, MAX_COLLECTOR_RESULTS);
-  if (queryPlannerEnabled) {
-    timing?.onRetrievalSummary?.({
+  if (timing?.onRetrievalSummary) {
+    const rejectedSources = {
+      editorial: 0,
+      reseller: 0,
+      irrelevant: 0,
+      unverified: 0,
+    };
+    for (const classification of classifications.values()) {
+      if (classification !== "first-party" && classification !== "candidate")
+        rejectedSources[classification] += 1;
+    }
+    timing.onRetrievalSummary({
       rawResults: offerResults.length,
       relevantResults: sanitizedResults.length,
       verifiedProviders: extractOfficialProviders(offerResults, instruction)
@@ -3294,6 +3327,7 @@ export async function discoverOffers(
         instruction,
         "candidate",
       ).length,
+      rejectedSources,
       searchRequests: searchRequestCount,
     });
   }
@@ -3393,11 +3427,14 @@ export async function discoverOffers(
 
   const partialContext: PartialComparisonContext = {
     sources: researchResults.results.map(({ url }) => url),
-    results: researchResults.results.map(({ title, url, snippet }) => ({
-      title,
-      url,
-      snippet,
-      category: classifySearchSourceCategory({ title, url }),
+    results: researchResults.results.map((source) => ({
+      title: source.title,
+      url: source.url,
+      snippet: source.snippet,
+      category: classifySearchSourceCategory(source),
+      ...(classifications.get(source.url) === "first-party"
+        ? { providerVerified: true as const }
+        : {}),
     })),
     retrievedAt,
   };

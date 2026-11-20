@@ -1,12 +1,19 @@
 # Earmark PayPal — active handoff and change log
 
-Last updated: **2026-11-19**
+Last updated: **2026-11-20**
 
 This is the active handoff for Earmark PayPal. The inherited root `HANDOFF` file
 contains original Monad project history. All future changes must be recorded
 here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
+
+- **2026-11-20: First-party offer research rebuild prepared locally.** The
+  collector receives only sources that pass the provider gate. Guide and
+  directory titles reported in Production are excluded, and verified links
+  keep their identity label after recoverable comparison failures. The
+  Chinese AI, US AI, and weather API benchmarks pass offline. Live search
+  still needs a replay.
 
 - **2026-11-19: Brave Search replaces Tavily in offer research.** The Gemini
   query planner still runs up to three bounded searches in parallel, using
@@ -9010,3 +9017,75 @@ targeted, reuse existing code, and justify additional search stages,
 dependencies, or infrastructure. Refactoring and UI changes should support
 the requested behavior. This is a documentation update. Formatting and
 whitespace checks passed for both documents.
+
+### 2026-11-20 — Rebuild first-party offer evidence
+
+The user supplied the `Earmark-refined.mp4` walkthrough and asked to rebuild
+offer research around relevant merchant links, source-backed budget
+comparisons, and manual review. The previous pipeline sent topical roundups
+into Gemini and incomplete comparisons for unscoped searches. A pricing
+article and model directory could also pass the regional candidate gate
+because their titles resembled product pages. When Gemini failed, even a
+known first-party link lost its verification label.
+
+- `web/src/server/paypal/offer-discovery.ts` applies the provider and
+  relevance gate before the collector. It excludes year-stamped buying
+  guide titles and cross-provider indexes, preserves plausible product
+  pages as unverified research leads where supported, and retains strict
+  independent proof for verified identity and requested origin. The existing
+  planner requests provider-specific pricing and independent identity
+  evidence for regional searches. Existing aggregate logs now include
+  rejection counts without sending queries, links, or excerpts to logs.
+- `web/src/lib/offer-discovery.ts`, `web/src/components/purchasing-chat.tsx`,
+  and `web/src/components/offer-discovery.tsx` carry verified identity
+  through a recoverable collector failure. The UI displays the verified
+  merchant link and leaves incomplete plan terms unverified.
+- `web/test/official-provider-regression.test.ts` exercises DeepSeek,
+  Alibaba Cloud/Qwen, and Moonshot/Kimi for China, and OpenAI, Google, and
+  Anthropic for the US. The official links survive empty Gemini output.
+  Fixtures reject the Pickurai pricing article, the Chinese AI Tools
+  index, wrong-country results, and resellers. The weather API fixture
+  verifies both the $12/month fit and the $35/month over-budget result
+  against $25/month, with PayPal unknown in both cases.
+- `web/test/offer-discovery.test.ts` checks that roundups and changelogs
+  cannot populate the collector or incomplete comparison.
+  `web/test/research-relevance.test.ts` verifies the identity badge and
+  linked source through a failed collector response.
+- `scripts/preview-smoke.mjs` checks that the verified identity badge
+  survives the browser's incomplete-comparison response handling.
+
+No extra search or model stages, dependencies, quota or deadline changes,
+payment operations, or database changes. The tests use constructed evidence,
+including representative URLs for the reported titles where the screenshot
+did not show a URL. No live query, Git push, or deployment was performed.
+Sparse independent search excerpts can still leave genuine provider
+identity or origin unverified. Replay the three benchmarks in the live
+environment before assessing search quality.
+
+Verification passed locally: 243 focused offline tests, lint, typecheck,
+production build, formatting and whitespace checks, and the 46-chunk browser
+credential scan. Chromium smoke passed eight pages and the mocked public
+research flow with zero external requests or browser exceptions.
+
+### 2026-11-20 — Live baseline before publishing the rebuild
+
+The user asked to confirm the three benchmarks. GitHub reported the primary
+deployment succeeded at `71c8271`. The rebuild was still local, and this
+workspace had no Brave, Gemini, or Vercel credentials for a separate live
+run. The existing production app reported research available.
+
+Submitted each benchmark once through the public research endpoint.
+All three returned HTTP 200. The Chinese AI query returned only research
+leads from Pickurai, Chinese AI Tools, and AIUpdateWatch. It recorded two
+search requests, ten results, and zero model turns. The US AI query returned
+Microsoft Azure and Use AI as research leads without verified providers or
+offers. The weather API query found WeatherAPI.com, Visual Crossing,
+Xweather, and meteoblue pricing links among mixed leads, but returned one
+offer with unknown price and billing, unknown PayPal, and a needs-evidence
+verdict. No benchmark returned a verified official provider.
+
+These results describe the published baseline, not the local rebuild. Live
+verification of the rebuild requires publishing it to an authorized
+environment with provider credentials. No Git publication, deployment,
+PayPal operation, or financial database operation was performed in this
+check. The app used its ordinary research quota.

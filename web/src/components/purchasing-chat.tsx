@@ -270,7 +270,17 @@ export function PurchasingChat({
                 item.category === "web"
                   ? item.category
                   : undefined;
-              return [{ title, url: safeUrl, snippet, category }];
+              return [
+                {
+                  title,
+                  url: safeUrl,
+                  snippet,
+                  category,
+                  ...(item.providerVerified === true
+                    ? { providerVerified: true as const }
+                    : {}),
+                },
+              ];
             })
           : [];
         setIncompleteComparison({
