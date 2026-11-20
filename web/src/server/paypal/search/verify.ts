@@ -222,8 +222,10 @@ export function buildVerifiedOffers(input: {
 
   let reviewRecommendation: number | null = null;
   let bestPrice = Number.POSITIVE_INFINITY;
-  offers.forEach((offer, index) => {
+  for (let index = 0; index < offers.length; index += 1) {
+    const offer = offers[index];
     if (
+      offer &&
       offer.reviewFit === "matches" &&
       offer.priceMinor !== null &&
       Number(offer.priceMinor) < bestPrice
@@ -231,7 +233,7 @@ export function buildVerifiedOffers(input: {
       bestPrice = Number(offer.priceMinor);
       reviewRecommendation = index;
     }
-  });
+  }
 
   return { offers, reviewRecommendation, citedCount: citedUrls.size };
 }
