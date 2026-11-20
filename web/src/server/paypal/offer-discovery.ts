@@ -64,6 +64,9 @@ export const BRAVE_PAYMENT_MAX_RESULTS = 3 as const;
 export const MAX_PLANNED_SEARCH_QUERIES = 3 as const;
 export const MAX_COLLECTOR_RESULTS = 10 as const;
 const MAX_RESEARCH_EXCERPT_LENGTH = 2400;
+const MAX_PRICING_PASSAGE_LENGTH = 600;
+const PASSAGE_SEPARATOR = /\s*\[(?:\.\.\.|…)\]\s*/;
+const MAX_ADDITIONAL_EXCERPTS = 3;
 
 // Retain the existing comparison default for local owner and Judge callers.
 const LOCAL_DISCOVERY_BUDGET_MINOR = 1000;
@@ -512,6 +515,7 @@ function braveSearchUrl(
   query: string,
   count: number,
   excluded: readonly string[] = [],
+  extraSnippets = true,
 ): string {
   // Brave caps q at 400 characters and 50 words, including search operators.
   const words: string[] = [];
@@ -530,6 +534,7 @@ function braveSearchUrl(
     count: String(count),
     result_filter: "web",
     text_decorations: "false",
+    ...(extraSnippets ? { extra_snippets: "true" } : {}),
   });
   return `${BRAVE_SEARCH_URL}?${params}`;
 }
@@ -544,7 +549,7 @@ const COMPARISON_TITLE_RE =
   /\b(?:best|top\s+\d+|ranked|every\s+provider\s+ranked|comparison|compared|alternatives?|versus|vs\.?|price\s+comparison|pricing\s+tracker|aggregator|unified\s+api|multi[- ]?provider|routing\s+between|third[- ]?party\s+overview|unofficial\s+mirror|coupons?|promo\s+codes?)\b/i;
 // Year-stamped buying guides and cross-provider indexes can look like pricing pages.
 const EDITORIAL_OFFER_TITLE_RE =
-  /\b(?:pricing|prices?|plans?|costs?)\s*\(20\d{2}\)\s*[:—–-]|\b(?:models?|vendors?|providers?|products?|tools?)\s+(?:database|directory)\b/i;
+  /\b(?:pricing|prices?|plans?|costs?)\s*\((?:[a-z]{3,9}\s+)?20\d{2}\)\s*[:—–·|-]|\b(?:models?|vendors?|providers?|products?|tools?)\s+(?:database|directory)\b/i;
 const CHANGELOG_RE = /\b(?:changelog|release notes|what'?s new)\b/i;
 const DOCS_PATH_RE =
   /\/(?:api|developer|developers|docs|documentation|faq|help|payments?|checkout|terms|support)\b/i;
@@ -937,6 +942,7 @@ function extractOfficialProviders(
     const domain = rootDomain(hostname);
     const kind = classifyOfficialProviderKind(safeUrl, source.title);
     const score = kind === "pricing" ? 0 : kind === "docs" ? 1 : 2;
+    const billingText = `${source.title} ${source.snippet}`;
     const existing = byDomain.get(domain);
     if (existing && existing.score <= score) continue;
 
@@ -962,9 +968,9 @@ function extractOfficialProviders(
           (item) => item.url,
         ),
         pricingStatus: "unknown",
-        billingModel: PREPAID_CREDIT_RE.test(source.snippet)
+        billingModel: PREPAID_CREDIT_RE.test(billingText)
           ? "prepaid-credits"
-          : USAGE_MODEL_RE.test(source.snippet)
+          : USAGE_MODEL_RE.test(billingText)
             ? "usage-based"
             : "unknown",
         paypal: "unknown",
@@ -1607,7 +1613,12 @@ export function createDiscoveryBoundary(
         throw new PaymentError("DISCOVERY_OUTBOUND_REJECTED");
       assertNoSensitiveMaterialInAgentPayload(merchantDomain, allSecrets);
       const query = buildTargetedPayPalQuery(merchantDomain);
-      expectedPaymentSearch = braveSearchUrl(query, BRAVE_PAYMENT_MAX_RESULTS);
+      expectedPaymentSearch = braveSearchUrl(
+        query,
+        BRAVE_PAYMENT_MAX_RESULTS,
+        [],
+        false,
+      );
     },
     allowPaymentResults(
       results: ValidatedPaymentResults,
@@ -1704,6 +1715,7 @@ const braveResponseSchema = z.object({
             title: z.string().max(500).nullable().optional(),
             url: z.string().max(2048),
             description: z.string().max(10000).nullable().optional(),
+            extra_snippets: z.array(z.string().max(10000)).max(10).optional(),
           }),
         )
         .max(BRAVE_DISCOVERY_MAX_RESULTS),
@@ -2861,8 +2873,24 @@ async function runBraveSearch(
   try {
     const parsed = braveResponseSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) throw new PaymentError("BRAVE_INVALID_RESPONSE");
+    const includeExtraSnippets =
+      new URL(url).searchParams.get("extra_snippets") === "true";
     const results = (parsed.data.web?.results ?? []).map(
-      ({ title, url, description }) => ({ title, url, content: description }),
+      ({ title, url, description, extra_snippets }) => {
+        const extra = includeExtraSnippets
+          ? extra_snippets?.slice(0, MAX_ADDITIONAL_EXCERPTS)
+          : undefined;
+        const content = extra?.length
+          ? [
+              ...new Set(
+                [description, ...extra].map((text) => sanitizeText(text, 550)),
+              ),
+            ]
+              .filter(Boolean)
+              .join(" [...] ")
+          : description;
+        return { title, url, content };
+      },
     );
     return { status, data: { results } };
   } catch (error) {
@@ -3620,6 +3648,17 @@ export async function discoverOffers(
   const requiresApprovedMerchant =
     /\b(?:approved|allowlisted|authori[sz]ed)\b/i.test(instruction);
 
+  const initialSourcesByUrl = new Map(
+    sanitizedResults.map((source) => [source.url, source]),
+  );
+  const pricingPassages = (source: ProviderSource): ProviderSource[] =>
+    (initialSourcesByUrl.get(source.url)?.snippet ?? source.snippet)
+      .split(PASSAGE_SEPARATOR)
+      .slice(0, MAX_ADDITIONAL_EXCERPTS + 1)
+      .map((snippet) => sanitizeText(snippet, MAX_PRICING_PASSAGE_LENGTH))
+      .filter(Boolean)
+      .map((snippet) => ({ ...source, snippet }));
+
   const buildPreparedGroups = (
     activeResults: ValidatedResearchResults["results"],
     pricingSearchUrls: ReadonlySet<string>,
@@ -3689,20 +3728,22 @@ export async function discoverOffers(
             domainPricingMatches(source),
         ),
       ];
-      const planSources = groundedSources.filter((source) =>
-        source.snippet.includes("|")
-          ? (() => {
-              const table = parseTierTable(source.snippet, offer.service);
-              return (
-                table.matchedRows.length > 0 ||
-                table.contextLost ||
-                containsPhrase(source.title, offer.service)
-              );
-            })()
-          : evidenceLines(source).some((line) =>
-              containsPhrase(line, offer.service),
-            ),
-      );
+      const planSources = groundedSources
+        .flatMap(pricingPassages)
+        .filter((source) =>
+          source.snippet.includes("|")
+            ? (() => {
+                const table = parseTierTable(source.snippet, offer.service);
+                return (
+                  table.matchedRows.length > 0 ||
+                  table.contextLost ||
+                  containsPhrase(source.title, offer.service)
+                );
+              })()
+            : evidenceLines(source).some((line) =>
+                containsPhrase(line, offer.service),
+              ),
+        );
       const fixedPricing = priceEvidence(offer, competing, planSources);
       let pricing: DiscoveredOffer["pricing"] = fixedPricing;
       let pricingDetails: VerifiedOfferPricingDetails | null = null;
@@ -3727,7 +3768,7 @@ export async function discoverOffers(
           .sort((a, b) => offerSourcePriority(a) - offerSourcePriority(b));
         const verified = verifyUsageOrCreditPricing(
           offer,
-          officialSources,
+          officialSources.flatMap(pricingPassages),
           instruction,
         );
         if (verified.pricing.status !== "unknown") {
@@ -3779,8 +3820,8 @@ export async function discoverOffers(
     ...source,
     snippet:
       source.snippet
-        .split(/\s*\[(?:\.\.\.|…)\]\s*/, 1)[0]
-        ?.slice(0, 600)
+        .split(PASSAGE_SEPARATOR, 1)[0]
+        ?.slice(0, MAX_PRICING_PASSAGE_LENGTH)
         .trimEnd() || "No snippet provided.",
   }));
   const pricingSearchUrls = new Set<string>();
@@ -3840,7 +3881,9 @@ export async function discoverOffers(
         candidatePricingResults.push({
           title: sanitizeText(item.title, 200) || "Untitled result",
           url: validUrl,
-          snippet: sanitizeText(item.content, 600) || "No snippet provided.",
+          snippet:
+            sanitizeText(item.content, MAX_RESEARCH_EXCERPT_LENGTH) ||
+            "No snippet provided.",
           retrievedAt,
         });
       }
@@ -3917,6 +3960,8 @@ export async function discoverOffers(
           braveSearchUrl(
             buildTargetedPayPalQuery(targetMerchantDomain),
             BRAVE_PAYMENT_MAX_RESULTS,
+            [],
+            false,
           ),
           braveKey,
           timeout,

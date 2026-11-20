@@ -8,12 +8,15 @@ here, as required by the user and the root [AGENTS.md](AGENTS.md).
 
 ## Current project state
 
-- **2026-11-20: First-party offer research rebuild prepared locally.** The
-  collector receives only sources that pass the provider gate. Guide and
-  directory titles reported in Production are excluded, and verified links
-  keep their identity label after recoverable comparison failures. The
-  Chinese AI, US AI, and weather API benchmarks pass offline. Live search
-  still needs a replay.
+- **2026-11-20: Additional merchant pricing excerpts prepared locally.**
+  The existing Brave searches request more excerpts, and exact tier pricing
+  can use a complete quote from any one bounded passage. DecodeError and
+  BenchLM dated guides are rejected in offline fixtures. Production still
+  needs a replay after publication.
+
+- **2026-11-20: First-party offer research rebuild deployed at `4f46a37`.**
+  The live replay found first-party pricing pages but classified them as
+  unverified. It returned no comparable prices for the three benchmarks.
 
 - **2026-11-19: Brave Search replaces Tavily in offer research.** The Gemini
   query planner still runs up to three bounded searches in parallel, using
@@ -9089,3 +9092,69 @@ verification of the rebuild requires publishing it to an authorized
 environment with provider credentials. No Git publication, deployment,
 PayPal operation, or financial database operation was performed in this
 check. The app used its ordinary research quota.
+
+### 2026-11-20 — Production replay after first-party research rebuild
+
+At the user's request, pushed the tested rebuild to `main` as `4f46a37`.
+GitHub reported the primary Vercel deployment completed. The deployment ran
+after the 243 focused offline tests, lint, typecheck, browser boundary scan,
+production build, and offline Chromium smoke passed.
+
+Replayed each public research benchmark once. All returned HTTP 200.
+
+- China AI: four searches produced 40 results. The cards included official
+  DeepSeek and Alibaba Cloud pricing pages as unverified leads. A Kimi
+  platform link, Kimi K2, and the BenchLM comparison site also appeared as
+  leads. The original Pickurai and Chinese AI Tools entries were absent.
+  No verified provider or comparable offer was returned.
+- US AI: three searches produced 30 results. Claude's pricing docs appeared
+  as an unverified lead. No verified provider or comparable offer was
+  returned.
+- Weather API: several real providers' pricing pages appeared as unverified
+  leads. Gemini returned generic WeatherAPI.com and Meteosource offer
+  names. Both had unknown price, billing, and PayPal acceptance, with a
+  needs-evidence verdict.
+
+The live results confirm that relevant pricing links can reach the app,
+while independent identity verification and exact tier pricing remain
+unresolved. The public responses contain no rejection trace for individual
+sources. No payment or financial database operation was performed. This entry
+records the replay in the local handoff after publication.
+
+### 2026-11-20 — Use additional excerpts as independent pricing evidence
+
+A new screenshot showed the DecodeError guide as a weather API provider
+lead, and Xweather's pay-as-you-go calculator with unknown billing. Public
+HTML confirmed the observed guide title and a similar date-stamped title
+on the BenchLM comparison site seen in the prior replay. The deterministic
+pricing path also discarded every passage after the first, although Gemini
+could see the longer source text.
+
+- `web/src/server/paypal/offer-discovery.ts` requests Brave's documented
+  `extra_snippets` on the existing discovery, provider corroboration, and
+  pricing lookups. It sends at most three additional bounded excerpts to
+  the collector and verifies rates one passage at a time. The same
+  outbound guard validates each exact search URL. Payment-method search
+  retains the original envelope. Provider billing can be inferred from an
+  explicit usage-based phrase in the page title. The editorial heuristic
+  now recognizes the observed date-heading punctuation and month years.
+- `web/test/fixtures/brave-search.ts`, `web/test/offer-discovery.test.ts`,
+  and `web/test/query-planner-discovery.test.ts` exercise the updated
+  envelope and prove that a later self-contained quote can be used.
+  Split tier and price evidence still fails verification.
+- `web/test/official-provider-regression.test.ts` rejects the observed
+  DecodeError and BenchLM guides and checks Xweather's usage-based label
+  with price and PayPal still unknown.
+
+No new search stages or direct merchant fetcher were added to the app.
+Research request caps, timeouts, and payment safeguards are unchanged.
+Only public documentation and public page HTML were read. The change is
+local. Live Brave behavior with the production key and independent
+provider corroboration still require verification.
+
+The public Weatherstack page showed a $9.99 monthly rate, which was absent
+from the production screenshot. Xweather's public page confirmed usage-based
+pricing. These observations describe the merchant pages, not an app replay.
+Fresh local checks passed: 247 focused tests, lint, typecheck, production
+build, formatting and whitespace checks, and the 46-chunk browser
+credential scan.

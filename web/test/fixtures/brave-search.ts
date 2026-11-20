@@ -2,6 +2,7 @@ export type BraveFixtureResult = {
   url: string;
   title?: string | null;
   content?: string | null;
+  extra_snippets?: string[];
 };
 
 export function braveSearchResponse({

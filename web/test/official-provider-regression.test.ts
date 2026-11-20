@@ -263,6 +263,62 @@ describe("official provider identity and relevance regression", () => {
 
   it.each([
     [
+      "https://decodeerror.com/weather-api/pricing",
+      "weather-api Pricing: Plans, Tiers, & Real-World Costs (2026) · decodeerror",
+      "Weather API pricing and monthly plan details.",
+      "Find a weather API under $25 per month",
+      "DISCOVERY_RELEVANT_SOURCES_REQUIRED",
+    ],
+    [
+      "https://benchlm.ai/moonshot/api-pricing",
+      "Kimi API Pricing (November 2026): Kimi K3.1 Pro at $2/$10 | BenchLM.ai",
+      "Kimi API prices per 1M tokens for K3.1 Pro and K3, with cached-input rates.",
+      "Find $20 Chinese AI model plans",
+      "DISCOVERY_REGIONAL_PROVIDERS_UNVERIFIED",
+    ],
+  ])(
+    "keeps the observed pricing guide off provider cards: %s",
+    async (url, title, snippet, instruction, error) => {
+      const guide = source(url, title, snippet);
+      expect(classifyProviderSource(guide, instruction)).toBe("editorial");
+      const fetcher = offlineTransport([guide], []);
+      await expect(
+        discoverOffers(instruction, env, fetcher, 2500),
+      ).rejects.toThrow(error);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("shows usage-based billing on a relevant pricing calculator without asserting a fixed price", async () => {
+    const url = "https://www.xweather.com/pricing/weather-api-pay-as-you-go";
+    const result = await discoverOffers(
+      "Find a weather API under $25 per month",
+      env,
+      offlineTransport(
+        [
+          source(
+            url,
+            "Weather API pay as you go pricing calculator",
+            "Weather API pricing calculator.",
+          ),
+        ],
+        [],
+      ),
+      2500,
+    );
+    expect(result.providerCandidates).toEqual([
+      expect.objectContaining({
+        url,
+        billingModel: "usage-based",
+        pricingStatus: "unknown",
+        paypal: "unknown",
+        checkoutUrl: null,
+      }),
+    ]);
+  });
+
+  it.each([
+    [
       "Find $20 Canadian transactional email API plans",
       "Transactional email API pricing",
       "Transactional email API monthly billing.",

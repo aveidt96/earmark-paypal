@@ -238,6 +238,38 @@ it("does not combine a tier and price from separate advanced search passages", a
   expect(result.reviewRecommendation).toBeNull();
 });
 
+it("compares a named plan from a complete extra Brave excerpt", async () => {
+  const fetcher = transport([{ ...offer, service: "Starter" }], {
+    braveResults: [
+      {
+        url,
+        title: "Example Weather API pricing",
+        content: "Weather API plan overview.",
+        extra_snippets: ["Starter costs USD 5 per month."],
+      },
+      {
+        title: "Example",
+        url: "https://en.wikipedia.org/wiki/Example_company",
+        content: "Example provides a weather API.",
+        extra_snippets: ["Official website: https://example.com/"],
+      },
+    ],
+    paymentResults: [],
+  });
+  const result = await discoverOffers(
+    "Find a weather API under $10 per month",
+    env,
+    fetcher,
+  );
+  expect(result.offers[0]).toMatchObject({
+    priceMinor: "500",
+    pricing: { status: "source-matched", period: "month", sourceUrl: url },
+    reviewFit: "matches",
+    paypal: "unknown",
+  });
+  expect(fetcher).toHaveBeenCalledTimes(3);
+});
+
 it("does not borrow another tier's billing period when the price is ambiguous", async () => {
   const result = await discoverOffers(
     "Find a weather API under $10 per month",
@@ -1847,6 +1879,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
         count: String(BRAVE_DISCOVERY_MAX_RESULTS),
         result_filter: "web",
         text_decorations: "false",
+        extra_snippets: "true",
       });
       expect(readBraveQuery(paymentSearchUrl)).toBe(
         buildTargetedPayPalQuery("example.com"),
@@ -2997,10 +3030,13 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
       env.GEMINI_MODEL,
     );
     const assertRejectsSearchChanges = (url: unknown, init: RequestInit) => {
+      const extraSnippets = new URL(String(url)).searchParams.has(
+        "extra_snippets",
+      );
       for (const [key, value] of [
         ["q", "foreign search"],
         ["count", "20"],
-        ["extra_snippets", "true"],
+        ["extra_snippets", String(!extraSnippets)],
         ["result_filter", "news"],
         ["db_capture_id", "CANARY_FORBIDDEN_SYNTHETIC_ONLY"],
       ] as const) {
@@ -4423,7 +4459,7 @@ describe("authenticated offer discovery with offline Brave Search + targeted Pay
       env.GEMINI_MODEL,
     );
     boundary.allowProviderSearch(["blog.aggregator.example"]);
-    const wrongUrl = `${BRAVE_SEARCH_URL}?q=Compare+cloud+API+plans&count=10&result_filter=web&text_decorations=false`;
+    const wrongUrl = `${BRAVE_SEARCH_URL}?q=Compare+cloud+API+plans&count=10&result_filter=web&text_decorations=false&extra_snippets=true`;
     expect(() =>
       boundary.guard(wrongUrl, {
         method: "GET",

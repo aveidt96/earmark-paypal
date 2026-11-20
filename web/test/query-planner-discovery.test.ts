@@ -104,6 +104,7 @@ describe("general Gemini query planner and parallel Brave discovery", () => {
       count: "10",
       result_filter: "web",
       text_decorations: "false",
+      extra_snippets: "true",
     }).toString();
     expect(() => boundary.guard(String(approvedUrl), init)).toThrow(
       "DISCOVERY_OUTBOUND_REJECTED",
