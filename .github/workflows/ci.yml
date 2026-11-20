@@ -35,8 +35,35 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=high
       - run: npm run setup:contracts
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: fmt-guard
+        run: npx prettier --check web/src/server/paypal/search/guard.ts
+      - name: fmt-page-fetch
+        if: always()
+        run: npx prettier --check web/src/server/paypal/search/page-fetch.ts
+      - name: fmt-grounding
+        if: always()
+        run: npx prettier --check web/src/server/paypal/search/grounding.ts
+      - name: fmt-verify
+        if: always()
+        run: npx prettier --check web/src/server/paypal/search/verify.ts
+      - name: fmt-offer-discovery
+        if: always()
+        run: npx prettier --check web/src/server/paypal/offer-discovery.ts
+      - name: fmt-test
+        if: always()
+        run: npx prettier --check web/test/search-pipeline.test.ts
+      - name: fmt-other
+        if: always()
+        run: npx prettier --check HANDOFF-PAYPAL.md web/src/components/purchasing-chat.tsx web/src/lib/offer-discovery.ts web/src/server/paypal/public-research.ts
+      - name: lint
+        if: always()
+        run: npm run lint
+      - name: typecheck
+        if: always()
+        run: npm run typecheck
+      - name: test
+        if: always()
+        run: npm test
+      - name: build
+        if: always()
+        run: npm run build
