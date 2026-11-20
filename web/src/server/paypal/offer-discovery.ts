@@ -177,7 +177,9 @@ export async function discoverOffers(
   let usedGeminiSearch = false;
   let usedBraveSearch = false;
   let candidates: DiscoveredCandidate[] = [];
-  let groundingFallbackReason: string | undefined;
+  let groundingFallbackReason:
+    | ResearchStageFailure["classification"]
+    | undefined;
 
   // Stage 1: Hybrid discovery (Gemini native google_search, with Brave fallback)
   if (mode !== "brave") {

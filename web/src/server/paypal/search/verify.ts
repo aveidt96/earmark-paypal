@@ -50,7 +50,9 @@ export function verifyPriceInSource(
   return prefixRe.test(sourceText) || suffixRe.test(sourceText);
 }
 
-const PERIOD_PATTERNS: Record<OfferBillingPeriod, RegExp> = {
+type BillingKind = "month" | "year" | "one-time" | "usage-based" | "prepaid";
+
+const PERIOD_PATTERNS: Record<BillingKind, RegExp> = {
   month: /\/\s*mo(?:nth)?\b|\b(?:per\s+month|monthly|each\s+month)\b/i,
   year: /\/\s*(?:yr|year)\b|\b(?:per\s+year|yearly|annual(?:ly)?)\b/i,
   "one-time": /\b(?:one[- ]time|single\s+payment|lifetime|buy\s+now)\b/i,
@@ -58,6 +60,12 @@ const PERIOD_PATTERNS: Record<OfferBillingPeriod, RegExp> = {
     /\b(?:pay[- ]as[- ]you[- ]go|usage[- ]based|per\s+(?:1[mk]|1,000,000|million|thousand)\s+tokens?|metered)\b/i,
   prepaid: /\b(?:prepaid|credit\s+(?:pack|package|balance|top[- ]?up))\b/i,
 };
+
+function isFixedBillingPeriod(
+  value: BillingKind | null,
+): value is OfferBillingPeriod {
+  return value === "month" || value === "year" || value === "one-time";
+}
 
 export function verifyPayPalInSource(
   claimed: "claimed" | "unknown" | "not-listed",
@@ -139,10 +147,12 @@ export function buildVerifiedOffers(input: {
     const verifiedPriceMinor = priceVerified ? raw.priceMinor : null;
     const verifiedCurrency = priceVerified ? raw.currency : null;
 
-    const verifiedPeriod: OfferBillingPeriod | null =
+    const verifiedBilling: BillingKind | null =
       raw.billingPeriod && PERIOD_PATTERNS[raw.billingPeriod].test(combinedText)
         ? raw.billingPeriod
         : null;
+    const verifiedPeriod: OfferBillingPeriod | null =
+      isFixedBillingPeriod(verifiedBilling) ? verifiedBilling : null;
 
     const paypalCheck = verifyPayPalInSource(raw.paypal, combinedText);
     const sources = validPages.map((page) => {
@@ -171,7 +181,7 @@ export function buildVerifiedOffers(input: {
       service: sanitizePlainText(raw.service, 120),
       priceMinor: verifiedPriceMinor,
       currency: verifiedCurrency,
-      billing: verifiedPeriod,
+      billing: verifiedBilling,
       availability: raw.availability
         ? sanitizePlainText(raw.availability, 120)
         : null,
