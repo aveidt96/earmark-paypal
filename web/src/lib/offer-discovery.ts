@@ -236,9 +236,7 @@ export interface DiscoveredOffer {
 }
 export interface OfferDiscoveryResult {
   source:
-    | "LIVE_GEMINI_GROUNDED"
-    | "LIVE_BRAVE_SEARCH"
-    | "OFFLINE_SEARCH_FIXTURE";
+    "LIVE_GEMINI_GROUNDED" | "LIVE_BRAVE_SEARCH" | "OFFLINE_SEARCH_FIXTURE";
   instruction: string;
   retrievedAt: string;
   targetMerchantDomain?: string;

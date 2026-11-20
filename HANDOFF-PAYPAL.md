@@ -9202,6 +9202,8 @@ Changes:
 - `web/src/lib/offer-discovery.ts`: widened `OfferDiscoveryResult.source` to
   include `"LIVE_GEMINI_GROUNDED"` and `evidence.searchProvider` to include
   `"gemini-google-search" | "hybrid"`.
+- `web/src/components/purchasing-chat.tsx`: accepted `"LIVE_GEMINI_GROUNDED"`
+  alongside `"LIVE_BRAVE_SEARCH"` as a valid live public research source.
 - `web/src/server/paypal/public-research.ts`: updated `stageTimeouts` for
   `grounded_search` and `page_fetch`, removed the obsolete `payment_evidence`
   branch, and made `BRAVE_SEARCH_API_KEY` optional when `GEMINI_API_KEY` is set.
