@@ -39,9 +39,7 @@ const geminiJsonResponse = (payload: unknown, groundingUrls: string[] = []) =>
         ...(groundingUrls.length
           ? {
               groundingMetadata: {
-                groundingChunks: groundingUrls.map((uri) => ({
-                  web: { uri },
-                })),
+                groundingChunks: groundingUrls.map((uri) => ({ web: { uri } })),
               },
             }
           : {}),
