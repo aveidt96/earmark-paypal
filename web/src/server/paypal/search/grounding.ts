@@ -170,9 +170,7 @@ async function callGeminiJson(input: {
       .join("");
     if (!text.trim()) throw new AgentError("INVALID_MODEL_RESPONSE");
 
-    const groundingUrls = (
-      candidate?.groundingMetadata?.groundingChunks ?? []
-    )
+    const groundingUrls = (candidate?.groundingMetadata?.groundingChunks ?? [])
       .map((chunk) => chunk.web?.uri ?? "")
       .filter((uri): uri is string => Boolean(safePublicMerchantUrl(uri)));
 

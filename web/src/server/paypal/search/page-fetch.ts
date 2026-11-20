@@ -47,8 +47,14 @@ export function extractTextFromHtml(rawHtml: string): {
   const title = sanitizePlainText(decodeEntities(titleMatch?.[1] ?? ""), 160);
   const stripped = rawHtml
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|noscript|svg|iframe|template)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6]|\/section|\/article)[^>]*>/gi, "\n")
+    .replace(
+      /<(script|style|noscript|svg|iframe|template)[^>]*>[\s\S]*?<\/\1>/gi,
+      " ",
+    )
+    .replace(
+      /<(?:br|\/p|\/div|\/li|\/tr|\/h[1-6]|\/section|\/article)[^>]*>/gi,
+      "\n",
+    )
     .replace(/<[^>]+>/g, " ");
   const decoded = decodeEntities(stripped)
     .replace(/[ \t\r\f\v]+/g, " ")
@@ -162,8 +168,7 @@ export async function fetchMerchantPage(
       return fallback;
     }
     const raw = await readBoundedText(response, controller.signal);
-    const isHtml =
-      /html/i.test(contentType) || /<html|<body|<title/i.test(raw);
+    const isHtml = /html/i.test(contentType) || /<html|<body|<title/i.test(raw);
     const extracted = isHtml
       ? extractTextFromHtml(raw)
       : {

@@ -126,6 +126,8 @@ describe("gemini-fix hybrid search pipeline", () => {
 
   it("runs Gemini google_search -> direct page fetch -> structured extraction with source-matched verification", async () => {
     const pricingUrl = "https://weather.example/pricing";
+    const redirectUrl =
+      "https://vertexaisearch.cloud.google.com/grounding-api-redirect/xyz";
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       if (url.includes(":generateContent")) {
@@ -142,7 +144,7 @@ describe("gemini-fix hybrid search pipeline", () => {
                 },
                 {
                   provider: "Redirect Link",
-                  url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/xyz",
+                  url: redirectUrl,
                   title: "Proxy",
                   summary: "Should be filtered out.",
                 },
