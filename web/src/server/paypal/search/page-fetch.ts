@@ -121,8 +121,7 @@ async function hasOnlyPublicIps(hostname: string): Promise<boolean> {
 
 function pagePriority(url: string): number {
   const path = new URL(url).pathname.toLowerCase();
-  if (/\/(?:pricing|plans?|packages?|tariffs?|subscribe)\b/.test(path))
-    return 3;
+  if (/\/(?:pricing|plans?|packages?|tariffs?|subscribe)\b/.test(path)) return 3;
   if (/\/(?:billing|payment|checkout|faq|buy|shop|store|product)\b/.test(path))
     return 2;
   return 1;
