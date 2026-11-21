@@ -115,7 +115,9 @@ async function callGeminiJson<T>(input: {
     ...(input.useGoogleSearch ? { tools: [{ google_search: {} }] } : {}),
     generationConfig: {
       maxOutputTokens: 3000,
-      thinkingConfig: { thinkingLevel: "low" },
+      thinkingConfig: {
+        thinkingLevel: /flash-lite/i.test(input.model) ? "minimal" : "low",
+      },
       responseMimeType: "application/json",
       responseJsonSchema: toCleanJsonSchema(input.responseSchema),
     },
@@ -360,8 +362,12 @@ export async function runGeminiStructuredExtraction(input: {
     };
   };
 
+  const primaryTimeout = input.fallbackModel
+    ? Math.min(input.timeoutMs, 14000)
+    : input.timeoutMs;
+  const started = performance.now();
   try {
-    return await attempt(input.model, input.timeoutMs);
+    return await attempt(input.model, primaryTimeout);
   } catch (error) {
     const recoverable =
       error instanceof AgentError &&
@@ -369,8 +375,11 @@ export async function runGeminiStructuredExtraction(input: {
         error.code === "MODEL_RATE_LIMITED" ||
         error.code === "MODEL_TIMEOUT" ||
         error.code === "MODEL_TRANSPORT_ERROR");
-    if (recoverable && input.fallbackModel) {
-      return attempt(input.fallbackModel, Math.min(input.timeoutMs, 15000));
+    const remaining = Math.floor(
+      input.timeoutMs - (performance.now() - started),
+    );
+    if (recoverable && input.fallbackModel && remaining >= 3000) {
+      return attempt(input.fallbackModel, remaining);
     }
     throw error;
   }

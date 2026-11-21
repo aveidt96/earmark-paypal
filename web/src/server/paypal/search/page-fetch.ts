@@ -4,9 +4,9 @@ import { isIP } from "node:net";
 import { safePublicMerchantUrl, sanitizePlainText } from "./guard";
 
 export const MAX_MERCHANT_PAGES = 4;
-const PAGE_TIMEOUT_MS = 5000;
+const PAGE_TIMEOUT_MS = 4000;
 const MAX_PAGE_BYTES = 200_000;
-const MAX_EXTRACTED_CHARS = 6000;
+const MAX_EXTRACTED_CHARS = 4000;
 
 export interface FetchedMerchantPage {
   url: string;
@@ -48,7 +48,7 @@ export function extractTextFromHtml(rawHtml: string): {
   const stripped = rawHtml
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(
-      /<(script|style|noscript|svg|iframe|template)[^>]*>[\s\S]*?<\/\1>/gi,
+      /<(script|style|noscript|svg|iframe|template|nav|header|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi,
       " ",
     )
     .replace(

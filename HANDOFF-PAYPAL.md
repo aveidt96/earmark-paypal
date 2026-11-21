@@ -9219,8 +9219,26 @@ Changes:
 - `HANDOFF-PAYPAL.md`: updated current-state summary and recorded this rebuild.
 
 Verification: syntax-checked all modified/added `.ts` files locally with Node 24
-(`stripTypeScriptTypes`) and pushed `gemini-fix` for full GitHub Actions
-`Earmark PayPal CI` verification (`format:check`, `lint`, `typecheck`, `test`,
-`build` on Ubuntu and Windows). No live Gemini/Brave API, database, or PayPal
-operations were executed; live grounding and page-fetch behavior require a
-post-deployment or local-key replay.
+(`stripTypeScriptTypes`) and verified full GitHub Actions `Earmark PayPal CI`
+(`npm audit --audit-level=high` + `npm run check` on Ubuntu and Windows; run
+`44806703598` passed). Live Vercel Preview test confirmed Stage 1 Gemini
+`google_search` and Stage 2 live merchant page fetch succeeded, while Stage 3
+(`offer_analysis`) timed out on `gemini-3.8-flash` with noisy HTML.
+
+### 2026-11-20 — Stage 3 extraction latency fix on branch `gemini-fix`
+
+Based on the live Preview replay where Stage 1 and Stage 2 succeeded but Stage 3
+timed out:
+
+- `web/src/server/paypal/search/page-fetch.ts`: strip `<nav>`, `<header>`,
+  `<footer>`, and `<aside>` boilerplate from fetched HTML, and cap
+  `PAGE_TIMEOUT_MS` and `MAX_EXTRACTED_CHARS` at `4000`.
+- `web/src/server/paypal/search/grounding.ts`: set `thinkingLevel: "minimal"`
+  for `flash-lite` models (keeping `"low"` for `gemini-3.8-flash`) and reserve
+  remaining timeout budget for the fallback model in
+  `runGeminiStructuredExtraction`.
+- `web/src/server/paypal/offer-discovery.ts`: default Stage 3 structured
+  extraction to `gemini-3.5-flash-lite` (falling back to `GEMINI_MODEL`) and
+  tune `STAGE_LIMITS` (`grounded_search: 20000`, `page_fetch: 5000`,
+  `offer_analysis: 25000`).
+- `HANDOFF-PAYPAL.md`: recorded the live Preview observation and this fix.

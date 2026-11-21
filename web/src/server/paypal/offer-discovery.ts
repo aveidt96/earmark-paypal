@@ -29,10 +29,10 @@ import { buildProviderLinks, buildVerifiedOffers } from "./search/verify";
 export { BRAVE_SEARCH_URL, discoveryInstruction };
 
 const STAGE_LIMITS = {
-  grounded_search: 18000,
-  offer_search: 12000,
-  page_fetch: 8000,
-  offer_analysis: 22000,
+  grounded_search: 20000,
+  offer_search: 10000,
+  page_fetch: 5000,
+  offer_analysis: 25000,
 } as const;
 
 export type ResearchStageFailure = {
@@ -152,15 +152,18 @@ export async function discoverOffers(
   )
     throw new PaymentError("DISCOVERY_DISABLED");
 
-  const model =
-    env.GEMINI_COLLECTOR_MODEL ?? env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
+  const model = env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
   if (!GEMINI_3_MODEL_PATTERN.test(model))
     throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
 
+  const extractionModel = env.GEMINI_COLLECTOR_MODEL ?? DEFAULT_FALLBACK_MODEL;
+  if (!GEMINI_3_MODEL_PATTERN.test(extractionModel))
+    throw new PaymentError("DISCOVERY_MODEL_UNSUPPORTED");
+
   const fallbackModel = resolveFallbackModel(
-    model,
-    env.GEMINI_COLLECTOR_FALLBACK_MODEL,
-    Boolean(timing) || model !== DEFAULT_FALLBACK_MODEL,
+    extractionModel,
+    env.GEMINI_COLLECTOR_FALLBACK_MODEL ?? model,
+    Boolean(timing) || extractionModel !== model,
   );
   const timeout = Number(env.AI_TIMEOUT_MS ?? "60000");
   if (
@@ -279,7 +282,7 @@ export async function discoverOffers(
       budgetMinor,
       pages,
       apiKey: geminiKey,
-      model,
+      model: extractionModel,
       fallbackModel,
       timeoutMs: analysisLimit,
       ...(fetcher ? { fetcher } : {}),
