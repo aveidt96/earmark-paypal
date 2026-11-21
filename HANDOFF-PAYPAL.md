@@ -9269,3 +9269,35 @@ refinements:
   handling, cross-domain redirect blocking, `/pricing` deduplication priority,
   and PayPal card-list matching.
 - `HANDOFF-PAYPAL.md`: recorded this session's changes.
+
+### 2026-11-21 — Opt-in bound PayPal Sandbox checkout redirect on branch `paypal-sandbox-checkout`
+
+The user requested an opt-in direct PayPal Sandbox Checkout redirect for bound
+demo offers while keeping unbound web-search offers manual-only and preserving
+all existing mandates, ledgers, and the unresolved original $6 reservation.
+
+Changes:
+
+- `web/src/lib/bound-merchants.ts` (new): server/client shared catalog of 2
+  fixed bound Sandbox demo offers (`$4.00` Starter and `$6.00` Pro, capped at
+  `$6.00`) without exposing any merchant IDs or credentials.
+- `web/src/server/paypal/sandbox-checkout.ts` (new): opt-in server-only handler
+  gated behind `EARMARK_SANDBOX_CHECKOUT_ENABLED="true"`, strict same-origin
+  checks, and `SANDBOX_BASE_URL` via the existing `PayPalClient`. `create`
+  validates offer/budget and returns a verified `sandbox.paypal.com` approval
+  URL; `capture` verifies `order.status === "APPROVED"` (mandatory human buyer
+  approval) and bound amount match before calling `captureOrder`. Does not
+  touch existing mandates or database ledgers.
+- `web/src/app/api/paypal/sandbox-checkout/route.ts` (new): `GET` and `POST`
+  App Router handler for `/api/paypal/sandbox-checkout`.
+- `web/src/components/sandbox-checkout-panel.tsx` (new) and
+  `web/src/components/paypal-agent-console.tsx`: renders the bound PayPal
+  Sandbox checkout panel only when `/api/paypal/sandbox-checkout` reports
+  `available: true`, redirecting to PayPal Sandbox and requiring explicit human
+  confirmation on return before capture.
+- `web/test/sandbox-checkout.test.ts` (new): offline mocked tests covering
+  default-disabled posture, origin/budget enforcement, Sandbox order creation,
+  `sandbox.paypal.com` redirect validation, pre-approval capture rejection, and
+  post-approval capture completion.
+- `HANDOFF-PAYPAL.md`: recorded this session's changes. No live PayPal Sandbox
+  orders or captures were executed from this sandbox environment.
