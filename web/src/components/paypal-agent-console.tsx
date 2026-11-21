@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
 import { PurchasingChat } from "./purchasing-chat";
+import { SandboxCheckoutPanel } from "./sandbox-checkout-panel";
 import { Badge, Button, Icon } from "./glass";
 import {
   PAYPAL_CORE_DEMO_SCENARIOS,
@@ -190,11 +191,14 @@ function PurchasingConversation({
           </div>
         )}
         {chatMode ? (
-          <PurchasingChat
-            judgeSandbox={judgeSandbox}
-            publicResearch={publicResearch}
-            onEvaluation={setChatResult}
-          />
+          <>
+            <PurchasingChat
+              judgeSandbox={judgeSandbox}
+              publicResearch={publicResearch}
+              onEvaluation={setChatResult}
+            />
+            <SandboxCheckoutPanel />
+          </>
         ) : (
           <section
             className="purchasing-chat"
