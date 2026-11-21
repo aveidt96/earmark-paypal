@@ -299,11 +299,13 @@ export function PurchasingChat({
         });
         return;
       }
+      const validLiveSource =
+        body?.discovery?.source === "LIVE_GEMINI_GROUNDED" ||
+        body?.discovery?.source === "LIVE_BRAVE_SEARCH";
       if (
         !body ||
         (publicResearch &&
-          (body.discovery?.source !== "LIVE_BRAVE_SEARCH" ||
-            !Array.isArray(body.discovery.offers)))
+          (!validLiveSource || !Array.isArray(body.discovery?.offers)))
       )
         throw new Error("PUBLIC_RESEARCH_EVIDENCE_UNAVAILABLE");
       if (login) {

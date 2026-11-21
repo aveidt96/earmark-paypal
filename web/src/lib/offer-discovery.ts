@@ -235,7 +235,8 @@ export interface DiscoveredOffer {
   policy: { eligible: false; canonicalVerdict: string; reasons: string[] };
 }
 export interface OfferDiscoveryResult {
-  source: "LIVE_BRAVE_SEARCH" | "OFFLINE_SEARCH_FIXTURE";
+  source:
+    "LIVE_GEMINI_GROUNDED" | "LIVE_BRAVE_SEARCH" | "OFFLINE_SEARCH_FIXTURE";
   instruction: string;
   retrievedAt: string;
   targetMerchantDomain?: string;
@@ -251,7 +252,7 @@ export interface OfferDiscoveryResult {
     httpStatus: number;
     durationMs: number;
     modelTurns: 0 | 1 | 2;
-    searchProvider?: "brave";
+    searchProvider?: "gemini-google-search" | "brave" | "hybrid";
     searchRequests?: 1 | 2 | 3 | 4 | 5 | 6;
     searchResultsCount?: number;
     paymentSearchResultsCount?: number;
