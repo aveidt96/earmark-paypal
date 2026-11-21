@@ -9242,3 +9242,30 @@ timed out:
   tune `STAGE_LIMITS` (`grounded_search: 20000`, `page_fetch: 5000`,
   `offer_analysis: 25000`).
 - `HANDOFF-PAYPAL.md`: recorded the live Preview observation and this fix.
+
+### 2026-11-20 — Search fine-tuning on branch `search-tuning`
+
+After merging PR #7 (`6dc2d6e`) to `main` and confirming live WeatherAPI,
+OpenWeather, Zhipu, Kimi, and MiniMax results on Vercel, applied targeted search
+refinements:
+
+- `web/src/server/paypal/search/guard.ts`: expanded `THIRD_PARTY_HOSTS` to
+  filter additional review/aggregator/news hosts (`trustpilot.com`,
+  `producthunt.com`, `saasworthy.com`, `sourceforge.net`, `softwareadvice.com`,
+  `getapp.com`, `forbes.com`, `techradar.com`, `pcmag.com`, `cnet.com`,
+  `zdnet.com`).
+- `web/src/server/paypal/search/page-fetch.ts`: allowed at most 1 validated
+  same-root-domain HTTPS redirect (re-checked via `safePublicMerchantUrl` and
+  `hasOnlyPublicIps`), added `Accept-Language`, and deduplicated candidates by
+  `rootDomain` preferring `/pricing` and `/plans` URLs.
+- `web/src/server/paypal/search/grounding.ts`: refined `DISCOVERY_SYSTEM` and
+  `EXTRACTION_SYSTEM` to prefer named plan tiers, capture billing periods and
+  official PayPal/billing notes in Stage 1 summaries (up to 800 chars), and
+  avoid generic `"Paid Plans"` labels when named tiers exist.
+- `web/src/server/paypal/search/verify.ts`: widened `PERIOD_PATTERNS` for
+  `billed monthly` / `billed annually` / `/mo.` / `/yr.` and matched PayPal
+  listed alongside card payment methods while keeping negation checks.
+- `web/test/search-pipeline.test.ts`: added coverage for same-domain redirect
+  handling, cross-domain redirect blocking, `/pricing` deduplication priority,
+  and PayPal card-list matching.
+- `HANDOFF-PAYPAL.md`: recorded this session's changes.

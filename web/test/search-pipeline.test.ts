@@ -9,6 +9,7 @@ import { handlePublicResearch } from "../src/server/paypal/public-research";
 import { safePublicMerchantUrl } from "../src/server/paypal/search/guard";
 import {
   extractTextFromHtml,
+  fetchMerchantPages,
   isPrivateOrReservedIp,
 } from "../src/server/paypal/search/page-fetch";
 import {
@@ -106,6 +107,9 @@ describe("gemini-fix hybrid search pipeline", () => {
       paypal: "claimed",
     });
     expect(
+      verifyPayPalInSource("claimed", "Visa, Mastercard, and PayPal."),
+    ).toMatchObject({ paypal: "claimed" });
+    expect(
       verifyPayPalInSource("claimed", "We do not accept PayPal at this time."),
     ).toEqual({ paypal: "unknown", evidence: null });
     expect(
@@ -114,6 +118,56 @@ describe("gemini-fix hybrid search pipeline", () => {
         "Accepted payment methods: Visa, Mastercard, and wire transfer.",
       ),
     ).toMatchObject({ paypal: "not-listed" });
+  });
+
+  it("follows 1 same-domain HTTPS redirect, blocks cross-domain redirects, and prefers /pricing URLs", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url === "https://vendor.example/pricing") {
+        return new Response(null, {
+          status: 301,
+          headers: { Location: "https://www.vendor.example/pricing/" },
+        });
+      }
+      if (url === "https://www.vendor.example/pricing/") {
+        return new Response(
+          "<html><head><title>Vendor Pricing</title></head><body><p>Pro $9/mo</p></body></html>",
+          { status: 200, headers: { "Content-Type": "text/html" } },
+        );
+      }
+      if (url === "https://cross.example/pricing") {
+        return new Response(null, {
+          status: 302,
+          headers: { Location: "https://other-host.example/pricing" },
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const pages = await fetchMerchantPages(
+      [
+        { url: "https://vendor.example/", title: "Vendor Home" },
+        { url: "https://vendor.example/pricing", title: "Vendor Pricing" },
+        {
+          url: "https://cross.example/pricing",
+          title: "Cross",
+          fallbackSnippet: "Fallback excerpt",
+        },
+      ],
+      4000,
+      fetcher,
+    );
+
+    expect(pages).toHaveLength(2);
+    expect(pages[0]).toMatchObject({
+      url: "https://www.vendor.example/pricing/",
+      fetchedLive: true,
+    });
+    expect(pages[1]).toMatchObject({
+      url: "https://cross.example/pricing",
+      fetchedLive: false,
+      text: "Fallback excerpt",
+    });
   });
 
   it("runs Gemini google_search -> direct page fetch -> structured extraction with source-matched verification", async () => {

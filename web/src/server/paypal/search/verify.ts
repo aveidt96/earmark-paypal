@@ -53,8 +53,10 @@ export function verifyPriceInSource(
 type BillingKind = "month" | "year" | "one-time" | "usage-based" | "prepaid";
 
 const PERIOD_PATTERNS: Record<BillingKind, RegExp> = {
-  month: /\/\s*mo(?:nth)?\b|\b(?:per\s+month|monthly|each\s+month)\b/i,
-  year: /\/\s*(?:yr|year)\b|\b(?:per\s+year|yearly|annual(?:ly)?)\b/i,
+  month:
+    /\/\s*mo(?:nth)?\.?\b|\b(?:per\s+mo(?:nth)?\.?|monthly|each\s+month|billed\s+monthly)\b/i,
+  year:
+    /\/\s*(?:yr|year)\.?\b|\b(?:per\s+(?:yr|year)\.?|yearly|annual(?:ly)?|billed\s+annually)\b/i,
   "one-time": /\b(?:one[- ]time|single\s+payment|lifetime|buy\s+now)\b/i,
   "usage-based":
     /\b(?:pay[- ]as[- ]you[- ]go|usage[- ]based|per\s+(?:1[mk]|1,000,000|million|thousand)\s+tokens?|metered)\b/i,
@@ -86,7 +88,7 @@ export function verifyPayPalInSource(
       return { paypal: "unknown", evidence: null };
     }
     if (
-      /\b(?:accept(?:s|ed|ing)?|support(?:s|ed|ing)?|pay\s+(?:with|via|using)|payment\s+methods?|checkout|billing)\b/i.test(
+      /\b(?:accept(?:s|ed|ing)?|support(?:s|ed|ing)?|pay\s+(?:with|via|using)|payment\s+methods?|checkout|billing|visa|mastercard|credit\s+cards?|debit\s+cards?)\b/i.test(
         sentence,
       )
     ) {
