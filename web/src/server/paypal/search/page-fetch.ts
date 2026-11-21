@@ -1,7 +1,7 @@
 import "server-only";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { safePublicMerchantUrl, sanitizePlainText } from "./guard";
+import { rootDomain, safePublicMerchantUrl, sanitizePlainText } from "./guard";
 
 export const MAX_MERCHANT_PAGES = 4;
 const PAGE_TIMEOUT_MS = 4000;
@@ -107,6 +107,27 @@ async function readBoundedText(
   }
 }
 
+async function hasOnlyPublicIps(hostname: string): Promise<boolean> {
+  try {
+    const records = await lookup(hostname, { all: true });
+    return (
+      records.length > 0 &&
+      !records.some((record) => isPrivateOrReservedIp(record.address))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function pagePriority(url: string): number {
+  const path = new URL(url).pathname.toLowerCase();
+  if (/\/(?:pricing|plans?|packages?|tariffs?|subscribe)\b/.test(path))
+    return 3;
+  if (/\/(?:billing|payment|checkout|faq|buy|shop|store|product)\b/.test(path))
+    return 2;
+  return 1;
+}
+
 export async function fetchMerchantPage(
   candidate: { url: string; title?: string; fallbackSnippet?: string },
   timeoutMs: number,
@@ -128,31 +149,50 @@ export async function fetchMerchantPage(
   const effectiveTimeout = Math.min(PAGE_TIMEOUT_MS, Math.max(0, timeoutMs));
   if (effectiveTimeout < 500) return fallback;
 
-  if (!fetcher) {
-    try {
-      const records = await lookup(new URL(safeUrl).hostname, { all: true });
-      if (
-        !records.length ||
-        records.some((record) => isPrivateOrReservedIp(record.address))
-      )
-        return fallback;
-    } catch {
-      return fallback;
-    }
-  }
+  const initialHost = new URL(safeUrl).hostname;
+  if (!fetcher && !(await hasOnlyPublicIps(initialHost))) return fallback;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  const headers = {
+    Accept: "text/html,text/plain;q=0.9",
+    "Accept-Language": "en-US,en;q=0.9",
+    "User-Agent": "EarmarkResearchBot/1.0 (read-only pricing check)",
+  };
   try {
-    const response = await (fetcher ?? fetch)(safeUrl, {
+    let activeUrl = safeUrl;
+    let response = await (fetcher ?? fetch)(activeUrl, {
       method: "GET",
-      redirect: "error",
+      redirect: "manual",
       signal: controller.signal,
-      headers: {
-        Accept: "text/html,text/plain;q=0.9",
-        "User-Agent": "EarmarkResearchBot/1.0 (read-only pricing check)",
-      },
+      headers,
     });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      void response.body?.cancel().catch(() => {});
+      if (!location) return fallback;
+      let resolved: string;
+      try {
+        resolved = new URL(location, activeUrl).toString();
+      } catch {
+        return fallback;
+      }
+      const nextSafe = safePublicMerchantUrl(resolved);
+      if (
+        !nextSafe ||
+        rootDomain(new URL(nextSafe).hostname) !== rootDomain(initialHost)
+      )
+        return fallback;
+      const nextHost = new URL(nextSafe).hostname;
+      if (!fetcher && !(await hasOnlyPublicIps(nextHost))) return fallback;
+      activeUrl = nextSafe;
+      response = await (fetcher ?? fetch)(activeUrl, {
+        method: "GET",
+        redirect: "error",
+        signal: controller.signal,
+        headers,
+      });
+    }
     if (!response.ok) {
       void response.body?.cancel().catch(() => {});
       return fallback;
@@ -177,7 +217,7 @@ export async function fetchMerchantPage(
         };
     if (!extracted.text) return fallback;
     return {
-      url: safeUrl,
+      url: activeUrl,
       title: extracted.title || fallbackTitle,
       text: extracted.text,
       fetchedLive: true,
@@ -200,15 +240,19 @@ export async function fetchMerchantPages(
   timeoutMs: number,
   fetcher?: typeof fetch,
 ): Promise<FetchedMerchantPage[]> {
-  const unique: PageCandidate[] = [];
-  const seen = new Set<string>();
+  const bestByDomain = new Map<string, PageCandidate>();
   for (const item of candidates) {
     const safeUrl = safePublicMerchantUrl(item.url);
-    if (!safeUrl || seen.has(safeUrl)) continue;
-    seen.add(safeUrl);
-    unique.push({ ...item, url: safeUrl });
-    if (unique.length >= MAX_MERCHANT_PAGES) break;
+    if (!safeUrl) continue;
+    const domain = rootDomain(new URL(safeUrl).hostname);
+    const current = bestByDomain.get(domain);
+    if (!current || pagePriority(safeUrl) > pagePriority(current.url)) {
+      bestByDomain.set(domain, { ...item, url: safeUrl });
+    }
   }
+  const unique = [...bestByDomain.values()]
+    .sort((a, b) => pagePriority(b.url) - pagePriority(a.url))
+    .slice(0, MAX_MERCHANT_PAGES);
   const settled = await Promise.all(
     unique.map((item) => fetchMerchantPage(item, timeoutMs, fetcher)),
   );

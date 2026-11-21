@@ -40,6 +40,17 @@ const THIRD_PARTY_HOSTS = new Set([
   "pricepertoken.com",
   "llmpricecheck.com",
   "llm-stats.com",
+  "trustpilot.com",
+  "producthunt.com",
+  "saasworthy.com",
+  "sourceforge.net",
+  "softwareadvice.com",
+  "getapp.com",
+  "forbes.com",
+  "techradar.com",
+  "pcmag.com",
+  "cnet.com",
+  "zdnet.com",
 ]);
 
 const EDITORIAL_PATH_RE =
