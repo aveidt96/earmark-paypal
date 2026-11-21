@@ -35,4 +35,17 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=high
       - run: npm run setup:contracts
-      - run: npm run check
+      - name: format:check
+        run: npm run format:check
+      - name: lint
+        if: always()
+        run: npm run lint
+      - name: typecheck
+        if: always()
+        run: npm run typecheck
+      - name: test
+        if: always()
+        run: npm test
+      - name: build
+        if: always()
+        run: npm run build
